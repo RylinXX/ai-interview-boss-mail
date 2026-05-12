@@ -24,12 +24,31 @@ _client_cache = None
 _client_cache_key = None
 
 
+def _normalize_llm_base_url(base_url: str | None) -> str | None:
+    value = (base_url or "").strip().rstrip("/")
+    if not value:
+        return None
+
+    endpoint_suffixes = ("/chat/completions", "/responses")
+    changed = True
+    while changed:
+        changed = False
+        lower_value = value.lower()
+        for suffix in endpoint_suffixes:
+            if lower_value.endswith(suffix):
+                value = value[: -len(suffix)].rstrip("/")
+                changed = True
+                break
+    return value or None
+
+
 def _get_llm_config() -> Dict[str, Any]:
     db = SessionLocal()
     try:
         cfg = db.query(SystemConfig).first()
         llm_provider = (cfg.llm_provider if cfg else None) or _DEFAULT_PROVIDER
         llm_base_url = (cfg.llm_base_url if cfg else None) or _DEFAULT_BASE_URL_BY_PROVIDER.get(llm_provider) or _DEFAULT_BASE_URL
+        llm_base_url = _normalize_llm_base_url(llm_base_url)
         llm_model = (cfg.llm_model if cfg else None) or _DEFAULT_MODEL
         llm_temperature = (cfg.llm_temperature if cfg and cfg.llm_temperature is not None else None)
         llm_temperature = _DEFAULT_TEMPERATURE if llm_temperature is None else llm_temperature

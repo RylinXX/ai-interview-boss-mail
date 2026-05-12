@@ -371,6 +371,33 @@ def reparse_resume(db: Session, resume_id: UUID, background_tasks: BackgroundTas
     background_tasks.add_task(process_resume_background, resume.id, resume.position_id)
     return resume
 
+def reparse_failed_resumes(db: Session, background_tasks: BackgroundTasks, limit: int = 50) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 50), 100))
+    failed_resumes = (
+        db.query(Resume)
+        .filter(Resume.parse_status == "failed")
+        .order_by(Resume.created_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    queued_ids = []
+    skipped_ids = []
+    for resume in failed_resumes:
+        if not resume.position_id:
+            skipped_ids.append(str(resume.id))
+            continue
+        reparse_resume(db, resume.id, background_tasks)
+        queued_ids.append(str(resume.id))
+
+    return {
+        "total_failed": len(failed_resumes),
+        "queued_count": len(queued_ids),
+        "skipped_count": len(skipped_ids),
+        "resume_ids": queued_ids,
+        "skipped_resume_ids": skipped_ids,
+    }
+
 def get_resumes(db: Session, skip: int = 0, limit: int = 100, candidate_name: str = None, status: str = None, position_id: UUID = None, reviewer_id: UUID = None):
     query = db.query(Resume).options(joinedload(Resume.position))
 

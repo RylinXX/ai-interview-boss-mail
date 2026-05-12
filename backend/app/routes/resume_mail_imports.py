@@ -12,11 +12,13 @@ router = APIRouter(prefix="/resume-mail-import", tags=["resume-mail-import"])
 
 @router.post("/sync")
 def sync_resume_mail_import(
+    limit: int = 100,
     db: Session = Depends(get_db),
     _current_user=Depends(check_roles([UserRole.ADMIN, UserRole.HR])),
 ):
+    safe_limit = min(max(int(limit or 100), 1), 200)
     try:
-        summary = ResumeMailImportService().sync_once(db)
+        summary = ResumeMailImportService().sync_once(db, limit=safe_limit, require_enabled=False)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {
@@ -24,6 +26,7 @@ def sync_resume_mail_import(
         "skipped": summary.skipped,
         "failed": summary.failed,
         "scanned_messages": summary.scanned_messages,
+        "limit": safe_limit,
     }
 
 

@@ -11,6 +11,9 @@ export const getApiErrorMessage = (error: any, fallback = '操作失败') => {
   if (Array.isArray(detail)) {
     return detail.map((item) => item?.msg || item?.message || String(item)).join('；') || fallback;
   }
+  if (error?.code === 'ECONNABORTED' || String(error?.message || '').includes('timeout')) {
+    return '请求处理时间较长，请稍后刷新查看结果';
+  }
   return detail || error?.message || fallback;
 };
 

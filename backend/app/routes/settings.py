@@ -13,6 +13,7 @@ from app.schemas.settings import (
     PromptConfigsResponse, PromptConfigItem, PromptConfigUpdate,
     ResumeMailImportConfigResponse, ResumeMailImportConfigUpdate
 )
+from app.services.ai_service import _normalize_llm_base_url
 from app.services.resume_mail_import_service import ImapResumeMailClient, ResumeMailImportService
 
 
@@ -52,7 +53,7 @@ def get_system_settings(
     config = _get_or_create_config(db)
     api_key_set, api_key_last4 = _mask_key(config.llm_api_key)
     return SystemModelConfigResponse(
-        llm_base_url=config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        llm_base_url=_normalize_llm_base_url(config.llm_base_url) or "https://dashscope.aliyuncs.com/compatible-mode/v1",
         llm_model=config.llm_model or "qwen3.5-plus",
         llm_api_key_set=api_key_set,
         llm_api_key_last4=api_key_last4,
@@ -69,7 +70,7 @@ def update_system_settings(
     data = payload.dict(exclude_unset=True)
 
     if "llm_base_url" in data:
-        config.llm_base_url = (data["llm_base_url"] or "").strip() or None
+        config.llm_base_url = _normalize_llm_base_url(data["llm_base_url"])
 
     if "llm_model" in data:
         model = (data["llm_model"] or "").strip()

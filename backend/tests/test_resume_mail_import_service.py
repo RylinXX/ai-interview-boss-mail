@@ -494,6 +494,58 @@ def test_sync_once_imports_recent_messages_and_marks_seen(
     assert fake_client.seen_uids == ["909"]
 
 
+def test_sync_once_skips_when_auto_import_disabled_by_default(
+    db, tmp_path, test_position
+):
+    db.add(
+        SystemConfig(
+            resume_mail_import_enabled=False,
+            resume_mail_username="recruiting@example.com",
+            resume_mail_default_position_id=test_position.id,
+            resume_mail_mark_success_read=True,
+        )
+    )
+    db.commit()
+
+    parsed = make_parsed_message(uid="914", attachment_hash="a" * 64)
+    fake_client = FakeImapClient([parsed])
+    service = ResumeMailImportService(upload_root=str(tmp_path), imap_client=fake_client)
+
+    summary = service.sync_once(db, limit=10)
+
+    assert summary.imported == 0
+    assert summary.scanned_messages == 0
+    assert fake_client.seen_uids == []
+
+
+def test_sync_once_can_run_manual_sync_when_auto_import_disabled(
+    db, tmp_path, test_position, monkeypatch
+):
+    db.add(
+        SystemConfig(
+            resume_mail_import_enabled=False,
+            resume_mail_username="recruiting@example.com",
+            resume_mail_default_position_id=test_position.id,
+            resume_mail_mark_success_read=True,
+        )
+    )
+    db.commit()
+    monkeypatch.setattr(
+        "app.services.resume_mail_import_service.process_resume_background",
+        lambda *args, **kwargs: None,
+    )
+
+    parsed = make_parsed_message(uid="915", attachment_hash="b" * 64)
+    fake_client = FakeImapClient([parsed])
+    service = ResumeMailImportService(upload_root=str(tmp_path), imap_client=fake_client)
+
+    summary = service.sync_once(db, limit=10, require_enabled=False)
+
+    assert summary.imported == 1
+    assert summary.scanned_messages == 1
+    assert fake_client.seen_uids == ["915"]
+
+
 def test_sync_once_marks_each_successful_message_seen(
     db, tmp_path, test_position, monkeypatch
 ):

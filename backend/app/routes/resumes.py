@@ -9,7 +9,7 @@ from app.schemas.resume import (
 )
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
-    batch_upload_resumes, reparse_resume,
+    batch_upload_resumes, reparse_resume, reparse_failed_resumes,
     check_duplicate_resume, create_department_review, get_department_reviews,
     complete_department_review, aggregate_department_reviews, submit_hr_decision,
     confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position
@@ -102,6 +102,15 @@ def batch_upload_resumes_route(
     for f in files:
         validate_pdf_file(f)
     return batch_upload_resumes(db, files, position_id, background_tasks)
+
+@router.post("/reparse-failed")
+def reparse_failed_resumes_route(
+    background_tasks: BackgroundTasks,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(check_roles([UserRole.ADMIN, UserRole.HR]))
+):
+    return reparse_failed_resumes(db, background_tasks, limit=limit)
 
 # ==================== 简历详情与更新 ====================
 

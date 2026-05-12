@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Table, Button, Space, message, Tag, Modal, Tooltip, Typography, Form, Select, Upload, Input, DatePicker, InputNumber, Card, Row, Col, Checkbox } from 'antd';
-import { PlusOutlined, EyeOutlined, TeamOutlined, DeleteOutlined, UploadOutlined, ReloadOutlined, CloseCircleOutlined, SearchOutlined, UndoOutlined, SolutionOutlined, SyncOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, TeamOutlined, DeleteOutlined, UploadOutlined, ReloadOutlined, CloseCircleOutlined, SearchOutlined, UndoOutlined, SolutionOutlined, SyncOutlined, InboxOutlined } from '@ant-design/icons';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { useNavigate } from 'react-router-dom';
 
 const { Title, Text } = Typography;
+const { Dragger } = Upload;
+const MAX_RESUME_UPLOAD_COUNT = 10;
 
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -145,7 +147,10 @@ const ResumesList: React.FC = () => {
   const handleSyncResumeMail = async () => {
     setMailSyncing(true);
     try {
-      const res = (await request.post('/resume-mail-import/sync')) as any;
+      const res = (await request.post('/resume-mail-import/sync', undefined, {
+        params: { limit: 100 },
+        timeout: 120000,
+      })) as any;
       const summary = `扫描 ${res.scanned_messages ?? 0}，导入 ${res.imported ?? 0}，跳过 ${res.skipped ?? 0}，失败 ${res.failed ?? 0}`;
       setLastMailSyncSummary(summary);
       if ((res.failed ?? 0) > 0) {
@@ -438,11 +443,11 @@ const ResumesList: React.FC = () => {
 
   const handleOk = async () => {
     try {
-      const values = await form.validateFields();
       if (fileList.length === 0) {
         message.error('请上传简历文件');
         return;
       }
+      const values = await form.validateFields();
 
       setSubmitting(true);
       
@@ -483,10 +488,7 @@ const ResumesList: React.FC = () => {
   const uploadProps = {
     onRemove: (file: any) => {
       setFileList((prev) => {
-        const index = prev.indexOf(file);
-        const newFileList = prev.slice();
-        newFileList.splice(index, 1);
-        return newFileList;
+        return prev.filter(item => item.uid !== file.uid);
       });
     },
     beforeUpload: (file: any) => {
@@ -495,7 +497,13 @@ const ResumesList: React.FC = () => {
         message.error('只允许上传 PDF 格式的文件');
         return Upload.LIST_IGNORE;
       }
-      setFileList((prev) => [...prev, file]);
+      setFileList((prev) => {
+        if (prev.length >= MAX_RESUME_UPLOAD_COUNT) {
+          message.warning(`一次最多上传 ${MAX_RESUME_UPLOAD_COUNT} 份简历`);
+          return prev;
+        }
+        return [...prev, file];
+      });
       return false;
     },
     fileList,
@@ -654,7 +662,7 @@ const ResumesList: React.FC = () => {
                   邮箱同步
                 </Button>
               </Tooltip>
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleUploadClick} size="large" style={{ borderRadius: '8px' }}>上传简历</Button>
+              <Button type="primary" icon={<UploadOutlined />} onClick={handleUploadClick} size="large" style={{ borderRadius: '8px' }}>批量上传简历</Button>
             </>
           )}
           {user?.role === 'interviewer' && (
@@ -742,7 +750,7 @@ const ResumesList: React.FC = () => {
 
       {/* Upload Modal */}
       <Modal
-        title="上传简历"
+        title="批量上传简历"
         open={isModalVisible}
         onOk={handleOk}
         onCancel={() => setIsModalVisible(false)}
@@ -771,14 +779,16 @@ const ResumesList: React.FC = () => {
           </Form.Item>
 
           <Form.Item
-            name="file"
             label="简历文件"
-            rules={[{ required: true, message: '请上传简历文件' }]}
-            extra="仅支持 PDF 格式，可批量上传"
+            extra={`仅支持 PDF 格式，一次最多 ${MAX_RESUME_UPLOAD_COUNT} 份。单文件会自动走普通上传，多文件会走批量上传。`}
           >
-            <Upload {...uploadProps} maxCount={10}>
-              <Button icon={<UploadOutlined />} size="large">选择文件（可多选）</Button>
-            </Upload>
+            <Dragger {...uploadProps} maxCount={MAX_RESUME_UPLOAD_COUNT}>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">拖拽 PDF 简历到这里，或点击选择文件</p>
+              <p className="ant-upload-hint">支持多选上传，系统会自动创建候选人记录并进入 AI 解析队列</p>
+            </Dragger>
           </Form.Item>
         </Form>
       </Modal>

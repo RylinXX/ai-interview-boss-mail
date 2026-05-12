@@ -148,10 +148,16 @@ class ResumeMailImportService:
         self.upload_root = upload_root
         self.imap_client = imap_client
 
-    def sync_once(self, db: Session, limit: int = 20) -> ImportSummary:
+    def sync_once(
+        self,
+        db: Session,
+        limit: int = 100,
+        *,
+        require_enabled: bool = True,
+    ) -> ImportSummary:
         summary = ImportSummary()
         config = self._get_config(db)
-        if not config or not config.resume_mail_import_enabled:
+        if not config or (require_enabled and not config.resume_mail_import_enabled):
             return summary
 
         client = self.imap_client

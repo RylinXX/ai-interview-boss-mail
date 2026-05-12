@@ -75,8 +75,10 @@ def test_resume_mail_import_connection_test_uses_saved_config(
 
 
 def test_manual_sync_returns_summary(client, admin_auth_headers, db, monkeypatch):
-    def fake_sync_once(self, db_session):
+    def fake_sync_once(self, db_session, limit=20, *, require_enabled=True):
         assert db_session is db
+        assert limit == 100
+        assert require_enabled is False
         return ImportSummary(imported=2, skipped=1, failed=0, scanned_messages=3)
 
     monkeypatch.setattr(ResumeMailImportService, "sync_once", fake_sync_once)
@@ -89,7 +91,26 @@ def test_manual_sync_returns_summary(client, admin_auth_headers, db, monkeypatch
         "skipped": 1,
         "failed": 0,
         "scanned_messages": 3,
+        "limit": 100,
     }
+
+
+def test_manual_sync_accepts_safe_limit(client, admin_auth_headers, db, monkeypatch):
+    calls = []
+
+    def fake_sync_once(self, db_session, limit=20, *, require_enabled=True):
+        calls.append(limit)
+        return ImportSummary()
+
+    monkeypatch.setattr(ResumeMailImportService, "sync_once", fake_sync_once)
+
+    response = client.post(
+        "/api/resume-mail-import/sync?limit=500",
+        headers=admin_auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert calls == [200]
 
 
 def test_resume_mail_import_logs_return_recent_items(

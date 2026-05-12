@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Button, Avatar, Space, Dropdown, Badge, Tag, Popover, Spin, Empty, Typography } from 'antd';
+import { Layout, Menu, Button, Avatar, Space, Dropdown, Badge, Tag, Popover, Spin, Empty, Typography, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   UserOutlined,
@@ -24,7 +24,7 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useThemeMode } from '../../contexts/ThemeContext';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -39,6 +39,7 @@ type NotificationItem = {
   path: string;
   tone: NotificationTone;
   icon: React.ReactNode;
+  action?: 'reparse-failed-resumes';
 };
 
 const isSameDay = (value?: string | null) => {
@@ -139,11 +140,12 @@ const AppLayout: React.FC = () => {
       addNotification(nextItems, {
         key: 'resume-parse-failed',
         title: '简历解析失败',
-        description: '需要重新解析或检查文件内容',
+        description: role === 'admin' || role === 'hr' ? '点击批量重新解析失败简历' : '需要重新解析或检查文件内容',
         count: resumes.filter(item => item.parse_status === 'failed').length,
         path: '/resumes',
         tone: 'danger',
         icon: <WarningOutlined />,
+        action: role === 'admin' || role === 'hr' ? 'reparse-failed-resumes' : undefined,
       });
       addNotification(nextItems, {
         key: 'resume-review',
@@ -238,6 +240,35 @@ const AppLayout: React.FC = () => {
 
   const notificationCount = notificationItems.reduce((sum, item) => sum + item.count, 0);
 
+  const handleNotificationClick = React.useCallback((item: NotificationItem) => {
+    if (item.action === 'reparse-failed-resumes') {
+      setNotificationOpen(false);
+      Modal.confirm({
+        title: '批量重新解析失败简历',
+        content: `将把当前 ${item.count} 份解析失败的简历重新提交到 AI 解析队列。`,
+        okText: '开始重新解析',
+        cancelText: '取消',
+        onOk: async () => {
+          try {
+            const res = await request.post('/resumes/reparse-failed', undefined, {
+              params: { limit: item.count },
+            }) as any;
+            const skipped = res.skipped_count ? `，跳过 ${res.skipped_count} 份缺少岗位的简历` : '';
+            message.success(`已提交 ${res.queued_count || 0} 份简历重新解析${skipped}`);
+            navigate('/resumes');
+            await fetchNotifications();
+          } catch (error) {
+            message.error(getApiErrorMessage(error, '批量重新解析失败'));
+            throw error;
+          }
+        },
+      });
+      return;
+    }
+    setNotificationOpen(false);
+    navigate(item.path);
+  }, [fetchNotifications, navigate]);
+
   const notificationPanel = (
     <div className="notification-panel">
       <div className="notification-panel-head">
@@ -264,10 +295,7 @@ const AppLayout: React.FC = () => {
               type="button"
               key={item.key}
               className={`notification-item notification-item-${item.tone}`}
-              onClick={() => {
-                setNotificationOpen(false);
-                navigate(item.path);
-              }}
+              onClick={() => handleNotificationClick(item)}
             >
               <span className="notification-item-icon">{item.icon}</span>
               <span className="notification-item-body">

@@ -1,4 +1,8 @@
-from app.services.ai_service import _completion_options, _parse_json_content
+from app.services.ai_service import (
+    _completion_options,
+    _normalize_llm_base_url,
+    _parse_json_content,
+)
 
 
 def test_openai_compatible_provider_does_not_force_json_response_format():
@@ -50,3 +54,17 @@ def test_parse_json_content_handles_markdown_fence():
     content = '```json\n{"name": "candidate", "score": 88}\n```'
 
     assert _parse_json_content(content) == {"name": "candidate", "score": 88}
+
+
+def test_normalize_llm_base_url_strips_responses_endpoint_suffix():
+    assert (
+        _normalize_llm_base_url("https://ark.cn-beijing.volces.com/api/v3/responses")
+        == "https://ark.cn-beijing.volces.com/api/v3"
+    )
+
+
+def test_normalize_llm_base_url_strips_chat_completions_endpoint_suffix():
+    assert (
+        _normalize_llm_base_url("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions/")
+        == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )

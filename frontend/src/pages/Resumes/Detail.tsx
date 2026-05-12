@@ -153,6 +153,7 @@ const ResumeDetail: React.FC = () => {
   const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
   const pdfPreviewUrl = isPdf ? getMaximizedPdfPreviewUrl(fileUrl) : '';
   const statusInfo = getStatusInfo(resume.status, resume.parse_status);
+  const candidateInitial = (resume.candidate_name || '候').trim().slice(0, 1);
 
   const handleReparse = () => {
     Modal.confirm({
@@ -484,20 +485,23 @@ const ResumeDetail: React.FC = () => {
   };
 
   return (
-    <div style={{ height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ marginBottom: 16 }}>
+    <div className="resume-detail-page">
+      <div className="resume-detail-toolbar">
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/resumes')}>返回列表</Button>
       </div>
-      <div style={{ flex: 1, display: 'flex', gap: '24px', overflow: 'hidden' }}>
+      <div className="resume-detail-shell">
       {/* Left: File Preview */}
-      <div style={{ flex: 1, background: '#fff', borderRadius: '16px', border: '1px solid #E2E8F0', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F8FAFC' }}>
-          <Title level={5} style={{ margin: 0 }}>简历原件预览</Title>
+      <div className="resume-preview-pane">
+        <div className="resume-preview-head">
+          <div>
+            <Text className="eyebrow">Original Resume</Text>
+            <Title level={5}>简历原件预览</Title>
+          </div>
           <Button type="primary" icon={<DownloadOutlined />} href={fileUrl} target="_blank" download>
             下载原件
           </Button>
         </div>
-        <div style={{ flex: 1, background: '#F1F5F9' }}>
+        <div className="resume-preview-body">
           {fileUrl ? (
             isPdf ? (
               <iframe
@@ -506,14 +510,14 @@ const ResumeDetail: React.FC = () => {
                 title="Resume Preview"
               />
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#64748B' }}>
-                <FileWordOutlined style={{ fontSize: '64px', marginBottom: '16px', color: '#3B82F6' }} />
+              <div className="resume-preview-empty">
+                <FileWordOutlined />
                 <Text type="secondary" style={{ marginBottom: '16px' }}>该文件格式暂不支持在线预览，请下载后查看</Text>
                 <Button type="primary" href={fileUrl} download>下载文件</Button>
               </div>
             )
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94A3B8' }}>
+            <div className="resume-preview-empty">
               暂无文件
             </div>
           )}
@@ -521,74 +525,74 @@ const ResumeDetail: React.FC = () => {
       </div>
 
       {/* Right: AI Analysis & Details */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
+      <div className="resume-analysis-pane">
         <Card
-          bordered={false}
-          style={{ borderRadius: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #E2E8F0' }}
+          className="resume-profile-card"
+          variant="borderless"
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <div style={{ flex: 1 }}>
-              {isEditing ? (
-                  <Form form={form} layout="inline">
-                      <Form.Item name="candidate_name" style={{ marginBottom: 0 }}>
-                          <Input placeholder="姓名" style={{ fontSize: 24, fontWeight: 600, width: 150 }} />
-                      </Form.Item>
-                  </Form>
-              ) : (
-                  <Title level={2} style={{ margin: 0 }}>{resume.candidate_name}</Title>
-              )}
-
-              <div style={{ marginTop: 8 }}>
+          <div className="resume-profile-hero">
+            <div className="resume-candidate-main">
+              <Avatar className="resume-candidate-avatar">{candidateInitial}</Avatar>
+              <div className="resume-candidate-copy">
                 {isEditing ? (
-                    <Form form={form} layout="inline" style={{ marginTop: 8 }}>
-                         <Form.Item name="email" style={{ marginBottom: 0 }}>
-                             <Input placeholder="邮箱" style={{ width: 200 }} />
-                         </Form.Item>
-                         <Form.Item name="contact" style={{ marginBottom: 0 }}>
-                             <Input placeholder="电话" style={{ width: 150 }} />
-                         </Form.Item>
+                    <Form form={form} layout="inline" className="resume-inline-form">
+                        <Form.Item name="candidate_name">
+                            <Input placeholder="姓名" className="resume-name-input" />
+                        </Form.Item>
                     </Form>
                 ) : (
-                    <Space wrap size={12}>
-                        <Text
-                          type="secondary"
-                          ellipsis={{ tooltip: resume.email }}
-                          style={{ maxWidth: 260 }}
-                        >
-                          {resume.email}
-                        </Text>
-                        <Text type="secondary">{resume.contact}</Text>
-                    </Space>
+                    <Title level={2} className="resume-candidate-name">{resume.candidate_name}</Title>
                 )}
+
+                <div className="resume-candidate-meta">
+                  {isEditing ? (
+                      <Form form={form} layout="inline" className="resume-inline-form">
+                           <Form.Item name="email">
+                               <Input placeholder="邮箱" />
+                           </Form.Item>
+                           <Form.Item name="contact">
+                               <Input placeholder="电话" />
+                           </Form.Item>
+                      </Form>
+                  ) : (
+                      <Space wrap size={[12, 8]}>
+                          <Text
+                            type="secondary"
+                            ellipsis={{ tooltip: resume.email }}
+                          >
+                            {resume.email || '未识别邮箱'}
+                          </Text>
+                          <Text type="secondary">{resume.contact || '未识别电话'}</Text>
+                      </Space>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>匹配度</Text>
-                <div style={{ marginTop: 4 }}>
+            <div className="resume-action-panel">
+              <div className="resume-score-strip">
+                <div className="resume-score-card">
+                  <Text type="secondary">匹配度</Text>
                   <Progress
                     type="circle"
                     percent={resume.match_score}
-                    width={50}
-                    format={percent => <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>{percent}%</span>}
+                    size={54}
+                    format={percent => <span className="resume-score-value">{percent}%</span>}
                     strokeColor={resume.match_score >= 80 ? '#10B981' : resume.match_score >= 60 ? '#F59E0B' : '#EF4444'}
                   />
                 </div>
-              </div>
-              <div>
-                <Tag color={statusInfo.color} style={{ fontSize: 14, padding: '4px 10px', margin: 0 }}>
+                <Tag color={statusInfo.color} className="resume-status-tag">
                   {statusInfo.text}
                 </Tag>
               </div>
 
-              <Space>
+              <Space wrap size={[8, 8]} className="resume-action-buttons">
                 {renderActionButtons()}
               </Space>
             </div>
           </div>
 
-          <Descriptions column={2} bordered size="small">
+          <Descriptions className="resume-info-grid" column={1} bordered size="small">
             <Descriptions.Item label="应聘岗位">{resume.position?.title}</Descriptions.Item>
             <Descriptions.Item label="学历">{parsedData.highest_degree || '未识别'}</Descriptions.Item>
             <Descriptions.Item label="毕业院校">{parsedData.school || '未识别'}</Descriptions.Item>
@@ -607,20 +611,12 @@ const ResumeDetail: React.FC = () => {
             )}
           </Descriptions>
 
-          <Divider style={{ borderColor: '#E2E8F0' }}>AI 初审评价</Divider>
-          <div style={{
-            background: '#F8FAFC',
-            padding: '20px',
-            borderRadius: '12px',
-            border: '1px solid #E2E8F0',
-            color: '#334155',
-            fontSize: '15px',
-            lineHeight: 1.8
-          }}>
+          <Divider className="resume-section-divider">AI 初审评价</Divider>
+          <div className="resume-ai-review">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                h3: ({node, ...props}) => <h3 style={{ color: '#0F172A', marginTop: '16px', marginBottom: '8px', fontSize: '16px' }} {...props} />,
+                h3: ({node, ...props}) => <h3 {...props} />,
                 p: ({node, ...props}) => <p style={{ marginBottom: '12px' }} {...props} />,
                 ul: ({node, ...props}) => <ul style={{ paddingLeft: '20px', marginBottom: '12px' }} {...props} />,
                 li: ({node, ...props}) => <li style={{ marginBottom: '4px' }} {...props} />
@@ -633,13 +629,8 @@ const ResumeDetail: React.FC = () => {
           {/* 其他岗位匹配推荐 */}
           {resume.other_position_matches && resume.other_position_matches.length > 0 && (
             <>
-              <Divider style={{ borderColor: '#E2E8F0' }}>其他岗位匹配推荐</Divider>
-              <div style={{
-                background: '#F0F9FF',
-                padding: '20px',
-                borderRadius: '12px',
-                border: '1px solid #BAE6FD',
-              }}>
+              <Divider className="resume-section-divider">其他岗位匹配推荐</Divider>
+              <div className="resume-position-matches">
                 <Text type="secondary" style={{ marginBottom: 12, display: 'block' }}>
                   该候选人与以下岗位也有较好的匹配度，可考虑转岗推荐
                 </Text>
@@ -649,11 +640,12 @@ const ResumeDetail: React.FC = () => {
                     <List.Item style={{ border: 'none', padding: '12px 0' }}>
                       <Card
                         size="small"
-                        style={{ width: '100%', background: '#fff', borderRadius: 8 }}
-                        bodyStyle={{ padding: '12px 16px' }}
+                        className="resume-match-card"
+                        style={{ width: '100%' }}
+                        styles={{ body: { padding: '12px 16px' } }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ flex: 1 }}>
+                        <div className="resume-match-row">
+                          <div className="resume-match-copy">
                             <Space>
                               <Text strong>{match.position_title}</Text>
                               {match.is_better_match && (
@@ -670,7 +662,7 @@ const ResumeDetail: React.FC = () => {
                             <Progress
                               type="circle"
                               percent={match.match_score}
-                              width={45}
+                              size={45}
                               format={percent => <span style={{ fontSize: 12, fontWeight: 600 }}>{percent}%</span>}
                               strokeColor={match.match_score >= 80 ? '#10B981' : match.match_score >= 60 ? '#F59E0B' : '#EF4444'}
                             />
