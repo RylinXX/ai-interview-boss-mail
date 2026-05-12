@@ -42,3 +42,21 @@ def test_read_file_content_uses_vision_fallback_for_unreadable_pdf(monkeypatch, 
     assert read_file_content
     assert "肖尧" in read_file_content
     assert "AI产品经理" in read_file_content
+
+
+def test_read_file_content_prefers_model_document_extraction_for_pdf(monkeypatch, tmp_path):
+    pdf = tmp_path / "resume.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+
+    local_extract_called = False
+
+    def fake_local_extract(file_path):
+        nonlocal local_extract_called
+        local_extract_called = True
+        return "本地解析文本"
+
+    monkeypatch.setattr(resume_service, "extract_resume_text_from_document", lambda file_path: "模型直读文本")
+    monkeypatch.setattr(resume_service, "_extract_pdf_text", fake_local_extract)
+
+    assert resume_service.read_file_content(str(pdf)) == "模型直读文本"
+    assert local_extract_called is False

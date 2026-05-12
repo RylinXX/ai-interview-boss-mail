@@ -30,7 +30,6 @@ type ResumeMailImportSettings = {
   username?: string | null;
   password_set: boolean;
   use_ssl: boolean;
-  default_position_id?: string | null;
   poll_interval_seconds: number;
   mark_success_read: boolean;
   last_sync_at?: string | null;
@@ -43,11 +42,6 @@ type ResumeMailImportLog = {
   status: string;
   reason?: string | null;
   created_at?: string | null;
-};
-
-type PositionOption = {
-  id: string;
-  title: string;
 };
 
 type PromptConfigItem = {
@@ -70,14 +64,9 @@ type PromptVariablesResponse = {
 };
 
 const promptNames: Record<string, string> = {
-  generate_jd: 'JD生成',
-  analyze_resume: '简历分析',
+  analyze_resume_intelligence: '简历智能分析',
   generate_resume_markdown: '简历Markdown生成',
-  generate_interview_questions: '面试题目生成',
-  generate_interview_evaluation: '面试评价生成',
-  generate_interview_evaluation_from_transcript: '转写评价生成',
-  generate_coding_test_evaluation: '笔试代码评价',
-
+  analyze_resume: '旧版人岗匹配分析',
 };
 
 const SystemSettingsPage: React.FC = () => {
@@ -96,7 +85,6 @@ const SystemSettingsPage: React.FC = () => {
   const [mailMeta, setMailMeta] = useState<MailSettings | null>(null);
   const [resumeMailMeta, setResumeMailMeta] = useState<ResumeMailImportSettings | null>(null);
   const [resumeMailLogs, setResumeMailLogs] = useState<ResumeMailImportLog[]>([]);
-  const [positionOptions, setPositionOptions] = useState<PositionOption[]>([]);
   const [editingKey, setEditingKey] = useState(false);
   const [editingMailPassword, setEditingMailPassword] = useState(false);
   const role = (user as any)?.role?.value ?? (user as any)?.role;
@@ -105,7 +93,7 @@ const SystemSettingsPage: React.FC = () => {
   const [promptLoading, setPromptLoading] = useState(false);
   const [promptSaving, setPromptSaving] = useState(false);
   const [promptConfigs, setPromptConfigs] = useState<PromptConfigs | null>(null);
-  const [activePromptKey, setActivePromptKey] = useState('generate_jd');
+  const [activePromptKey, setActivePromptKey] = useState('analyze_resume_intelligence');
   const [promptForm] = Form.useForm();
   const [promptVariables, setPromptVariables] = useState<PromptVariablesResponse | null>(null);
   const userPromptRef = useRef<any>(null);
@@ -177,7 +165,6 @@ const SystemSettingsPage: React.FC = () => {
         username: res.username || undefined,
         password: '',
         use_ssl: res.use_ssl,
-        default_position_id: res.default_position_id || undefined,
         poll_interval_seconds: res.poll_interval_seconds || 120,
         mark_success_read: res.mark_success_read,
       });
@@ -197,15 +184,6 @@ const SystemSettingsPage: React.FC = () => {
     }
   };
 
-  const fetchPositionOptions = async () => {
-    try {
-      const positions = (await request.get('/positions')) as PositionOption[];
-      setPositionOptions(positions);
-    } catch (e) {
-      setPositionOptions([]);
-    }
-  };
-
   const saveResumeMailSettings = async () => {
     try {
       const values = await resumeMailForm.validateFields();
@@ -215,7 +193,6 @@ const SystemSettingsPage: React.FC = () => {
         imap_port: values.imap_port || 993,
         username: values.username || null,
         use_ssl: values.use_ssl !== false,
-        default_position_id: values.default_position_id || null,
         poll_interval_seconds: values.poll_interval_seconds || 120,
         mark_success_read: values.mark_success_read !== false,
       };
@@ -309,7 +286,6 @@ const SystemSettingsPage: React.FC = () => {
     fetchMailSettings();
     fetchResumeMailSettings();
     fetchResumeMailLogs();
-    fetchPositionOptions();
     fetchPromptConfigs();
     fetchPromptVariables();
   }, [role, form, mailForm, resumeMailForm]);
@@ -525,8 +501,8 @@ const SystemSettingsPage: React.FC = () => {
       failed_connection: '连接失败',
       failed_parse_message: '解析失败',
       failed_save_file: '保存失败',
-      failed_missing_default_position: '缺少默认岗位',
-      failed_enqueue: '评测入队失败',
+      failed_missing_default_position: '旧版默认岗位缺失',
+      failed_enqueue: '分析入队失败',
     };
     return labels[status] || status;
   };
@@ -660,7 +636,7 @@ const SystemSettingsPage: React.FC = () => {
             name="mail_enabled"
             label="启用邮件通知"
             valuePropName="checked"
-            extra={<Text type="secondary">开启后，创建面试和确认结果时会自动发送邮件通知</Text>}
+            extra={<Text type="secondary">保留 SMTP 配置，后续可用于发送简历分析报告或项目评估摘要</Text>}
           >
             <Switch checkedChildren="开启" unCheckedChildren="关闭" />
           </Form.Item>
@@ -746,7 +722,7 @@ const SystemSettingsPage: React.FC = () => {
           <Form.Item
             name="frontend_url"
             label="前端访问地址"
-            extra={<Text type="secondary">用于生成邮件中的链接，如Offer确认链接。请填写完整的访问地址，如：https://hr.example.com</Text>}
+            extra={<Text type="secondary">用于生成系统邮件里的访问链接。请填写完整地址，如：https://intel.example.com</Text>}
           >
             <Input placeholder="例如：http://localhost:5173 或 https://hr.example.com" autoComplete="off" />
           </Form.Item>
@@ -824,17 +800,6 @@ const SystemSettingsPage: React.FC = () => {
               rules={resumeMailMeta?.password_set ? [] : [{ required: true, message: '请输入邮箱授权码' }]}
             >
               <Input.Password autoComplete="new-password" />
-            </Form.Item>
-
-            <Form.Item
-              name="default_position_id"
-              label="默认导入岗位"
-              rules={[{ required: true, message: '请选择默认岗位' }]}
-            >
-              <Select
-                placeholder="请选择岗位"
-                options={positionOptions.map((item) => ({ value: item.id, label: item.title }))}
-              />
             </Form.Item>
 
             <Form.Item name="poll_interval_seconds" label="同步间隔（秒）">

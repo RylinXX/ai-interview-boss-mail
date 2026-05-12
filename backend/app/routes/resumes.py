@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.schemas.resume import (
@@ -10,10 +11,13 @@ from app.schemas.resume import (
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
+    summarize_resume_experiences, summarize_resume_projects,
     check_duplicate_resume, create_department_review, get_department_reviews,
     complete_department_review, aggregate_department_reviews, submit_hr_decision,
-    confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position
+    confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position,
+    export_resume_analysis_report
 )
+from app.services.task_queue import get_task_queue
 from app.models.models import ResumeStatus, RejectReasonCategory, User, UserRole, Resume
 from app.core.security import check_roles
 from app.routes.auth import get_current_user
@@ -81,7 +85,7 @@ def validate_pdf_file(file: UploadFile):
 @router.post("", response_model=ResumeResponse)
 def create_resume_route(
     background_tasks: BackgroundTasks,
-    position_id: UUID = Form(...),
+    position_id: Optional[UUID] = Form(None),
     file: UploadFile = File(...),
     candidate_name: str = Form(None),  # 公开链接上传时由应聘者填写
     email: str = Form(None),
@@ -94,7 +98,7 @@ def create_resume_route(
 @router.post("/batch", response_model=List[ResumeResponse])
 def batch_upload_resumes_route(
     background_tasks: BackgroundTasks,
-    position_id: UUID = Form(...),
+    position_id: Optional[UUID] = Form(None),
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(check_roles([UserRole.ADMIN, UserRole.HR]))
@@ -111,6 +115,38 @@ def reparse_failed_resumes_route(
     current_user: User = Depends(check_roles([UserRole.ADMIN, UserRole.HR]))
 ):
     return reparse_failed_resumes(db, background_tasks, limit=limit)
+
+
+@router.get("/experience-summary")
+def get_resume_experience_summary_route(
+    limit: int = 500,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return summarize_resume_experiences(db, limit=limit)
+
+
+@router.get("/project-library")
+def get_resume_project_library_route(
+    limit: int = 500,
+    missing_only: bool = False,
+    candidate_name: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return summarize_resume_projects(
+        db,
+        limit=limit,
+        missing_only=missing_only,
+        candidate_name=candidate_name,
+    )
+
+
+@router.get("/queue-stats")
+def get_resume_queue_stats_route(
+    current_user: User = Depends(get_current_user)
+):
+    return get_task_queue().get_stats()
 
 # ==================== 简历详情与更新 ====================
 
@@ -159,6 +195,19 @@ def reparse_resume_route(
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
     return resume
+
+
+@router.get("/{resume_id}/export")
+def export_resume_analysis_route(
+    resume_id: UUID,
+    format: str = "markdown",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    content = export_resume_analysis_report(db, resume_id, format)
+    if not content:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    return PlainTextResponse(content=content)
 
 # ==================== 部门评审 ====================
 

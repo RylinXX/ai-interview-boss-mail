@@ -35,7 +35,7 @@ class ResumeBase(BaseModel):
     candidate_name: Optional[str] = None
     contact: Optional[str] = None
     email: Optional[str] = None
-    position_id: UUID
+    position_id: Optional[UUID] = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -151,7 +151,7 @@ class HRDecisionResponse(BaseModel):
 class DuplicateCheckRequest(BaseModel):
     email: Optional[str] = None
     contact: Optional[str] = None
-    position_id: UUID
+    position_id: Optional[UUID] = None
 
     @field_validator("email", mode="before")
     @classmethod

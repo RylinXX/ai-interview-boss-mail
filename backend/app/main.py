@@ -6,12 +6,10 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth, positions, question_banks, resumes, interviews, dashboard, coding_tests, settings, offers, offer_templates, public_review, workflows, resume_mail_imports
-from app.routes.offers import router as offers_router, public_router as offers_public_router
+from app.routes import auth, resumes, settings, resume_mail_imports
 from app.config.database import engine, SessionLocal
 from app.models.models import Base, User, UserRole
 from app.core.security import get_password_hash
-from app.services.workflow_service import create_builtin_workflows
 from app.services.resume_mail_import_scheduler import resume_mail_import_scheduler
 
 # Create tables
@@ -80,32 +78,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api")
-app.include_router(positions.router, prefix="/api")
-app.include_router(question_banks.router, prefix="/api")
 app.include_router(resumes.router, prefix="/api")
-app.include_router(interviews.router, prefix="/api")
-app.include_router(dashboard.router, prefix="/api")
-app.include_router(coding_tests.router, prefix="/api")
-app.include_router(coding_tests.public_router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
-app.include_router(offers.router, prefix="/api")
-app.include_router(offers_public_router, prefix="/api")
-app.include_router(offer_templates.router, prefix="/api")
-app.include_router(public_review.router, prefix="/api")
-app.include_router(workflows.router, prefix="/api")
 app.include_router(resume_mail_imports.router, prefix="/api")
-
-
-def init_builtin_workflows_on_startup():
-    db = SessionLocal()
-    try:
-        create_builtin_workflows(db)
-    except Exception as e:
-        print(f"Error initializing builtin workflows: {e}")
-    finally:
-        db.close()
-
-init_builtin_workflows_on_startup()
 
 
 @app.on_event("startup")

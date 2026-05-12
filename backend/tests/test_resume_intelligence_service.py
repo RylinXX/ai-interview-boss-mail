@@ -1,0 +1,330 @@
+from uuid import uuid4
+
+from app.models.models import Resume, ResumeStatus, ScreeningResult
+from app.services import resume_service
+
+
+def test_upload_resume_route_accepts_pdf_without_position(client, db, monkeypatch):
+    queued = []
+
+    monkeypatch.setattr(
+        resume_service,
+        "process_resume_background",
+        lambda resume_id, position_id, use_user_info=False: queued.append(
+            (resume_id, position_id, use_user_info)
+        ),
+    )
+
+    response = client.post(
+        "/api/resumes",
+        files={"file": ("candidate.pdf", b"%PDF-1.4", "application/pdf")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["position_id"] is None
+    assert data["parse_status"] == "processing"
+    assert len(queued) == 1
+    assert queued[0][1] is None
+
+
+def test_resume_experience_summary_route_returns_collected_experiences(
+    client, admin_auth_headers, db
+):
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="林青",
+        position_id=None,
+        file_path="uploads/resumes/candidate.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [{"company": "A 公司", "role": "产品负责人"}],
+            "project_experiences": [{"name": "AI 质检平台"}],
+            "logic_analysis": "商业化导向",
+        },
+    )
+    db.add(resume)
+    db.commit()
+    resume_id = resume.id
+
+    response = client.get("/api/resumes/experience-summary", headers=admin_auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["resume_count"] == 1
+    assert data["work_experiences"][0]["company"] == "A 公司"
+    assert data["project_experiences"][0]["name"] == "AI 质检平台"
+
+
+def test_resume_project_library_route_flattens_projects_and_filters_missing(
+    client, admin_auth_headers, db
+):
+    first = Resume(
+        id=uuid4(),
+        candidate_name="林青",
+        position_id=None,
+        file_path="uploads/resumes/lin.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        match_score=86,
+        parsed_data={
+            "project_experiences": [
+                {
+                    "name": "AI 质检平台",
+                    "role": "产品负责人",
+                    "business_model": "按产线订阅收费",
+                    "missing_evidence": ["续费率"],
+                },
+                {
+                    "name": "知识库迁移工具",
+                    "role": "项目负责人",
+                    "business_model": "内部提效工具",
+                    "missing_evidence": [],
+                },
+            ],
+            "startup_landing_ideas": ["面向工厂推出质检 SaaS"],
+        },
+    )
+    second = Resume(
+        id=uuid4(),
+        candidate_name="周远",
+        position_id=None,
+        file_path="uploads/resumes/zhou.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        match_score=78,
+        parsed_data={
+            "project_experiences": [
+                {
+                    "name": "私域增长系统",
+                    "role": "增长负责人",
+                    "business_model": "",
+                    "missing_evidence": ["获客成本", "转化率"],
+                }
+            ],
+            "startup_landing_ideas": ["面向本地生活商户做增长工具"],
+        },
+    )
+    db.add_all([first, second])
+    db.commit()
+
+    response = client.get("/api/resumes/project-library", headers=admin_auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["project_count"] == 3
+    assert data["projects"][0]["candidate_name"] == "周远"
+    assert data["projects"][0]["name"] == "私域增长系统"
+    assert data["projects"][0]["resume_score"] == 78
+    assert data["projects"][0]["landing_ideas"] == ["面向本地生活商户做增长工具"]
+
+    missing_response = client.get(
+        "/api/resumes/project-library",
+        headers=admin_auth_headers,
+        params={"missing_only": True},
+    )
+
+    assert missing_response.status_code == 200
+    missing_data = missing_response.json()
+    assert missing_data["project_count"] == 2
+    assert {item["name"] for item in missing_data["projects"]} == {"AI 质检平台", "私域增长系统"}
+
+
+def test_resume_queue_stats_route_returns_task_queue_metrics(
+    client, admin_auth_headers, monkeypatch
+):
+    class FakeQueue:
+        def get_stats(self):
+            return {
+                "queue_size": 4,
+                "running_tasks": 2,
+                "completed_tasks": 11,
+                "max_concurrent": 3,
+                "total_submitted": 20,
+                "total_completed": 11,
+                "total_failed": 1,
+            }
+
+    monkeypatch.setattr("app.routes.resumes.get_task_queue", lambda: FakeQueue())
+
+    response = client.get("/api/resumes/queue-stats", headers=admin_auth_headers)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "queue_size": 4,
+        "running_tasks": 2,
+        "completed_tasks": 11,
+        "max_concurrent": 3,
+        "total_submitted": 20,
+        "total_completed": 11,
+        "total_failed": 1,
+    }
+
+
+def test_process_resume_task_analyzes_resume_without_position(db, monkeypatch):
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="解析中...",
+        position_id=None,
+        file_path="uploads/resumes/candidate.pdf",
+        parse_status="processing",
+        status=ResumeStatus.PENDING_SCREENING,
+        screening_result=ScreeningResult.PENDING,
+    )
+    db.add(resume)
+    db.commit()
+    resume_id = resume.id
+
+    parsed = {
+        "candidate_name": "林青",
+        "contact": "13800138000",
+        "email": "linqing@example.com",
+        "years_of_experience": 8,
+        "recent_company": "某智能制造公司",
+        "evaluation_score": 86,
+        "experience_summary": "8 年产品和商业化经验，主导过从 0 到 1 的行业解决方案。",
+        "work_experiences": [
+            {
+                "company": "某智能制造公司",
+                "role": "产品负责人",
+                "summary": "负责 AI 质检产品商业化。",
+            }
+        ],
+        "project_experiences": [
+            {
+                "name": "AI 质检平台",
+                "business_model": "按产线订阅和项目交付收费。",
+                "logic_signals": ["能把算法能力包装成生产指标"],
+            }
+        ],
+        "interview_questions": [
+            {"question": "你如何证明 AI 质检平台的 ROI？", "purpose": "验证商业闭环"}
+        ],
+        "business_model_questions": [
+            {"question": "订阅费和项目交付费如何拆分？", "purpose": "补齐收入模型"}
+        ],
+        "logic_analysis": "候选人倾向先找高频业务痛点，再抽象为产品能力。",
+        "project_evaluation": {
+            "summary": "项目具备行业落地价值，但依赖交付质量。",
+            "risks": ["数据接入周期不稳定"],
+            "opportunities": ["可沉淀行业模板"],
+        },
+        "company_optimization_ideas": ["把交付过程产品化，降低边际成本。"],
+        "startup_landing_ideas": ["从单一高价值场景切入，先做行业标杆。"],
+    }
+
+    monkeypatch.setattr(resume_service, "SessionLocal", lambda: db)
+    monkeypatch.setattr(resume_service, "read_file_content", lambda file_path: "简历原文")
+    monkeypatch.setattr(resume_service, "analyze_resume_intelligence", lambda content: parsed)
+    monkeypatch.setattr(resume_service, "generate_resume_markdown", lambda content: "## 林青")
+
+    resume_service.process_resume_task({"resume_id": resume_id, "position_id": None})
+
+    resume = db.query(Resume).filter(Resume.id == resume_id).one()
+    assert resume.position_id is None
+    assert resume.parse_status == "success"
+    assert resume.status == ResumeStatus.COMPLETED
+    assert resume.screening_result == ScreeningResult.PASSED
+    assert resume.candidate_name == "林青"
+    assert resume.email == "linqing@example.com"
+    assert resume.match_score == 86
+    assert resume.ai_review.startswith("### 经历概要")
+    assert resume.resume_markdown == "## 林青"
+    assert resume.parsed_data["project_experiences"][0]["name"] == "AI 质检平台"
+
+
+def test_process_resume_task_prefers_direct_pdf_intelligence(db, monkeypatch, tmp_path):
+    pdf_path = tmp_path / "candidate.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4")
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="解析中...",
+        position_id=None,
+        file_path=str(pdf_path),
+        parse_status="processing",
+        status=ResumeStatus.PENDING_SCREENING,
+        screening_result=ScreeningResult.PENDING,
+    )
+    db.add(resume)
+    db.commit()
+    resume_id = resume.id
+
+    parsed = {
+        "raw_text": "模型直读出的简历正文",
+        "candidate_name": "林青",
+        "email": "linqing@example.com",
+        "evaluation_score": 88,
+        "experience_summary": "直传 PDF 完成结构化分析。",
+        "project_experiences": [{"name": "AI 质检平台"}],
+    }
+
+    monkeypatch.setattr(resume_service, "SessionLocal", lambda: db)
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_resume_intelligence_from_document",
+        lambda file_path: parsed,
+    )
+    monkeypatch.setattr(
+        resume_service,
+        "read_file_content",
+        lambda file_path: (_ for _ in ()).throw(AssertionError("local PDF extraction should not run")),
+    )
+    monkeypatch.setattr(
+        resume_service,
+        "analyze_resume_intelligence",
+        lambda content: (_ for _ in ()).throw(AssertionError("text analysis fallback should not run")),
+    )
+    monkeypatch.setattr(resume_service, "generate_resume_markdown", lambda content: "## 林青")
+
+    resume_service.process_resume_task({"resume_id": resume_id, "position_id": None})
+
+    resume = db.query(Resume).filter(Resume.id == resume_id).one()
+    assert resume.parse_status == "success"
+    assert resume.raw_text == "模型直读出的简历正文"
+    assert resume.candidate_name == "林青"
+    assert resume.match_score == 88
+    assert resume.resume_markdown == "## 林青"
+
+
+def test_summarize_resume_experiences_collects_work_and_project_items(db):
+    first = Resume(
+        id=uuid4(),
+        candidate_name="林青",
+        position_id=None,
+        file_path="uploads/resumes/one.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [{"company": "A 公司", "role": "产品负责人"}],
+            "project_experiences": [{"name": "AI 质检平台"}],
+            "logic_analysis": "商业化导向",
+        },
+    )
+    second = Resume(
+        id=uuid4(),
+        candidate_name="周远",
+        position_id=None,
+        file_path="uploads/resumes/two.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [{"company": "B 公司", "role": "增长负责人"}],
+            "project_experiences": [{"name": "私域增长系统"}],
+            "logic_analysis": "流量效率导向",
+        },
+    )
+    db.add_all([first, second])
+    db.commit()
+
+    summary = resume_service.summarize_resume_experiences(db)
+
+    assert summary["resume_count"] == 2
+    assert [item["candidate_name"] for item in summary["work_experiences"]] == ["周远", "林青"]
+    assert {item["name"] for item in summary["project_experiences"]} == {"AI 质检平台", "私域增长系统"}
+    assert summary["logic_analyses"][0]["analysis"] == "流量效率导向"

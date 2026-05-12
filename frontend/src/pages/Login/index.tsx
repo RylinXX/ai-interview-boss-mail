@@ -67,15 +67,15 @@ const Login: React.FC = () => {
       <section className="login-product-panel">
         <div className="login-brand-line">
           <div className="login-brand-mark">
-            <img src="/logo.svg" alt="QylinHR OS" />
+            <img src="/logo.svg" alt="Qylin Intelligence" />
           </div>
-          <span>QylinHR OS</span>
+          <span>Qylin Intelligence</span>
         </div>
         <div className="login-copy">
-          <Text className="eyebrow">Executive Hiring Console</Text>
-          <Title level={1}>把招聘流程变成可度量、可协作、可复制的管理系统</Title>
+          <Text className="eyebrow">Resume Intelligence Console</Text>
+          <Title level={1}>把收集到的简历变成项目经验和商业判断素材库</Title>
           <Text>
-            面向 HR、面试官和管理层的智能招聘工作台，覆盖岗位、题库、简历、面试、笔试与 Offer 全流程。
+            直读简历文件，抽取工作经历和项目经历，生成追问、商业模式解释问题、项目评估和创业落地方案。
           </Text>
         </div>
 
@@ -87,14 +87,14 @@ const Login: React.FC = () => {
           </div>
           <div className="preview-grid">
             <div className="preview-kpi">
-              <span>候选人转化率</span>
-              <strong>32.8%</strong>
-              <em>+6.2%</em>
+              <span>已分析简历</span>
+              <strong>128</strong>
+              <em>持续入库</em>
             </div>
             <div className="preview-kpi accent">
-              <span>平均招聘周期</span>
-              <strong>18 天</strong>
-              <em>优化中</em>
+              <span>项目经历</span>
+              <strong>346</strong>
+              <em>可追问</em>
             </div>
           </div>
           <div className="preview-chart" aria-hidden="true">
@@ -106,7 +106,7 @@ const Login: React.FC = () => {
             <i style={{ height: '82%' }} />
           </div>
           <div className="preview-pipeline">
-            {['简历初筛', 'AI 匹配', '面试评估', 'Offer 决策'].map((item, index) => (
+            {['简历直读', '经历抽取', '商业追问', '落地评估'].map((item, index) => (
               <div key={item}>
                 <span>{index + 1}</span>
                 <strong>{item}</strong>
@@ -117,8 +117,8 @@ const Login: React.FC = () => {
 
         <div className="login-trust-row">
           <span><SafetyCertificateOutlined /> 权限分级</span>
-          <span><LineChartOutlined /> 数据看板</span>
-          <span><ClusterOutlined /> 流程协同</span>
+          <span><LineChartOutlined /> 项目分析</span>
+          <span><ClusterOutlined /> 经验沉淀</span>
         </div>
       </section>
 

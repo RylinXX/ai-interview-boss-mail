@@ -1,610 +1,288 @@
 import React, { useEffect, useState } from 'react';
-import { App, Card, Row, Col, List, Avatar, Typography, Spin, Table, Tag, Progress, Tabs, Select, Empty } from 'antd';
-import {
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend, LineChart, Line
-} from 'recharts';
-import { 
-  UserOutlined, FileTextOutlined, TeamOutlined, BankOutlined,
-  ArrowUpOutlined, ClockCircleOutlined, ArrowDownOutlined,
-  CheckCircleOutlined,
-  TrophyOutlined, RiseOutlined
-} from '@ant-design/icons';
+import { App, Card, Col, Empty, Progress, Row, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import 'dayjs/locale/zh-cn';
 
-dayjs.extend(relativeTime);
-dayjs.locale('zh-cn');
+const { Title, Text, Paragraph } = Typography;
 
-const { Title, Text } = Typography;
-const { Option } = Select;
+type ExperienceSummary = {
+  resume_count: number;
+  work_experiences: any[];
+  project_experiences: any[];
+  logic_analyses: any[];
+};
 
-interface DashboardStats {
-  active_positions: number;
-  pending_resumes: number;
-  today_interviews: number;
-  total_questions: number;
-  trends: {
-    active_positions: number;
-    pending_resumes: number;
-    today_interviews: number;
-    total_questions: number;
-  };
-}
+type ProjectLibrary = {
+  resume_count: number;
+  project_count: number;
+  projects: any[];
+};
 
-interface Activity {
-  id: string;
-  title: string;
-  time: string;
-  status: string;
-  avatar_color: string;
-  type: string;
-}
-
-interface FunnelStage {
-  stage: string;
-  stage_name: string;
-  count: number;
-  percentage: number;
-}
-
-interface RecruitmentFunnel {
-  stages: FunnelStage[];
-  total_resumes: number;
-  conversion_rate: number;
-}
-
-interface PositionAnalytics {
-  id: string;
-  title: string;
-  department: string;
-  status: string;
-  total_resumes: number;
-  pending_screening: number;
-  pending_interview: number;
-  interview_completed: number;
-  offer_sent: number;
-  hired: number;
-  rejected: number;
-  avg_match_score: number | null;
-  avg_processing_days: number | null;
-  conversion_rate: number;
-}
-
-interface InterviewerStats {
-  id: string;
-  name: string;
-  total_interviews: number;
-  completed_interviews: number;
-  pending_interviews: number;
-  completion_rate: number;
-  avg_score: number | null;
-  score_std: number | null;
-  consistency_rating: string;
-}
-
-interface TimelineDataPoint {
-  date: string;
-  resumes_received: number;
-  interviews_scheduled: number;
-  interviews_completed: number;
-  offers_sent: number;
-  hires: number;
-}
-
-interface OverviewMetrics {
-  total_positions: number;
-  active_positions: number;
-  total_resumes: number;
-  pending_resumes: number;
-  total_interviews: number;
-  completed_interviews: number;
-  total_offers: number;
-  accepted_offers: number;
-  avg_time_to_hire: number | null;
-  avg_match_score: number | null;
-  interview_pass_rate: number;
-  offer_accept_rate: number;
-}
-
-const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+type QueueStats = {
+  queue_size: number;
+  running_tasks: number;
+  completed_tasks: number;
+  max_concurrent: number;
+  total_submitted: number;
+  total_completed: number;
+  total_failed: number;
+};
 
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
-  const [statsData, setStatsData] = useState<DashboardStats | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [resumes, setResumes] = useState<any[]>([]);
+  const [summary, setSummary] = useState<ExperienceSummary | null>(null);
+  const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
+  const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [funnel, setFunnel] = useState<RecruitmentFunnel | null>(null);
-  const [positions, setPositions] = useState<PositionAnalytics[]>([]);
-  const [interviewers, setInterviewers] = useState<InterviewerStats[]>([]);
-  const [timeline, setTimeline] = useState<TimelineDataPoint[]>([]);
-  const [overview, setOverview] = useState<OverviewMetrics | null>(null);
-  const [timelineDays, setTimelineDays] = useState(30);
 
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  useEffect(() => {
-    fetchTimelineData(timelineDays);
-  }, [timelineDays]);
-
-  const fetchAllData = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const [statsRes, funnelRes, positionsRes, interviewersRes, overviewRes] = await Promise.all([
-        request.get('/dashboard/stats'),
-        request.get('/dashboard/funnel'),
-        request.get('/dashboard/positions'),
-        request.get('/dashboard/interviewers'),
-        request.get('/dashboard/overview')
+      const [resumeRes, summaryRes, projectRes, queueRes] = await Promise.all([
+        request.get('/resumes'),
+        request.get('/resumes/experience-summary'),
+        request.get('/resumes/project-library'),
+        request.get('/resumes/queue-stats'),
       ]);
-      
-      setStatsData(statsRes.stats);
-      setActivities(statsRes.recent_activities);
-      setFunnel(funnelRes);
-      setPositions(positionsRes.positions);
-      setInterviewers(interviewersRes.interviewers);
-      setOverview(overviewRes.metrics);
+      setResumes(resumeRes as any[]);
+      setSummary(summaryRes as ExperienceSummary);
+      setProjectLibrary(projectRes as ProjectLibrary);
+      setQueueStats(queueRes as QueueStats);
     } catch (error) {
-      console.error(error);
-      message.error('获取仪表盘数据失败');
+      message.error('获取分析仪表盘失败');
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchTimelineData = async (days: number) => {
-    try {
-      const res = await request.get(`/dashboard/timeline?days=${days}`);
-      setTimeline(res.timeline);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const stats = [
-    {
-      title: "招聘中岗位",
-      value: statsData?.active_positions || 0,
-      icon: <UserOutlined style={{ fontSize: '20px', color: '#3B82F6' }} />,
-      color: '#EFF6FF',
-      trend: statsData?.trends.active_positions || 0
-    },
-    {
-      title: "待筛选简历",
-      value: statsData?.pending_resumes || 0,
-      icon: <FileTextOutlined style={{ fontSize: '20px', color: '#EF4444' }} />,
-      color: '#FEF2F2',
-      trend: statsData?.trends.pending_resumes || 0
-    },
-    {
-      title: "今日面试",
-      value: statsData?.today_interviews || 0,
-      icon: <TeamOutlined style={{ fontSize: '20px', color: '#10B981' }} />,
-      color: '#ECFDF5',
-      trend: statsData?.trends.today_interviews || 0
-    },
-    {
-      title: "面试题库",
-      value: statsData?.total_questions || 0,
-      icon: <BankOutlined style={{ fontSize: '20px', color: '#8B5CF6' }} />,
-      color: '#F5F3FF',
-      trend: statsData?.trends.total_questions || 0
-    }
-  ];
-
-  const positionColumns = [
-    {
-      title: '岗位名称',
-      dataIndex: 'title',
-      key: 'title',
-      width: 250,
-      render: (text: string, record: PositionAnalytics) => (
-        <div>
-          <Text strong>{text}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.department}</Text>
-        </div>
-      )
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 110,
-      render: (status: string) => {
-        const colorMap: Record<string, string> = {
-          'open': 'blue',
-          'published': 'green',
-          'closed': 'default'
-        };
-        const textMap: Record<string, string> = {
-          'open': '开放中',
-          'published': '已发布',
-          'closed': '已关闭'
-        };
-        return <Tag color={colorMap[status] || 'default'}>{textMap[status] || status}</Tag>;
-      }
-    },
-    {
-      title: '简历数',
-      dataIndex: 'total_resumes',
-      key: 'total_resumes',
-      width: 80,
-      sorter: (a: PositionAnalytics, b: PositionAnalytics) => a.total_resumes - b.total_resumes
-    },
-    {
-      title: '待初筛',
-      dataIndex: 'pending_screening',
-      key: 'pending_screening',
-      width: 80,
-      render: (val: number, record: PositionAnalytics) => (
-        <Text type={val > 0 ? 'warning' : 'secondary'}>{val}</Text>
-      )
-    },
-    {
-      title: '待面试',
-      dataIndex: 'pending_interview',
-      key: 'pending_interview',
-      width: 80,
-      render: (val: number) => (
-        <Text type={val > 0 ? 'warning' : 'secondary'}>{val}</Text>
-      )
-    },
-    {
-      title: '已录用',
-      dataIndex: 'hired',
-      key: 'hired',
-      width: 80,
-      render: (val: number) => (
-        <Text type="success" strong>{val}</Text>
-      )
-    },
-    {
-      title: '转化率',
-      dataIndex: 'conversion_rate',
-      key: 'conversion_rate',
-      width: 150,
-      render: (rate: number) => (
-        <div className="rate-cell">
-          <Progress
-            percent={rate}
-            size="small"
-            showInfo={false}
-            strokeColor={rate >= 20 ? '#10B981' : rate >= 10 ? '#F59E0B' : '#EF4444'}
-          />
-          <Text>{rate.toFixed(1)}%</Text>
-        </div>
-      )
-    }
-  ];
-
-  const interviewerColumns = [
-    {
-      title: '面试官',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#3B82F6' }} />
-          <Text strong>{text}</Text>
-        </div>
-      )
-    },
-    {
-      title: '总面试数',
-      dataIndex: 'total_interviews',
-      key: 'total_interviews',
-      sorter: (a: InterviewerStats, b: InterviewerStats) => a.total_interviews - b.total_interviews
-    },
-    {
-      title: '已完成',
-      dataIndex: 'completed_interviews',
-      key: 'completed_interviews'
-    },
-    {
-      title: '完成率',
-      dataIndex: 'completion_rate',
-      key: 'completion_rate',
-      render: (rate: number) => (
-        <Progress 
-          percent={rate} 
-          size="small" 
-          format={(percent) => `${percent?.toFixed(1)}%`}
-          strokeColor={rate >= 80 ? '#10B981' : rate >= 50 ? '#F59E0B' : '#EF4444'}
-        />
-      )
-    },
-    {
-      title: '平均评分',
-      dataIndex: 'avg_score',
-      key: 'avg_score',
-      render: (score: number | null) => score ? <Text strong>{score.toFixed(1)}</Text> : <Text type="secondary">-</Text>
-    },
-    {
-      title: '评分一致性',
-      dataIndex: 'consistency_rating',
-      key: 'consistency_rating',
-      render: (rating: string) => {
-        const colorMap: Record<string, string> = {
-          '非常一致': 'success',
-          '较为一致': 'warning',
-          '波动较大': 'error',
-          '数据不足': 'default'
-        };
-        return <Tag color={colorMap[rating] || 'default'}>{rating}</Tag>;
-      }
-    }
-  ];
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   if (loading) {
     return (
-      <div className="loading-state">
+      <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
         <Spin size="large" />
-        <Text type="secondary">正在加载招聘工作台</Text>
       </div>
     );
   }
 
-  const coreMetrics = [
-    {
-      label: '面试通过率',
-      value: `${overview?.interview_pass_rate || 0}%`,
-      tone: overview?.interview_pass_rate && overview.interview_pass_rate >= 50 ? 'success' : 'danger',
-      icon: <CheckCircleOutlined />
-    },
-    {
-      label: 'Offer 接受率',
-      value: `${overview?.offer_accept_rate || 0}%`,
-      tone: overview?.offer_accept_rate && overview.offer_accept_rate >= 70 ? 'success' : 'warning',
-      icon: <TrophyOutlined />
-    },
-    {
-      label: '平均招聘周期',
-      value: overview?.avg_time_to_hire ? `${overview.avg_time_to_hire} 天` : '-',
-      tone: 'neutral',
-      icon: <ClockCircleOutlined />
-    },
-    {
-      label: '平均匹配分',
-      value: overview?.avg_match_score ? overview.avg_match_score.toFixed(1) : '-',
-      tone: overview?.avg_match_score && overview.avg_match_score >= 70 ? 'success' : 'warning',
-      icon: <RiseOutlined />
-    }
-  ];
+  const analyzed = resumes.filter(item => item.parse_status === 'success').length;
+  const processing = resumes.filter(item => item.parse_status === 'processing').length;
+  const failed = resumes.filter(item => item.parse_status === 'failed').length;
+  const projects = projectLibrary?.projects || [];
+  const questions = resumes.reduce((sum, item) => {
+    const parsed = item.parsed_data || {};
+    return sum
+      + (Array.isArray(parsed.interview_questions) ? parsed.interview_questions.length : 0)
+      + (Array.isArray(parsed.business_model_questions) ? parsed.business_model_questions.length : 0)
+      + (Array.isArray(parsed.experience_completion_questions) ? parsed.experience_completion_questions.length : 0);
+  }, 0);
+  const completionRate = resumes.length ? Math.round((analyzed / resumes.length) * 100) : 0;
+  const missingBusinessCount = projects.filter(project => {
+    const missing = Array.isArray(project.missing_evidence) ? project.missing_evidence : [];
+    return missing.length > 0 || !project.business_model;
+  }).length;
+  const queueLoad = queueStats?.max_concurrent
+    ? Math.round(((queueStats.running_tasks || 0) / queueStats.max_concurrent) * 100)
+    : 0;
 
-  const tabItems = [
+  const projectColumns = [
     {
-      key: 'positions',
-      label: '岗位分析',
-      children: (
-        <Card variant="borderless" className="analysis-card">
-          <Table
-            className="compact-table"
-            dataSource={positions}
-            columns={positionColumns}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 840 }}
-            locale={{ emptyText: '暂无岗位数据' }}
-          />
-        </Card>
-      )
+      title: '项目',
+      dataIndex: 'name',
+      key: 'name',
+      width: 240,
+      render: (text: string, record: any) => (
+        <div>
+          <Text strong>{text || '未命名项目'}</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: 12 }}>{record.candidate_name}</Text>
+        </div>
+      ),
     },
     {
-      key: 'interviewers',
-      label: '面试官分析',
-      children: (
-        <Card variant="borderless" className="analysis-card">
-          <Table
-            className="compact-table"
-            dataSource={interviewers}
-            columns={interviewerColumns}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 840 }}
-            locale={{ emptyText: '暂无面试官数据' }}
-          />
-        </Card>
-      )
+      title: '角色',
+      dataIndex: 'role',
+      key: 'role',
+      width: 150,
+      render: (value: string) => value || '-',
     },
     {
-      key: 'activities',
-      label: '最新动态',
-      children: (
-        <Card variant="borderless" className="analysis-card">
-          <List
-            className="activity-list"
-            itemLayout="horizontal"
-            dataSource={activities}
-            locale={{ emptyText: '暂无动态' }}
-            renderItem={item => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={
-                    <Avatar
-                      icon={<UserOutlined />}
-                      style={{ backgroundColor: item.avatar_color, color: '#fff' }}
-                    />
-                  }
-                  title={<span>{item.title}</span>}
-                  description={
-                    <div className="activity-meta">
-                      <ClockCircleOutlined />
-                      <span>{dayjs(item.time).fromNow()}</span>
-                      <Tag color={item.avatar_color}>{item.status}</Tag>
-                    </div>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-        </Card>
-      )
-    }
+      title: '问题/方案',
+      key: 'problem',
+      ellipsis: true,
+      render: (_: any, record: any) => (
+        <Tooltip title={`${record.problem || '未说明问题'} / ${record.solution || '未说明方案'}`}>
+          <span>{record.problem || record.solution || '待补充项目上下文'}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: '商业模式',
+      dataIndex: 'business_model',
+      key: 'business_model',
+      ellipsis: true,
+      render: (value: string) => value || '待追问',
+    },
+    {
+      title: '缺失证据',
+      dataIndex: 'missing_evidence',
+      key: 'missing_evidence',
+      width: 220,
+      render: (value: string[]) => Array.isArray(value) && value.length ? (
+        <Space wrap>
+          {value.slice(0, 3).map(item => <Tag color="warning" key={item}>{item}</Tag>)}
+        </Space>
+      ) : '-',
+    },
+    {
+      title: '落地方向',
+      dataIndex: 'landing_ideas',
+      key: 'landing_ideas',
+      width: 260,
+      render: (value: string[]) => Array.isArray(value) && value.length ? (
+        <Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>{value[0]}</Paragraph>
+      ) : '待沉淀',
+    },
   ];
 
   return (
-    <div className="dashboard-page">
-      <section className="dashboard-hero">
-        <div className="dashboard-hero-copy">
-          <Text className="eyebrow">Recruiting Operations</Text>
-          <Title level={1}>招聘运营工作台</Title>
-          <Text>
-            集中查看岗位进展、候选人流转、面试执行和 Offer 转化，让招聘团队以统一数据推进决策。
-          </Text>
+    <div>
+      <div className="page-header">
+        <div>
+          <Title level={2}>分析仪表盘</Title>
+          <Text type="secondary">从所有简历中汇总项目经历、商业模式缺口、处理队列和候选人的底层逻辑信号。</Text>
         </div>
-        <div className="dashboard-hero-panel">
-          <div>
-            <span>总候选人</span>
-            <strong>{overview?.total_resumes || 0}</strong>
-          </div>
-          <div>
-            <span>进行中岗位</span>
-            <strong>{overview?.active_positions || statsData?.active_positions || 0}</strong>
-          </div>
-          <div>
-            <span>已完成面试</span>
-            <strong>{overview?.completed_interviews || 0}</strong>
-          </div>
-        </div>
-      </section>
+      </div>
 
-      <Row gutter={[16, 16]} className="kpi-grid">
-        {stats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={stat.title}>
-            <Card variant="borderless" className="metric-card">
-              <div className="metric-card-head">
-                <span className="metric-icon" style={{ background: stat.color }}>
-                  {stat.icon}
-                </span>
-                <Tag color={stat.trend > 0 ? 'success' : stat.trend < 0 ? 'error' : 'default'}>
-                  {stat.trend > 0 ? <ArrowUpOutlined /> : stat.trend < 0 ? <ArrowDownOutlined /> : null}
-                  {stat.trend !== 0 ? `${Math.abs(stat.trend)} 本周新增` : '无变化'}
-                </Tag>
-              </div>
-              <Text>{stat.title}</Text>
-              <strong>{stat.value}</strong>
-              <div className="metric-baseline">指标 {index + 1} / 4</div>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-
-      <Row gutter={[16, 16]} className="dashboard-section">
-        <Col xs={24} xl={8}>
-          <Card variant="borderless" className="executive-card">
-            <div className="section-card-head">
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card>
+            <Space align="start">
+              <FileTextOutlined style={{ fontSize: 22, color: '#2563EB' }} />
               <div>
-                <Text className="eyebrow">Performance</Text>
-                <Title level={4}>核心转化指标</Title>
+                <Text type="secondary">简历总数</Text>
+                <Title level={2}>{resumes.length}</Title>
               </div>
-            </div>
-            <div className="core-metric-grid">
-              {coreMetrics.map(metric => (
-                <div className={`core-metric ${metric.tone}`} key={metric.label}>
-                  <span>{metric.icon}</span>
-                  <Text>{metric.label}</Text>
-                  <strong>{metric.value}</strong>
-                </div>
-              ))}
-            </div>
+            </Space>
           </Card>
         </Col>
-        <Col xs={24} xl={16}>
-          <Card variant="borderless" className="executive-card">
-            <div className="section-card-head">
+        <Col span={6}>
+          <Card>
+            <Space align="start">
+              <ProjectOutlined style={{ fontSize: 22, color: '#059669' }} />
               <div>
-                <Text className="eyebrow">Pipeline</Text>
-                <Title level={4}>招聘漏斗</Title>
+                <Text type="secondary">项目经历</Text>
+                <Title level={2}>{projectLibrary?.project_count || 0}</Title>
               </div>
-              <div className="section-summary">
-                <span>整体转化率</span>
-                <strong>{funnel?.conversion_rate || 0}%</strong>
+            </Space>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Space align="start">
+              <QuestionCircleOutlined style={{ fontSize: 22, color: '#D97706' }} />
+              <div>
+                <Text type="secondary">商业缺口</Text>
+                <Title level={2}>{missingBusinessCount}</Title>
               </div>
-            </div>
-            {funnel && funnel.stages.length > 0 ? (
-              <div className="funnel-list">
-                {funnel.stages.map((stage, index) => (
-                  <div key={stage.stage} className="funnel-row">
-                    <div className="funnel-stage">
-                      <span>{String(index + 1).padStart(2, '0')}</span>
-                      <strong>{stage.stage_name}</strong>
-                    </div>
-                    <Progress
-                      percent={stage.percentage}
-                      strokeColor={COLORS[index % COLORS.length]}
-                      format={() => `${stage.count} 人`}
-                    />
+            </Space>
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Space align="center">
+              <Progress type="circle" percent={completionRate} size={62} />
+              <div>
+                <Text type="secondary">分析完成率</Text>
+                <div><Text>成功 {analyzed} / 处理中 {processing} / 失败 {failed}</Text></div>
+                <Text type="secondary">已生成问题 {questions} 个</Text>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={16}>
+        <Col span={18}>
+          <Card
+            title="项目经验库"
+            extra={<Text type="secondary">按项目查看人、商业模式、证据缺口和落地方向</Text>}
+          >
+            {projects.length ? (
+              <Table
+                rowKey={(record) => `${record.resume_id}-${record.name || 'project'}-${record.role || ''}`}
+                dataSource={projects}
+                columns={projectColumns}
+                pagination={{ pageSize: 8, showSizeChanger: false }}
+              />
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无项目经历" />
+            )}
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card title="模型处理队列" style={{ marginBottom: 16 }}>
+            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
+              <Progress percent={queueLoad} size="small" status={queueLoad >= 100 ? 'active' : 'normal'} />
+              <Row gutter={[8, 8]}>
+                <Col span={12}>
+                  <Text type="secondary">等待中</Text>
+                  <Title level={4}>{queueStats?.queue_size ?? 0}</Title>
+                </Col>
+                <Col span={12}>
+                  <Text type="secondary">处理中</Text>
+                  <Title level={4}>{queueStats?.running_tasks ?? 0}</Title>
+                </Col>
+                <Col span={12}>
+                  <Text type="secondary">已完成</Text>
+                  <Title level={4}>{queueStats?.total_completed ?? 0}</Title>
+                </Col>
+                <Col span={12}>
+                  <Text type="secondary">失败</Text>
+                  <Title level={4}>{queueStats?.total_failed ?? 0}</Title>
+                </Col>
+              </Row>
+              <Text type="secondary">最大并发：{queueStats?.max_concurrent ?? 0}，累计提交：{queueStats?.total_submitted ?? 0}</Text>
+            </Space>
+          </Card>
+          <Card title="候选人逻辑分析" extra={<BulbOutlined />}>
+            {summary?.logic_analyses.length ? (
+              <div className="analysis-list">
+                {summary.logic_analyses.slice(0, 6).map((item, index) => (
+                  <div className="analysis-list-item" key={`${item.candidate_name || 'unknown'}-${index}`}>
+                    <Text strong>{item.candidate_name || '未识别候选人'}</Text>
+                    <Paragraph ellipsis={{ rows: 3 }} style={{ margin: '6px 0 0' }}>{item.analysis}</Paragraph>
                   </div>
                 ))}
-                <div className="funnel-footer">
-                  <span>总简历数</span>
-                  <strong>{funnel.total_resumes}</strong>
-                </div>
               </div>
             ) : (
-              <Empty description="暂无数据" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无逻辑分析" />
             )}
           </Card>
         </Col>
       </Row>
 
-      <Card variant="borderless" className="timeline-card">
-        <div className="section-card-head">
-          <div>
-            <Text className="eyebrow">Trend</Text>
-            <Title level={4}>时间趋势分析</Title>
-          </div>
-          <Select value={timelineDays} onChange={setTimelineDays} className="period-select">
-            <Option value={7}>近7天</Option>
-            <Option value={14}>近14天</Option>
-            <Option value={30}>近30天</Option>
-            <Option value={60}>近60天</Option>
-            <Option value={90}>近90天</Option>
-          </Select>
-        </div>
-        <div className="chart-panel">
-          <ResponsiveContainer width="100%" height={350} minWidth={280}>
-            <LineChart data={timeline} margin={{ top: 12, right: 8, left: -8, bottom: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(value) => dayjs(value).format('MM-DD')}
-              />
-              <YAxis
-                tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-              />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--surface-elevated)',
-                  color: 'var(--text-primary)',
-                  boxShadow: 'var(--shadow-md)'
-                }}
-                labelFormatter={(label) => dayjs(label).format('YYYY年MM月DD日')}
-              />
-              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-              <Line type="monotone" dataKey="resumes_received" name="简历接收" stroke="#2563EB" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="interviews_scheduled" name="面试安排" stroke="#D97706" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="interviews_completed" name="面试完成" stroke="#059669" strokeWidth={2.5} dot={false} />
-              <Line type="monotone" dataKey="hires" name="入职" stroke="#7C3AED" strokeWidth={2.5} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+      <Card title="工作经验库" style={{ marginTop: 16 }} extra={<Text type="secondary">沉淀可复用能力、公司经验和角色上下文</Text>}>
+        {summary?.work_experiences.length ? (
+          <Row gutter={[16, 16]}>
+            {summary.work_experiences.slice(0, 12).map((item, index) => (
+              <Col span={8} key={`${item.company || 'company'}-${item.candidate_name || 'candidate'}-${index}`}>
+                <Card size="small" title={item.company || '未命名公司'}>
+                  <Space orientation="vertical" size={6}>
+                    <Text type="secondary">{item.candidate_name} · {item.role || '角色未明'}</Text>
+                    <Paragraph ellipsis={{ rows: 3 }}>{item.summary || '暂无概要'}</Paragraph>
+                  </Space>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无工作经历" />
+        )}
       </Card>
-
-      <Tabs defaultActiveKey="positions" className="dashboard-tabs" items={tabItems} />
     </div>
   );
 };

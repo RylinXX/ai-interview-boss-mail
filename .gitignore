@@ -9,6 +9,7 @@
 .worktrees/
 .local/
 .superpowers/
+.playwright-cli/
 .env
 .env.*
 !.env.example
@@ -24,6 +25,7 @@ backend/venv/
 backend/.venv/
 backend/app.db
 backend/uploads/
+uploads/
 backend/htmlcov/
 backend/.pytest_cache/
 backend/dist/

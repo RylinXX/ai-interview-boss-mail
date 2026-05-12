@@ -1,98 +1,72 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Descriptions, Tag, Button, Row, Col, Typography, message, Divider, Spin, Progress, Modal, Form, Input, Space, Select, Rate, List, Avatar, Statistic, Empty } from 'antd';
-import { useParams, useNavigate } from 'react-router-dom';
-import request from '../../utils/request';
+import { Alert, Button, Card, Col, Descriptions, Dropdown, Empty, Form, Input, List, message, Modal, Progress, Row, Space, Spin, Tag, Typography } from 'antd';
+import type { MenuProps } from 'antd';
+import { ArrowLeftOutlined, DownOutlined, EditOutlined, FileMarkdownOutlined, FilePdfOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { DownloadOutlined, FilePdfOutlined, FileWordOutlined, ArrowLeftOutlined, CloseCircleOutlined, EditOutlined, SaveOutlined, ReloadOutlined, UserOutlined, CheckCircleOutlined, TeamOutlined, SolutionOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import RejectReasonSelector, { REJECT_REASONS } from '../../components/RejectReasonSelector';
-import { useAuth } from '../../contexts/AuthContext';
+import request, { getApiErrorMessage } from '../../utils/request';
 import { getMaximizedPdfPreviewUrl } from '../../utils/pdfPreview';
+// @ts-ignore
+import html2pdf from 'html2pdf.js';
 
-const { Title, Paragraph, Text } = Typography;
-const { TextArea } = Input;
+const { Title, Text, Paragraph } = Typography;
 
-// 状态映射
-const STATUS_MAP: Record<string, { text: string; color: string }> = {
-  pending_screening: { text: '待初筛', color: 'warning' },
-  pending_review: { text: '待评审', color: 'warning' },
-  pending_dept_review: { text: '待部门评审', color: 'cyan' },
-  pending_hr_decision: { text: '待HR决策', color: 'purple' },
-  auto_rejected_pending_review: { text: 'AI建议淘汰', color: 'orange' },
-  pending_interview: { text: '待面试', color: 'geekblue' },
-  interview_passed: { text: '面试通过', color: 'lime' },
-  interview_failed: { text: '面试未通过', color: 'magenta' },
-  offer_pending: { text: 'Offer待确认', color: 'blue' },
-  offer_accepted: { text: '已接受Offer', color: 'success' },
-  offer_rejected: { text: '已拒绝Offer', color: 'error' },
-  onboarding: { text: '入职中', color: 'blue' },
-  completed: { text: '已完成', color: 'success' },
-  rejected: { text: '已淘汰', color: 'error' },
-  hired: { text: '已录用', color: 'success' },
-  waitlist: { text: '备选', color: 'gold' },
+const statusInfo = (parseStatus?: string) => {
+  if (parseStatus === 'failed') return { text: '分析失败', color: 'error' };
+  if (parseStatus === 'processing') return { text: '分析中', color: 'processing' };
+  if (parseStatus === 'success') return { text: '已分析', color: 'success' };
+  return { text: '待处理', color: 'default' };
 };
+
+const asArray = (value: any) => Array.isArray(value) ? value : [];
+
+const QuestionList = ({ title, data }: { title: string; data: any[] }) => (
+  <Card title={title} style={{ marginBottom: 16 }}>
+    {data.length ? (
+      <List
+        dataSource={data}
+        renderItem={(item: any) => (
+          <List.Item>
+            <List.Item.Meta
+              title={item.question || item.title || '问题'}
+              description={
+                <Space direction="vertical" size={4}>
+                  {item.target_experience && <Text type="secondary">关联经历：{item.target_experience}</Text>}
+                  {item.target_project && <Text type="secondary">关联项目：{item.target_project}</Text>}
+                  {item.purpose && <Text>{item.purpose}</Text>}
+                  {item.missing_context && <Text type="secondary">缺失信息：{item.missing_context}</Text>}
+                </Space>
+              }
+            />
+          </List.Item>
+        )}
+      />
+    ) : (
+      <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无内容" />
+    )}
+  </Card>
+);
 
 const ResumeDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [resume, setResume] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [form] = Form.useForm();
-  const [rejectForm] = Form.useForm();
-  const [hrDecisionForm] = Form.useForm();
-  const [deptReviewForm] = Form.useForm();
 
-  // 获取用户角色
-  const userRole = (user as any)?.role?.value ?? (user as any)?.role;
-
-  // 部门评审相关状态
-  const [deptReviewSummary, setDeptReviewSummary] = useState<any>(null);
-  const [reviewers, setReviewers] = useState<any[]>([]);
-  const [isDeptReviewModalVisible, setIsDeptReviewModalVisible] = useState(false);
-  const [isAssignReviewerModalVisible, setIsAssignReviewerModalVisible] = useState(false);
-  const [isRejectModalVisible, setIsRejectModalVisible] = useState(false);
-  const [isHRDecisionModalVisible, setIsHRDecisionModalVisible] = useState(false);
-  const [isSubmitReviewModalVisible, setIsSubmitReviewModalVisible] = useState(false);
-  const [myReview, setMyReview] = useState<any>(null);
-  const [submitReviewForm] = Form.useForm();
-
-  useEffect(() => {
-    if (id) {
-      fetchResume(id);
-      fetchReviewers();
-    }
-  }, [id]);
-
-  const fetchResume = async (resumeId: string) => {
+  const fetchResume = async () => {
+    if (!id) return;
     setLoading(true);
     try {
-      const res = await request.get(`/resumes/${resumeId}`) as any;
+      const res = await request.get(`/resumes/${id}`) as any;
       setResume(res);
       form.setFieldsValue({
-          candidate_name: res.candidate_name,
-          email: res.email,
-          contact: res.contact,
-          highest_degree: res.parsed_data?.highest_degree,
-          school: res.parsed_data?.school,
-          major: res.parsed_data?.major,
-          years_of_experience: res.parsed_data?.years_of_experience,
-          recent_company: res.parsed_data?.recent_company
+        candidate_name: res.candidate_name,
+        email: res.email,
+        contact: res.contact,
       });
-
-      // 获取部门评审汇总
-      if (res.status === 'pending_dept_review' || res.status === 'pending_hr_decision' || res.department_reviews) {
-        fetchDeptReviewSummary(resumeId);
-      }
-
-      // 检查当前用户是否是被指派的评审人
-      if (res.department_reviews && user?.id) {
-        const myReviewRecord = res.department_reviews.find((r: any) => r.reviewer_id === user.id);
-        if (myReviewRecord) {
-          setMyReview(myReviewRecord);
-        }
-      }
     } catch (error) {
       message.error('获取简历详情失败');
     } finally {
@@ -100,49 +74,89 @@ const ResumeDetail: React.FC = () => {
     }
   };
 
-  const fetchDeptReviewSummary = async (resumeId: string) => {
-    try {
-      const res = await request.get(`/resumes/${resumeId}/department-reviews`);
-      setDeptReviewSummary(res);
-    } catch (error) {
-      console.error('获取部门评审汇总失败', error);
-    }
-  };
-
-  const fetchReviewers = async () => {
-    try {
-      const res = await request.get('/auth/interviewers');
-      setReviewers(res);
-    } catch (error) {
-      console.error('获取评审人列表失败', error);
-    }
-  };
+  useEffect(() => {
+    fetchResume();
+  }, [id]);
 
   const handleUpdate = async () => {
-      try {
-          const values = await form.validateFields();
-          await request.put(`/resumes/${id}`, {
-              candidate_name: values.candidate_name,
-              email: values.email,
-              contact: values.contact,
-          });
-          message.success('更新成功');
-          setIsEditing(false);
-          fetchResume(id!);
-      } catch (error) {
-          message.error('更新失败');
-      }
+    try {
+      const values = await form.validateFields();
+      await request.put(`/resumes/${id}`, values);
+      message.success('更新成功');
+      setIsEditing(false);
+      fetchResume();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '更新失败'));
+    }
   };
 
-  const getStatusInfo = (status: string, parseStatus?: string) => {
-      if (parseStatus === 'failed') return { text: '解析失败', color: 'error' };
-      if (parseStatus === 'processing') return { text: '解析中', color: 'processing' };
-      return STATUS_MAP[status] || { text: status, color: 'default' };
+  const handleReparse = () => {
+    Modal.confirm({
+      title: '重新分析简历',
+      content: '将重新调用模型读取简历，并覆盖现有经历抽取、问题和评估结果。',
+      okText: '重新分析',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await request.post(`/resumes/${id}/reparse`);
+          message.success('已提交重新分析');
+          fetchResume();
+        } catch (error) {
+          message.error(getApiErrorMessage(error, '重新分析失败'));
+        }
+      },
+    });
+  };
+
+  const handleExport = async (format: string = 'markdown') => {
+    if (!resume || !id) return;
+
+    if (format === 'pdf') {
+      const element = document.getElementById('resume-analysis-report-content');
+      if (!element) return;
+
+      const opt = {
+        margin: [15, 15, 15, 15],
+        filename: `简历分析报告_${resume.candidate_name || '候选人'}_${resume.id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      } as any;
+
+      try {
+        await html2pdf().from(element).set(opt).save();
+        message.success('导出 PDF 成功');
+      } catch (error) {
+        message.error('导出 PDF 失败');
+      }
+      return;
+    }
+
+    try {
+      const response = await request.get(`/resumes/${id}/export`, {
+        params: { format },
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response as any], { type: 'text/markdown' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `简历分析报告_${resume.candidate_name || '候选人'}_${resume.id}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      message.success('导出成功');
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '导出失败'));
+    }
   };
 
   if (loading || !resume) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
         <Spin size="large" />
       </div>
     );
@@ -152,707 +166,208 @@ const ResumeDetail: React.FC = () => {
   const fileUrl = resume.file_path ? (resume.file_path.startsWith('/') ? resume.file_path : `/${resume.file_path}`) : '';
   const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
   const pdfPreviewUrl = isPdf ? getMaximizedPdfPreviewUrl(fileUrl) : '';
-  const statusInfo = getStatusInfo(resume.status, resume.parse_status);
-  const candidateInitial = (resume.candidate_name || '候').trim().slice(0, 1);
+  const status = statusInfo(resume.parse_status);
+  const workExperiences = asArray(parsedData.work_experiences);
+  const projectExperiences = asArray(parsedData.project_experiences);
+  const interviewQuestions = asArray(parsedData.interview_questions);
+  const businessQuestions = asArray(parsedData.business_model_questions);
+  const completionQuestions = asArray(parsedData.experience_completion_questions);
+  const canExportReport = resume.parse_status === 'success' && (resume.ai_review || Object.keys(parsedData).length > 0);
+  const exportItems: MenuProps['items'] = [
+    {
+      key: 'markdown',
+      label: '导出 Markdown',
+      icon: <FileMarkdownOutlined />,
+      onClick: () => handleExport('markdown'),
+    },
+    {
+      key: 'pdf',
+      label: '导出 PDF',
+      icon: <FilePdfOutlined />,
+      onClick: () => handleExport('pdf'),
+    },
+  ];
 
-  const handleReparse = () => {
-    Modal.confirm({
-      title: '重新解析简历',
-      content: '将重新调用 AI 解析该简历，并覆盖现有解析结果。',
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await request.post(`/resumes/${id}/reparse`);
-          message.success('已开始重新解析');
-          fetchResume(id!);
-        } catch (error) {
-          message.error('重新解析失败');
-        }
-      },
-    });
-  };
+  return (
+    <div className="resume-detail-page">
+      <div className="resume-detail-toolbar">
+        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+          <Space>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/resumes')}>返回</Button>
+            <Tag color={status.color}>{status.text}</Tag>
+          </Space>
+          <Space>
+            {isEditing ? (
+              <>
+                <Button type="primary" icon={<SaveOutlined />} onClick={handleUpdate}>保存</Button>
+                <Button onClick={() => setIsEditing(false)}>取消</Button>
+              </>
+            ) : (
+              <>
+                <Dropdown menu={{ items: exportItems }} disabled={!canExportReport}>
+                  <Button icon={<FilePdfOutlined />} disabled={!canExportReport}>
+                    导出报告 <DownOutlined />
+                  </Button>
+                </Dropdown>
+                <Button icon={<ReloadOutlined />} onClick={handleReparse} disabled={resume.parse_status === 'processing'}>重新分析</Button>
+                <Button icon={<EditOutlined />} onClick={() => setIsEditing(true)}>编辑信息</Button>
+              </>
+            )}
+          </Space>
+        </Space>
+      </div>
 
-  // 确认淘汰低分简历
-  const handleConfirmRejection = async () => {
-    try {
-      const values = await rejectForm.validateFields();
-      const formData = new FormData();
-      formData.append('reason_category', values.reject_reason_category);
-      if (values.reject_reason_detail) {
-        formData.append('reason_detail', values.reject_reason_detail);
-      }
-      formData.append('hr_id', user?.id || '');
+      <div className="resume-detail-shell">
+        <Card className="resume-preview-pane" styles={{ body: { padding: 0 } }}>
+          <div className="resume-preview-head">
+            <div>
+              <Text type="secondary">原始简历</Text>
+              <Title level={5}>{resume.candidate_name || '未识别候选人'}</Title>
+            </div>
+            <FilePdfOutlined />
+          </div>
+          <div className="resume-preview-body">
+            {isPdf && pdfPreviewUrl ? (
+              <iframe title="resume-preview" src={pdfPreviewUrl} />
+            ) : (
+              <div className="resume-preview-empty">
+                <FilePdfOutlined />
+                <Text type="secondary">暂无可预览文件</Text>
+              </div>
+            )}
+          </div>
+        </Card>
 
-      await request.post(`/resumes/${id}/confirm-rejection`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      message.success('已确认淘汰');
-      setIsRejectModalVisible(false);
-      rejectForm.resetFields();
-      fetchResume(id!);
-    } catch (error) {
-      message.error('操作失败');
-    }
-  };
+        <div className="resume-analysis-pane" id="resume-analysis-report-content">
+          <Card className="resume-profile-card" style={{ marginBottom: 16 }}>
+            <div className="resume-profile-hero">
+              <Space align="start" style={{ justifyContent: 'space-between', width: '100%' }}>
+                <div>
+                  <Text type="secondary">候选人</Text>
+                  <Title level={2} style={{ margin: 0 }}>{resume.candidate_name || '未识别'}</Title>
+                  <Text type="secondary">{resume.email || resume.contact || '暂无联系方式'}</Text>
+                </div>
+                {resume.match_score != null && (
+                  <Progress
+                    type="circle"
+                    percent={resume.match_score}
+                    size={72}
+                    strokeColor={resume.match_score >= 80 ? '#059669' : resume.match_score >= 60 ? '#D97706' : '#DC2626'}
+                    format={() => resume.match_score}
+                  />
+                )}
+              </Space>
+            </div>
 
-  // 覆盖AI淘汰建议
-  const handleOverrideRejection = async () => {
-    Modal.confirm({
-      title: '恢复简历',
-      content: '确定要将此简历恢复到评审流程吗？',
-      okText: '确认',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const formData = new FormData();
-          formData.append('hr_id', user?.id || '');
-          await request.post(`/resumes/${id}/override-rejection`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          message.success('已恢复到评审流程');
-          fetchResume(id!);
-        } catch (error) {
-          message.error('操作失败');
-        }
-      }
-    });
-  };
+            {isEditing ? (
+              <Form form={form} layout="vertical">
+                <Form.Item label="姓名" name="candidate_name">
+                  <Input />
+                </Form.Item>
+                <Form.Item label="邮箱" name="email">
+                  <Input />
+                </Form.Item>
+                <Form.Item label="联系方式" name="contact">
+                  <Input />
+                </Form.Item>
+              </Form>
+            ) : (
+              <Descriptions column={1} size="small">
+                <Descriptions.Item label="工作年限">{parsedData.years_of_experience ?? '-'}</Descriptions.Item>
+                <Descriptions.Item label="最近公司">{parsedData.recent_company || '-'}</Descriptions.Item>
+                <Descriptions.Item label="学历">{parsedData.highest_degree || '-'}</Descriptions.Item>
+                <Descriptions.Item label="学校">{parsedData.school || '-'}</Descriptions.Item>
+              </Descriptions>
+            )}
+          </Card>
 
-  // 指派评审人
-  const handleAssignReviewer = async () => {
-    try {
-      const values = await deptReviewForm.validateFields();
-      const reviewerIds = values.reviewer_ids; // 多选
+          {resume.parse_status === 'failed' && (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 16 }}
+              title="模型分析失败"
+              description={resume.parse_error || '请检查模型配置后重新分析'}
+            />
+          )}
 
-      // 批量指派评审人
-      for (const reviewerId of reviewerIds) {
-        const formData = new FormData();
-        formData.append('reviewer_id', reviewerId);
-        await request.post(`/resumes/${id}/department-reviews`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        });
-      }
+          <Card title="综合分析" style={{ marginBottom: 16 }}>
+            {resume.ai_review ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{resume.ai_review}</ReactMarkdown>
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无分析结果" />
+            )}
+          </Card>
 
-      message.success(`已指派 ${reviewerIds.length} 位评审人`);
-      setIsAssignReviewerModalVisible(false);
-      deptReviewForm.resetFields();
-      fetchResume(id!);
-      fetchDeptReviewSummary(id!);
-    } catch (error) {
-      message.error('指派失败');
-    }
-  };
-
-  // HR决策
-  const handleHRDecision = async () => {
-    try {
-      const values = await hrDecisionForm.validateFields();
-
-      if (values.decision === 'rejected' && !values.reject_reason_category) {
-        message.error('淘汰时必须选择淘汰原因');
-        return;
-      }
-
-      const payload: any = {
-        hr_id: user?.id,
-        decision: values.decision,
-        hr_comment: values.hr_comment || null,
-      };
-
-      if (values.decision === 'rejected') {
-        payload.reject_reason_category = values.reject_reason_category;
-        payload.reject_reason_detail = values.reject_reason_detail || null;
-      }
-
-      await request.post(`/resumes/${id}/hr-decision`, payload);
-
-      message.success('决策已提交');
-      setIsHRDecisionModalVisible(false);
-      hrDecisionForm.resetFields();
-      fetchResume(id!);
-    } catch (error) {
-      message.error('操作失败');
-    }
-  };
-
-  // 提交部门评审
-  const handleSubmitReview = async () => {
-    try {
-      const values = await submitReviewForm.validateFields();
-      const formData = new FormData();
-      formData.append('reviewer_id', user?.id || '');
-      formData.append('technical_score', values.technical_score || '');
-      formData.append('experience_score', values.experience_score || '');
-      formData.append('overall_score', values.overall_score || '');
-      formData.append('recommendation', values.recommendation || '');
-      formData.append('comment', values.comment || '');
-
-      await request.put(
-        `/resumes/${id}/department-reviews/${myReview.id}`,
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
-
-      message.success('评审已提交');
-      setIsSubmitReviewModalVisible(false);
-      submitReviewForm.resetFields();
-      fetchResume(id!);
-      fetchDeptReviewSummary(id!);
-    } catch (error) {
-      message.error('提交失败');
-    }
-  };
-
-  // 转岗
-  const handleTransfer = (newPositionId: string, positionTitle: string) => {
-    Modal.confirm({
-      title: '确认转岗',
-      content: `确定将该候选人转岗到「${positionTitle}」吗？转岗后将重新进行简历分析。`,
-      okText: '确认转岗',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const formData = new FormData();
-          formData.append('new_position_id', newPositionId);
-          await request.post(`/resumes/${id}/transfer`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          message.success('转岗成功，正在重新解析简历');
-          fetchResume(id!);
-        } catch (error) {
-          message.error('转岗失败');
-        }
-      }
-    });
-  };
-
-  // 渲染操作按钮区域
-  const renderActionButtons = () => {
-    const buttons: React.ReactNode[] = [];
-
-    // 检查当前用户是否是被指派的评审人且未完成评审
-    const isAssignedReviewer = myReview && !myReview.is_completed;
-
-    // 如果是被指派的评审人，显示提交评审按钮
-    if (isAssignedReviewer) {
-      buttons.push(
-        <Button
-          key="submit-review"
-          type="primary"
-          icon={<SolutionOutlined />}
-          onClick={() => setIsSubmitReviewModalVisible(true)}
-        >
-          提交评审
-        </Button>
-      );
-      return buttons; // 评审人只显示提交评审按钮
-    }
-
-    // 以下操作仅对 HR 和 Admin 显示
-    if (userRole !== 'admin' && userRole !== 'hr') {
-      return buttons;
-    }
-
-    // 基础操作
-    if (!isEditing) {
-      buttons.push(
-        <Button key="reparse" icon={<ReloadOutlined />} onClick={handleReparse} disabled={resume?.parse_status === 'processing'}>重新解析</Button>,
-        <Button key="edit" icon={<EditOutlined />} onClick={() => setIsEditing(true)}>编辑</Button>
-      );
-    } else {
-      buttons.push(
-        <Button key="save" icon={<SaveOutlined />} type="primary" onClick={handleUpdate}>保存</Button>,
-        <Button key="cancel" onClick={() => setIsEditing(false)}>取消</Button>
-      );
-      return buttons;
-    }
-
-    // 根据状态显示不同操作
-    if (resume.status === 'auto_rejected_pending_review') {
-      buttons.push(
-        <Button key="confirm-reject" danger icon={<CloseCircleOutlined />} onClick={() => setIsRejectModalVisible(true)}>确认淘汰</Button>,
-        <Button key="override" type="primary" icon={<CheckCircleOutlined />} onClick={handleOverrideRejection}>恢复评审</Button>
-      );
-    } else if (resume.status === 'pending_review') {
-      // 待评审状态：可以直接HR决策，指派评审人在部门评审卡片头部
-      buttons.push(
-        <Button key="hr-decision" icon={<SolutionOutlined />} onClick={() => setIsHRDecisionModalVisible(true)}>直接决策</Button>
-      );
-    } else if (resume.status === 'pending_hr_decision') {
-      buttons.push(
-        <Button key="hr-decision" type="primary" icon={<SolutionOutlined />} onClick={() => setIsHRDecisionModalVisible(true)}>HR决策</Button>
-      );
-    } else if (resume.status === 'pending_interview') {
-      // 初审通过，可以安排面试
-      buttons.push(
-        <Button key="schedule-interview" type="primary" icon={<TeamOutlined />} onClick={() => navigate('/resumes')}>安排面试</Button>
-      );
-    } else if (resume.status !== 'rejected' && resume.status !== 'completed') {
-      buttons.push(
-        <Button key="reject" danger icon={<CloseCircleOutlined />} onClick={() => setIsRejectModalVisible(true)}>淘汰</Button>
-      );
-    }
-
-    return buttons;
-  };
-
-  // 渲染部门评审区域
-  const renderDepartmentReviewSection = () => {
-    if (!['pending_review', 'pending_dept_review', 'pending_hr_decision', 'rejected', 'completed', 'waitlist', 'pending_interview'].includes(resume.status)) {
-      return null;
-    }
-
-    return (
-      <Card
-        title={<span><TeamOutlined style={{ marginRight: 8 }} />部门评审</span>}
-        style={{ marginTop: 24, borderRadius: '16px' }}
-        extra={['pending_review', 'pending_dept_review'].includes(resume.status) && (userRole === 'admin' || userRole === 'hr') && (
-          <Button type="primary" size="small" onClick={() => setIsAssignReviewerModalVisible(true)}>指派评审人</Button>
-        )}
-      >
-        {deptReviewSummary && deptReviewSummary.total_reviewers > 0 ? (
-          <>
-            <Row gutter={24} style={{ marginBottom: 24 }}>
-              <Col span={6}>
-                <Statistic title="评审人数" value={`${deptReviewSummary.completed_reviewers}/${deptReviewSummary.total_reviewers}`} />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="技术评分"
-                  value={deptReviewSummary.avg_technical_score?.toFixed(1) || '-'}
-                  suffix={deptReviewSummary.avg_technical_score ? '/10' : ''}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic
-                  title="经验评分"
-                  value={deptReviewSummary.avg_experience_score?.toFixed(1) || '-'}
-                  suffix={deptReviewSummary.avg_experience_score ? '/10' : ''}
-                />
-              </Col>
-              <Col span={6}>
-                <Statistic title="推荐比例" value={(deptReviewSummary.recommend_ratio * 100).toFixed(0)} suffix="%" />
-              </Col>
-            </Row>
-
-            {deptReviewSummary.reviews && deptReviewSummary.reviews.length > 0 && (
+          <Card title="工作经历" style={{ marginBottom: 16 }}>
+            {workExperiences.length ? (
               <List
-                header="评审详情"
-                dataSource={deptReviewSummary.reviews}
-                renderItem={(review: any) => (
+                dataSource={workExperiences}
+                renderItem={(item: any) => (
                   <List.Item>
                     <List.Item.Meta
-                      avatar={<Avatar icon={<UserOutlined />} />}
-                      title={
-                        <Space>
-                          <span>{review.reviewer_name || '评审人'}</span>
-                          <Tag color={review.is_completed ? 'green' : 'default'}>
-                            {review.is_completed ? '已完成' : '待评审'}
-                          </Tag>
-                          {review.recommendation && review.is_completed && (
-                            <Tag color={review.recommendation === 'recommend' ? 'green' : review.recommendation === 'not_recommend' ? 'red' : 'gold'}>
-                              {review.recommendation === 'recommend' ? '推荐' : review.recommendation === 'not_recommend' ? '不推荐' : '待定'}
-                            </Tag>
+                      title={<Space><span>{item.company || '未命名公司'}</span><Tag>{item.role || '角色未明'}</Tag></Space>}
+                      description={
+                        <Space direction="vertical" size={4}>
+                          {item.period && <Text type="secondary">{item.period}</Text>}
+                          <Paragraph>{item.summary}</Paragraph>
+                          {asArray(item.capabilities).length > 0 && (
+                            <Space wrap>{asArray(item.capabilities).map((capability: string) => <Tag key={capability}>{capability}</Tag>)}</Space>
                           )}
                         </Space>
-                      }
-                      description={
-                        review.is_completed ? (
-                          <Space direction="vertical" style={{ width: '100%' }}>
-                            <Space>
-                              <Text type="secondary">技术: {review.technical_score}/10</Text>
-                              <Text type="secondary">经验: {review.experience_score}/10</Text>
-                              <Text type="secondary">综合: {review.overall_score}/10</Text>
-                            </Space>
-                            {review.comment && <Text>{review.comment}</Text>}
-                          </Space>
-                        ) : (
-                          <Text type="secondary">等待评审</Text>
-                        )
                       }
                     />
                   </List.Item>
                 )}
               />
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无工作经历" />
             )}
-          </>
-        ) : (
-          <Empty description="暂无部门评审记录" />
-        )}
-      </Card>
-    );
-  };
+          </Card>
 
-  return (
-    <div className="resume-detail-page">
-      <div className="resume-detail-toolbar">
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/resumes')}>返回列表</Button>
-      </div>
-      <div className="resume-detail-shell">
-      {/* Left: File Preview */}
-      <div className="resume-preview-pane">
-        <div className="resume-preview-head">
-          <div>
-            <Text className="eyebrow">Original Resume</Text>
-            <Title level={5}>简历原件预览</Title>
-          </div>
-          <Button type="primary" icon={<DownloadOutlined />} href={fileUrl} target="_blank" download>
-            下载原件
-          </Button>
-        </div>
-        <div className="resume-preview-body">
-          {fileUrl ? (
-            isPdf ? (
-              <iframe
-                src={pdfPreviewUrl}
-                style={{ width: '100%', height: '100%', border: 'none', display: 'block', background: '#fff' }}
-                title="Resume Preview"
+          <Card title="项目经历与商业模式" style={{ marginBottom: 16 }}>
+            {projectExperiences.length ? (
+              <List
+                dataSource={projectExperiences}
+                renderItem={(item: any) => (
+                  <List.Item>
+                    <List.Item.Meta
+                      title={item.name || '未命名项目'}
+                      description={
+                        <Space direction="vertical" size={6}>
+                          {item.role && <Text type="secondary">角色：{item.role}</Text>}
+                          {item.problem && <Text>问题：{item.problem}</Text>}
+                          {item.solution && <Text>方案：{item.solution}</Text>}
+                          {item.business_model && <Text>商业模式：{item.business_model}</Text>}
+                          {asArray(item.missing_evidence).length > 0 && (
+                            <Space wrap>
+                              {asArray(item.missing_evidence).map((evidence: string) => <Tag color="warning" key={evidence}>{evidence}</Tag>)}
+                            </Space>
+                          )}
+                        </Space>
+                      }
+                    />
+                  </List.Item>
+                )}
               />
             ) : (
-              <div className="resume-preview-empty">
-                <FileWordOutlined />
-                <Text type="secondary" style={{ marginBottom: '16px' }}>该文件格式暂不支持在线预览，请下载后查看</Text>
-                <Button type="primary" href={fileUrl} download>下载文件</Button>
-              </div>
-            )
-          ) : (
-            <div className="resume-preview-empty">
-              暂无文件
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right: AI Analysis & Details */}
-      <div className="resume-analysis-pane">
-        <Card
-          className="resume-profile-card"
-          variant="borderless"
-        >
-          <div className="resume-profile-hero">
-            <div className="resume-candidate-main">
-              <Avatar className="resume-candidate-avatar">{candidateInitial}</Avatar>
-              <div className="resume-candidate-copy">
-                {isEditing ? (
-                    <Form form={form} layout="inline" className="resume-inline-form">
-                        <Form.Item name="candidate_name">
-                            <Input placeholder="姓名" className="resume-name-input" />
-                        </Form.Item>
-                    </Form>
-                ) : (
-                    <Title level={2} className="resume-candidate-name">{resume.candidate_name}</Title>
-                )}
-
-                <div className="resume-candidate-meta">
-                  {isEditing ? (
-                      <Form form={form} layout="inline" className="resume-inline-form">
-                           <Form.Item name="email">
-                               <Input placeholder="邮箱" />
-                           </Form.Item>
-                           <Form.Item name="contact">
-                               <Input placeholder="电话" />
-                           </Form.Item>
-                      </Form>
-                  ) : (
-                      <Space wrap size={[12, 8]}>
-                          <Text
-                            type="secondary"
-                            ellipsis={{ tooltip: resume.email }}
-                          >
-                            {resume.email || '未识别邮箱'}
-                          </Text>
-                          <Text type="secondary">{resume.contact || '未识别电话'}</Text>
-                      </Space>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="resume-action-panel">
-              <div className="resume-score-strip">
-                <div className="resume-score-card">
-                  <Text type="secondary">匹配度</Text>
-                  <Progress
-                    type="circle"
-                    percent={resume.match_score}
-                    size={54}
-                    format={percent => <span className="resume-score-value">{percent}%</span>}
-                    strokeColor={resume.match_score >= 80 ? '#10B981' : resume.match_score >= 60 ? '#F59E0B' : '#EF4444'}
-                  />
-                </div>
-                <Tag color={statusInfo.color} className="resume-status-tag">
-                  {statusInfo.text}
-                </Tag>
-              </div>
-
-              <Space wrap size={[8, 8]} className="resume-action-buttons">
-                {renderActionButtons()}
-              </Space>
-            </div>
-          </div>
-
-          <Descriptions className="resume-info-grid" column={1} bordered size="small">
-            <Descriptions.Item label="应聘岗位">{resume.position?.title}</Descriptions.Item>
-            <Descriptions.Item label="学历">{parsedData.highest_degree || '未识别'}</Descriptions.Item>
-            <Descriptions.Item label="毕业院校">{parsedData.school || '未识别'}</Descriptions.Item>
-            <Descriptions.Item label="专业">{parsedData.major || '未识别'}</Descriptions.Item>
-            <Descriptions.Item label="工作年限">{parsedData.years_of_experience || '0'}年</Descriptions.Item>
-            <Descriptions.Item label="最近公司">{parsedData.recent_company || '未识别'}</Descriptions.Item>
-            <Descriptions.Item label="解析状态">{statusInfo.text}</Descriptions.Item>
-            <Descriptions.Item label="失败原因">{resume.parse_status === 'failed' ? (resume.parse_error || '未知') : '-'}</Descriptions.Item>
-            {resume.reject_reason_category && (
-              <>
-                <Descriptions.Item label="淘汰原因">
-                  {REJECT_REASONS.find(r => r.value === resume.reject_reason_category)?.label || resume.reject_reason_category}
-                </Descriptions.Item>
-                <Descriptions.Item label="详细说明">{resume.reject_reason_detail || '-'}</Descriptions.Item>
-              </>
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无项目经历" />
             )}
-          </Descriptions>
+          </Card>
 
-          <Divider className="resume-section-divider">AI 初审评价</Divider>
-          <div className="resume-ai-review">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{
-                h3: ({node, ...props}) => <h3 {...props} />,
-                p: ({node, ...props}) => <p style={{ marginBottom: '12px' }} {...props} />,
-                ul: ({node, ...props}) => <ul style={{ paddingLeft: '20px', marginBottom: '12px' }} {...props} />,
-                li: ({node, ...props}) => <li style={{ marginBottom: '4px' }} {...props} />
-              }}
-            >
-              {resume.ai_review || '暂无评价'}
-            </ReactMarkdown>
-          </div>
-
-          {/* 其他岗位匹配推荐 */}
-          {resume.other_position_matches && resume.other_position_matches.length > 0 && (
-            <>
-              <Divider className="resume-section-divider">其他岗位匹配推荐</Divider>
-              <div className="resume-position-matches">
-                <Text type="secondary" style={{ marginBottom: 12, display: 'block' }}>
-                  该候选人与以下岗位也有较好的匹配度，可考虑转岗推荐
-                </Text>
-                <List
-                  dataSource={resume.other_position_matches}
-                  renderItem={(match: any) => (
-                    <List.Item style={{ border: 'none', padding: '12px 0' }}>
-                      <Card
-                        size="small"
-                        className="resume-match-card"
-                        style={{ width: '100%' }}
-                        styles={{ body: { padding: '12px 16px' } }}
-                      >
-                        <div className="resume-match-row">
-                          <div className="resume-match-copy">
-                            <Space>
-                              <Text strong>{match.position_title}</Text>
-                              {match.is_better_match && (
-                                <Tag color="green">更适合</Tag>
-                              )}
-                            </Space>
-                            {match.reason && (
-                              <Text type="secondary" style={{ display: 'block', marginTop: 4, fontSize: 13 }}>
-                                {match.reason}
-                              </Text>
-                            )}
-                          </div>
-                          <Space>
-                            <Progress
-                              type="circle"
-                              percent={match.match_score}
-                              size={45}
-                              format={percent => <span style={{ fontSize: 12, fontWeight: 600 }}>{percent}%</span>}
-                              strokeColor={match.match_score >= 80 ? '#10B981' : match.match_score >= 60 ? '#F59E0B' : '#EF4444'}
-                            />
-                            {(userRole === 'admin' || userRole === 'hr') && match.position_id && (
-                              <Button
-                                type="primary"
-                                size="small"
-                                onClick={() => handleTransfer(match.position_id, match.position_title)}
-                              >
-                                转岗
-                              </Button>
-                            )}
-                          </Space>
-                        </div>
-                      </Card>
-                    </List.Item>
-                  )}
-                />
-              </div>
-            </>
-          )}
-        </Card>
-
-        {/* 部门评审区域 */}
-        {renderDepartmentReviewSection()}
-      </div>
-      </div>
-
-      {/* 淘汰确认弹窗 */}
-      <Modal
-        title="确认淘汰"
-        open={isRejectModalVisible}
-        onOk={handleConfirmRejection}
-        onCancel={() => { setIsRejectModalVisible(false); rejectForm.resetFields(); }}
-        okText="确认淘汰"
-        cancelText="取消"
-        okType="danger"
-      >
-        <Form form={rejectForm} layout="vertical" style={{ marginTop: 24 }}>
-          <RejectReasonSelector />
-        </Form>
-      </Modal>
-
-      {/* 指派评审人弹窗 */}
-      <Modal
-        title="指派部门评审人"
-        open={isAssignReviewerModalVisible}
-        onOk={handleAssignReviewer}
-        onCancel={() => { setIsAssignReviewerModalVisible(false); deptReviewForm.resetFields(); }}
-        okText="确认指派"
-        cancelText="取消"
-      >
-        <Form form={deptReviewForm} layout="vertical" style={{ marginTop: 24 }}>
-          <Form.Item
-            name="reviewer_ids"
-            label="选择评审人（可多选）"
-            rules={[{ required: true, message: '请选择至少一位评审人' }]}
-          >
-            <Select
-              mode="multiple"
-              placeholder="请选择评审人，可多选"
-              size="large"
-              showSearch
-              optionFilterProp="children"
-              style={{ width: '100%' }}
-            >
-              {reviewers.map((r: any) => (
-                <Select.Option key={r.id} value={r.id}>{r.full_name || r.email}</Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* HR决策弹窗 */}
-      <Modal
-        title="HR决策"
-        open={isHRDecisionModalVisible}
-        onOk={handleHRDecision}
-        onCancel={() => { setIsHRDecisionModalVisible(false); hrDecisionForm.resetFields(); }}
-        okText="提交决策"
-        cancelText="取消"
-        width={500}
-      >
-        <Form form={hrDecisionForm} layout="vertical" style={{ marginTop: 24 }}>
-          <Form.Item
-            name="decision"
-            label="决策结果"
-            rules={[{ required: true, message: '请选择决策结果' }]}
-          >
-            <Select placeholder="请选择决策结果" size="large">
-              <Select.Option value="pending_interview">进入面试</Select.Option>
-              <Select.Option value="waitlist">加入备选</Select.Option>
-              <Select.Option value="rejected">淘汰</Select.Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            noStyle
-            shouldUpdate={(prevValues, currentValues) => prevValues.decision !== currentValues.decision}
-          >
-            {({ getFieldValue }) =>
-              getFieldValue('decision') === 'rejected' && (
-                <RejectReasonSelector />
-              )
-            }
-          </Form.Item>
-
-          <Form.Item
-            name="hr_comment"
-            label="HR备注"
-          >
-            <TextArea rows={3} placeholder="请输入备注信息（可选）" maxLength={500} showCount />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 提交评审弹窗 */}
-      <Modal
-        title="提交部门评审"
-        open={isSubmitReviewModalVisible}
-        onOk={handleSubmitReview}
-        onCancel={() => { setIsSubmitReviewModalVisible(false); submitReviewForm.resetFields(); }}
-        okText="提交评审"
-        cancelText="取消"
-        width={500}
-      >
-        <Form form={submitReviewForm} layout="vertical" style={{ marginTop: 24 }}>
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                name="technical_score"
-                label="技术评分"
-                extra="1-10分"
-              >
-                <Select placeholder="技术评分" size="large">
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                    <Select.Option key={n} value={n}>{n}分</Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
+            <Col span={24}>
+              <QuestionList title="针对经历的面试追问" data={interviewQuestions} />
             </Col>
-            <Col span={8}>
-              <Form.Item
-                name="experience_score"
-                label="经验评分"
-                extra="1-10分"
-              >
-                <Select placeholder="经验评分" size="large">
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                    <Select.Option key={n} value={n}>{n}分</Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
+            <Col span={24}>
+              <QuestionList title="商业模式解释问题" data={businessQuestions} />
             </Col>
-            <Col span={8}>
-              <Form.Item
-                name="overall_score"
-                label="综合评分"
-                extra="1-10分"
-              >
-                <Select placeholder="综合评分" size="large">
-                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                    <Select.Option key={n} value={n}>{n}分</Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
+            <Col span={24}>
+              <QuestionList title="经历补全问题" data={completionQuestions} />
             </Col>
           </Row>
-
-          <Form.Item
-            name="recommendation"
-            label="推荐意见"
-            rules={[{ required: true, message: '请选择推荐意见' }]}
-          >
-            <Select placeholder="请选择推荐意见" size="large">
-              <Select.Option value="recommend">推荐</Select.Option>
-              <Select.Option value="not_recommend">不推荐</Select.Option>
-              <Select.Option value="pending">待定</Select.Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="comment"
-            label="评审意见"
-          >
-            <TextArea rows={4} placeholder="请输入详细评审意见（可选）" maxLength={1000} showCount />
-          </Form.Item>
-        </Form>
-      </Modal>
+        </div>
+      </div>
     </div>
   );
 };

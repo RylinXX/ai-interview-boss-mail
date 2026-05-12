@@ -214,11 +214,6 @@ def get_resume_mail_import_settings(
     _current_user=Depends(check_roles([UserRole.ADMIN])),
 ):
     config = _get_or_create_config(db)
-    if not config.resume_mail_default_position_id:
-        position = ResumeMailImportService().ensure_default_position(db)
-        config.resume_mail_default_position_id = position.id
-        db.commit()
-        db.refresh(config)
     return _resume_mail_response(config)
 
 
@@ -251,10 +246,6 @@ def update_resume_mail_import_settings(
         config.resume_mail_poll_interval_seconds = max(int(data["poll_interval_seconds"]), 30)
     if "mark_success_read" in data:
         config.resume_mail_mark_success_read = data["mark_success_read"]
-
-    if not config.resume_mail_default_position_id:
-        position = ResumeMailImportService().ensure_default_position(db)
-        config.resume_mail_default_position_id = position.id
 
     db.commit()
     db.refresh(config)

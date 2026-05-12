@@ -3,6 +3,7 @@ import os
 from typing import Dict, Any
 import json
 import httpx
+import base64
 from dotenv import load_dotenv
 from app.utils.prompt_manager import prompt_manager
 from app.config.database import SessionLocal
@@ -185,6 +186,133 @@ def extract_resume_text_from_images(image_data_urls: list[str]) -> str:
         return ""
 
 
+def extract_resume_text_from_document(file_path: str) -> str:
+    cfg = _get_llm_config()
+    api_key = cfg.get("llm_api_key")
+    base_url = (cfg.get("llm_base_url") or "").rstrip("/")
+    if not api_key or not base_url:
+        return ""
+
+    try:
+        with open(file_path, "rb") as file:
+            encoded = base64.b64encode(file.read()).decode("ascii")
+    except OSError as exc:
+        print(f"Resume document read failed: {exc}")
+        return ""
+
+    filename = os.path.basename(file_path)
+    lower_name = filename.lower()
+    if lower_name.endswith(".pdf"):
+        media_type = "application/pdf"
+    elif lower_name.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        media_type = "application/octet-stream"
+
+    try:
+        response = httpx.post(
+            f"{base_url}/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": cfg["llm_model"],
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_file",
+                                "filename": filename,
+                                "file_data": f"data:{media_type};base64,{encoded}",
+                            },
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    "请完整读取这份简历文件，按原始顺序提取正文文本。"
+                                    "只输出简历正文，不要总结，不要添加 Markdown 代码块。"
+                                ),
+                            },
+                        ],
+                    }
+                ],
+            },
+            timeout=300,
+        )
+        response.raise_for_status()
+        return _response_text(response.json())
+    except Exception as e:
+        print(f"Resume document text extraction failed: {e}")
+        return ""
+
+
+def analyze_resume_intelligence_from_document(file_path: str) -> Dict[str, Any]:
+    prompt_data = prompt_manager.get_prompt("analyze_resume_intelligence_from_document")
+    if not prompt_data.get("user"):
+        print("Failed to load prompt for analyze_resume_intelligence_from_document")
+        return {}
+
+    cfg = _get_llm_config()
+    api_key = cfg.get("llm_api_key")
+    base_url = (cfg.get("llm_base_url") or "").rstrip("/")
+    if not api_key or not base_url:
+        return {}
+
+    try:
+        with open(file_path, "rb") as file:
+            encoded = base64.b64encode(file.read()).decode("ascii")
+    except OSError as exc:
+        print(f"Resume document read failed: {exc}")
+        return {}
+
+    filename = os.path.basename(file_path)
+    lower_name = filename.lower()
+    if lower_name.endswith(".pdf"):
+        media_type = "application/pdf"
+    elif lower_name.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    else:
+        media_type = "application/octet-stream"
+
+    prompt_text = "\n\n".join(
+        part
+        for part in (prompt_data.get("system"), prompt_data.get("user"))
+        if part
+    )
+
+    try:
+        response = httpx.post(
+            f"{base_url}/responses",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": cfg["llm_model"],
+                "input": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "input_file",
+                                "filename": filename,
+                                "file_data": f"data:{media_type};base64,{encoded}",
+                            },
+                            {"type": "input_text", "text": prompt_text},
+                        ],
+                    }
+                ],
+            },
+            timeout=300,
+        )
+        response.raise_for_status()
+        return _parse_json_content(_response_text(response.json()))
+    except Exception as e:
+        print(f"Resume document intelligence analysis failed: {e}")
+        return {}
+
+
 def analyze_resume(resume_text: str, position_description: str, other_positions: str = "") -> Dict[str, Any]:
     prompt_data = prompt_manager.get_prompt(
         "analyze_resume",
@@ -213,6 +341,34 @@ def analyze_resume(resume_text: str, position_description: str, other_positions:
         return result
     except Exception as e:
         print(f"AI analysis failed: {e}")
+        return {}
+
+
+def analyze_resume_intelligence(resume_text: str) -> Dict[str, Any]:
+    prompt_data = prompt_manager.get_prompt(
+        "analyze_resume_intelligence",
+        resume_text=resume_text,
+    )
+
+    if not prompt_data.get("user"):
+        print("Failed to load prompt for analyze_resume_intelligence")
+        return {}
+
+    try:
+        cfg = _get_llm_config()
+        extra = _completion_options(cfg, json_response=True)
+        completion = _get_client().chat.completions.create(
+            model=cfg["llm_model"],
+            messages=[
+                {"role": "system", "content": prompt_data["system"]},
+                {"role": "user", "content": prompt_data["user"]},
+            ],
+            extra_body=_get_extra_body(),
+            **extra,
+        )
+        return _parse_json_content(completion.choices[0].message.content)
+    except Exception as e:
+        print(f"Resume intelligence analysis failed: {e}")
         return {}
 
 def generate_resume_markdown(resume_text: str) -> str:

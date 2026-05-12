@@ -6,7 +6,7 @@ export const getMaximizedPdfPreviewUrl = (fileUrl: string) => {
 
   params.set('toolbar', '0');
   params.set('navpanes', '0');
-  params.set('scrollbar', '0');
+  params.set('scrollbar', '1');
   params.set('pagemode', 'none');
   params.set('view', 'FitH');
   params.set('zoom', 'page-width');

@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 
 from app.models.models import (
     Position,
-    PositionStatus,
     Resume,
     ResumeMailImport,
     ResumeMailImportStatus,
@@ -29,7 +28,6 @@ from app.services.resume_mail_import_parser import (
 from app.services.resume_service import process_resume_background
 
 
-DEFAULT_POSITION_TITLE = "AI 产品经理"
 SOURCE_BOSS_MAIL = "boss_mail"
 
 
@@ -247,7 +245,7 @@ class ResumeMailImportService:
                 file_path = self._save_attachment(attachment)
                 resume = Resume(
                     candidate_name="解析中...",
-                    position_id=position.id,
+                    position_id=position.id if position else None,
                     file_path=file_path,
                     parse_status="processing",
                     status=ResumeStatus.PENDING_SCREENING,
@@ -297,7 +295,7 @@ class ResumeMailImportService:
                 continue
 
             try:
-                process_resume_background(resume.id, position.id, False)
+                process_resume_background(resume.id, position.id if position else None, False)
             except Exception as exc:
                 db.rollback()
                 self._log_import(
@@ -320,50 +318,13 @@ class ResumeMailImportService:
 
         return summary
 
-    def ensure_default_position(self, db: Session) -> Position:
-        normalized_default = self._normalize_title(DEFAULT_POSITION_TITLE)
-        existing = db.query(Position).all()
-        for position in existing:
-            if self._normalize_title(position.title) == normalized_default:
-                return position
-
-        position = Position(
-            title=DEFAULT_POSITION_TITLE,
-            description="Default position for BOSS resume mail imports",
-            requirements="Review imported BOSS resumes and assign to the best fit.",
-            status=PositionStatus.OPEN,
-        )
-        db.add(position)
-        db.flush()
-        return position
-
     def _resolve_position(
         self,
         db: Session,
         position_title: Optional[str],
         config: Optional[SystemConfig],
-    ) -> Position:
-        normalized_title = self._normalize_title(position_title)
-        if normalized_title:
-            open_positions = (
-                db.query(Position)
-                .filter(Position.status.in_([PositionStatus.OPEN, PositionStatus.PUBLISHED]))
-                .all()
-            )
-            for position in open_positions:
-                if self._normalize_title(position.title) == normalized_title:
-                    return position
-
-        if config and config.resume_mail_default_position_id:
-            default_position = (
-                db.query(Position)
-                .filter(Position.id == config.resume_mail_default_position_id)
-                .first()
-            )
-            if default_position:
-                return default_position
-
-        return self.ensure_default_position(db)
+    ) -> Optional[Position]:
+        return None
 
     def _save_attachment(self, attachment: ParsedAttachment) -> str:
         os.makedirs(self.upload_root, exist_ok=True)
@@ -409,7 +370,7 @@ class ResumeMailImportService:
         parsed: ParsedMailMessage,
         mailbox: str,
         attachment: ParsedAttachment,
-        position: Position,
+        position: Optional[Position],
     ) -> ResumeMailImport:
         return self._log_import(
             db,
@@ -432,7 +393,7 @@ class ResumeMailImportService:
         parsed: ParsedMailMessage,
         mailbox: str,
         attachment: ParsedAttachment,
-        position: Position,
+        position: Optional[Position],
         error: Exception,
     ) -> ResumeMailImport:
         return self._log_import(

@@ -1,16 +1,8 @@
 import pytest
 
-from app.models.models import (
-    Position,
-    PositionStatus,
-    Resume,
-    ResumeMailImport,
-    ResumeMailImportStatus,
-    SystemConfig,
-)
+from app.models.models import Resume, ResumeMailImport, ResumeMailImportStatus, SystemConfig
 from app.services.resume_mail_import_parser import ParsedAttachment, ParsedMailMessage
 from app.services.resume_mail_import_service import (
-    DEFAULT_POSITION_TITLE,
     ImapResumeMailClient,
     ResumeMailImportService,
 )
@@ -58,19 +50,7 @@ def make_parsed_message(
 
 
 def test_import_parsed_message_creates_resume_and_log(db, tmp_path, monkeypatch):
-    position = Position(
-        title="AI 产品经理",
-        description="负责 AI 产品规划",
-        requirements="熟悉 AI 产品设计",
-        status=PositionStatus.OPEN,
-    )
-    db.add(position)
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=position.id,
-        )
-    )
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     queued = []
@@ -89,21 +69,16 @@ def test_import_parsed_message_creates_resume_and_log(db, tmp_path, monkeypatch)
 
     assert summary.imported == 1
     assert summary.scanned_messages == 1
-    assert resume.position_id == position.id
+    assert resume.position_id is None
     assert resume.source == "boss_mail"
     assert resume.source_attachment_hash == "c" * 64
     assert log.mailbox == "recruiting@example.com"
     assert log.status == ResumeMailImportStatus.IMPORTED.value
-    assert queued == [(resume.id, position.id, False)]
+    assert queued == [(resume.id, None, False)]
 
 
-def test_import_parsed_message_skips_duplicate_attachment(db, tmp_path, test_position):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_parsed_message_skips_duplicate_attachment(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.add(
         ResumeMailImport(
             mailbox="recruiting@example.com",
@@ -112,7 +87,6 @@ def test_import_parsed_message_skips_duplicate_attachment(db, tmp_path, test_pos
             attachment_filename="old.pdf",
             attachment_sha256="d" * 64,
             status=ResumeMailImportStatus.IMPORTED.value,
-            position_id=test_position.id,
         )
     )
     db.commit()
@@ -131,13 +105,8 @@ def test_import_parsed_message_skips_duplicate_attachment(db, tmp_path, test_pos
     assert db.query(Resume).count() == 0
 
 
-def test_import_parsed_message_skips_non_boss_message(db, tmp_path, test_position):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_parsed_message_skips_non_boss_message(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
     parsed = make_parsed_message(uid="3")
     parsed = ParsedMailMessage(
@@ -160,13 +129,8 @@ def test_import_parsed_message_skips_non_boss_message(db, tmp_path, test_positio
     assert db.query(ResumeMailImport).count() == 0
 
 
-def test_import_parsed_message_logs_no_attachment_skip(db, tmp_path, test_position):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_parsed_message_logs_no_attachment_skip(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     service = ResumeMailImportService(upload_root=str(tmp_path))
@@ -182,13 +146,8 @@ def test_import_parsed_message_logs_no_attachment_skip(db, tmp_path, test_positi
     assert db.query(Resume).count() == 0
 
 
-def test_import_parsed_message_logs_unsupported_attachment_skip(db, tmp_path, test_position):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_parsed_message_logs_unsupported_attachment_skip(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     service = ResumeMailImportService(upload_root=str(tmp_path))
@@ -211,56 +170,14 @@ def test_import_parsed_message_logs_unsupported_attachment_skip(db, tmp_path, te
     assert db.query(Resume).count() == 0
 
 
-def test_ensure_default_position_fetches_existing_default_regardless_of_status(db, tmp_path):
-    closed_default = Position(
-        title=DEFAULT_POSITION_TITLE,
-        description="Closed default",
-        requirements="Closed",
-        status=PositionStatus.CLOSED,
-    )
-    db.add(closed_default)
-    db.commit()
-
+def test_resume_mail_import_does_not_create_default_position(db, tmp_path):
     service = ResumeMailImportService(upload_root=str(tmp_path))
-    position = service.ensure_default_position(db)
 
-    assert position.id == closed_default.id
-    assert db.query(Position).filter(Position.title == DEFAULT_POSITION_TITLE).count() == 1
+    assert service._resolve_position(db, position_title="AI 产品经理", config=None) is None
 
 
-def test_ensure_default_position_creates_default_when_missing(db, tmp_path):
-    service = ResumeMailImportService(upload_root=str(tmp_path))
-    position = service.ensure_default_position(db)
-    db.commit()
-
-    assert position.title == DEFAULT_POSITION_TITLE
-    assert position.status == PositionStatus.OPEN
-    assert db.query(Position).filter(Position.title == DEFAULT_POSITION_TITLE).count() == 1
-
-
-def test_import_routes_to_exact_normalized_open_title_before_configured_default(
-    db, tmp_path
-):
-    configured_default = Position(
-        title="Other Role",
-        description="Configured default",
-        requirements="Default",
-        status=PositionStatus.OPEN,
-    )
-    matched = Position(
-        title="AI 产品经理",
-        description="Matched role",
-        requirements="Matched",
-        status=PositionStatus.PUBLISHED,
-    )
-    db.add_all([configured_default, matched])
-    db.flush()
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=configured_default.id,
-        )
-    )
+def test_import_keeps_mail_position_title_only_in_reasonless_log_context(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     service = ResumeMailImportService(upload_root=str(tmp_path))
@@ -271,19 +188,12 @@ def test_import_routes_to_exact_normalized_open_title_before_configured_default(
     resume = db.query(Resume).one()
     log = db.query(ResumeMailImport).one()
     assert summary.imported == 1
-    assert resume.position_id == matched.id
-    assert log.position_id == matched.id
+    assert resume.position_id is None
+    assert log.position_id is None
 
 
-def test_import_saves_attachment_under_upload_root_preserving_suffix(
-    db, tmp_path, test_position
-):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_saves_attachment_under_upload_root_preserving_suffix(db, tmp_path):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     service = ResumeMailImportService(upload_root=str(tmp_path))
@@ -302,15 +212,8 @@ def test_import_saves_attachment_under_upload_root_preserving_suffix(
     assert resume.file_path.endswith(".docx")
 
 
-def test_import_logs_failed_save_file_when_attachment_save_fails(
-    db, tmp_path, test_position, monkeypatch
-):
-    db.add(
-        SystemConfig(
-            resume_mail_username="recruiting@example.com",
-            resume_mail_default_position_id=test_position.id,
-        )
-    )
+def test_import_logs_failed_save_file_when_attachment_save_fails(db, tmp_path, monkeypatch):
+    db.add(SystemConfig(resume_mail_username="recruiting@example.com"))
     db.commit()
 
     service = ResumeMailImportService(upload_root=str(tmp_path))

@@ -212,6 +212,20 @@ code {
   transition: background 0.2s;
 }
 
+.resume-intelligence-table .ant-table-selection-column {
+  width: 64px !important;
+  min-width: 64px !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+  text-align: center !important;
+}
+
+.resume-intelligence-table .ant-table-selection-column .ant-checkbox-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .actions-column .ant-space {
   gap: 4px !important;
 }
@@ -631,6 +645,7 @@ code {
   display: grid;
   grid-template-columns: minmax(0, 1.04fr) minmax(420px, 0.96fr);
   gap: 24px;
+  align-items: start;
   overflow: hidden;
 }
 
@@ -646,6 +661,10 @@ code {
 .resume-preview-pane {
   min-height: 0;
   overflow: hidden;
+  align-self: start;
+}
+
+.resume-preview-pane .ant-card-body {
   display: flex;
   flex-direction: column;
 }
@@ -666,8 +685,18 @@ code {
 }
 
 .resume-preview-body {
-  flex: 1;
+  flex: 0 0 clamp(560px, calc(100vh - 235px), 860px);
+  height: clamp(560px, calc(100vh - 235px), 860px);
   min-height: 0;
+  overflow: auto;
+  background: var(--surface-inset);
+}
+
+.resume-preview-body iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
   background: var(--surface-inset);
 }
 
@@ -687,6 +716,8 @@ code {
 
 .resume-analysis-pane {
   min-width: 0;
+  align-self: stretch;
+  max-height: 100%;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -922,10 +953,16 @@ code {
   }
 
   .resume-preview-pane {
-    min-height: 620px;
+    min-height: 0;
+  }
+
+  .resume-preview-body {
+    flex-basis: clamp(520px, 64vh, 720px);
+    height: clamp(520px, 64vh, 720px);
   }
 
   .resume-analysis-pane {
+    max-height: none;
     overflow: visible;
     padding-right: 0;
   }
@@ -1666,6 +1703,21 @@ code {
 
 .offer-create-button {
   min-width: 128px;
+}
+
+.analysis-list {
+  display: grid;
+  gap: 12px;
+}
+
+.analysis-list-item {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.analysis-list-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 /* Animations */

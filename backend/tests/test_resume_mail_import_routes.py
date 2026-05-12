@@ -6,7 +6,7 @@ from app.services.resume_mail_import_service import ImportSummary, ResumeMailImp
 
 
 def test_resume_mail_import_settings_can_be_saved_without_exposing_password(
-    client, admin_auth_headers, db, test_position
+    client, admin_auth_headers, db
 ):
     response = client.put(
         "/api/settings/resume-mail-import",
@@ -18,7 +18,6 @@ def test_resume_mail_import_settings_can_be_saved_without_exposing_password(
             "username": "recruiting@example.com",
             "password": "secret-code",
             "use_ssl": True,
-            "default_position_id": str(test_position.id),
             "poll_interval_seconds": 120,
             "mark_success_read": True,
         },
@@ -34,7 +33,7 @@ def test_resume_mail_import_settings_can_be_saved_without_exposing_password(
 
     config = db.query(SystemConfig).first()
     assert config.resume_mail_password == "secret-code"
-    assert config.resume_mail_default_position_id == test_position.id
+    assert config.resume_mail_default_position_id is None
 
 
 def test_resume_mail_import_connection_test_uses_saved_config(

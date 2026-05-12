@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.models import (
     CodingSubmission, CodingTest, Resume, Position, Interview, InterviewPanel,
     DepartmentReview, User, Offer, ResumeMailImport,
-    ResumeStatus, ScreeningResult, RejectReasonCategory, ReviewRecommendation, PositionStatus
+    ResumeStatus, ScreeningResult, RejectReasonCategory, ReviewRecommendation
 )
 from app.schemas.resume import (
     ResumeCreate, ResumeUpdate, ScreeningResult as ScreeningResultSchema,
@@ -13,7 +13,9 @@ from uuid import UUID
 from fastapi import UploadFile, HTTPException
 from app.utils.file_storage import save_upload_file
 from app.services.ai_service import (
-    analyze_resume,
+    analyze_resume_intelligence,
+    analyze_resume_intelligence_from_document,
+    extract_resume_text_from_document,
     extract_resume_text_from_images,
     generate_resume_markdown,
 )
@@ -23,11 +25,11 @@ import docx
 import PyPDF2
 import os
 import re
+import json
 from collections import Counter
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, and_, func
-import json
 
 
 def _extract_pdf_text(file_path: str) -> str:
@@ -97,11 +99,17 @@ def read_file_content(file_path: str) -> str:
             doc = docx.Document(file_path)
             content = '\n'.join([para.text for para in doc.paragraphs])
         elif ext == '.pdf':
-            content = _extract_pdf_text(file_path)
-            if _looks_like_unreadable_pdf_text(content):
-                vision_content = _extract_pdf_text_with_vision(file_path)
-                if vision_content:
-                    content = vision_content
+            try:
+                content = extract_resume_text_from_document(file_path)
+            except Exception as e:
+                print(f"Model document extraction unavailable: {e}")
+                content = ""
+            if not content:
+                content = _extract_pdf_text(file_path)
+                if _looks_like_unreadable_pdf_text(content):
+                    vision_content = _extract_pdf_text_with_vision(file_path)
+                    if vision_content:
+                        content = vision_content
         elif ext in ('.txt', '.md', '.markdown'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -114,9 +122,115 @@ def read_file_content(file_path: str) -> str:
 from app.config.database import SessionLocal
 from fastapi import BackgroundTasks
 
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_list(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _is_pdf_file(file_path: str) -> bool:
+    return os.path.splitext(file_path or "")[1].lower() == ".pdf"
+
+
+def _raw_text_from_direct_analysis(parsed_data: Dict[str, Any]) -> str:
+    raw_text = parsed_data.get("raw_text") or parsed_data.get("resume_text")
+    if raw_text:
+        return str(raw_text)
+    return json.dumps(parsed_data, ensure_ascii=False)
+
+
+def _build_resume_intelligence_review(parsed_data: Dict[str, Any]) -> str:
+    sections = []
+
+    if parsed_data.get("experience_summary"):
+        sections.append(f"### 经历概要\n{parsed_data['experience_summary']}")
+
+    project_evaluation = parsed_data.get("project_evaluation") or {}
+    if isinstance(project_evaluation, dict) and project_evaluation.get("summary"):
+        sections.append(f"### 项目评估\n{project_evaluation['summary']}")
+
+    if parsed_data.get("logic_analysis"):
+        sections.append(f"### 底层逻辑分析\n{parsed_data['logic_analysis']}")
+
+    questions = _as_list(parsed_data.get("interview_questions"))[:5]
+    if questions:
+        lines = []
+        for item in questions:
+            if isinstance(item, dict):
+                question = item.get("question")
+                purpose = item.get("purpose")
+                if question:
+                    lines.append(f"- {question}" + (f"（{purpose}）" if purpose else ""))
+            elif item:
+                lines.append(f"- {item}")
+        if lines:
+            sections.append("### 关键追问\n" + "\n".join(lines))
+
+    business_questions = _as_list(parsed_data.get("business_model_questions"))[:5]
+    if business_questions:
+        lines = []
+        for item in business_questions:
+            if isinstance(item, dict):
+                question = item.get("question")
+                purpose = item.get("purpose")
+                if question:
+                    lines.append(f"- {question}" + (f"（{purpose}）" if purpose else ""))
+            elif item:
+                lines.append(f"- {item}")
+        if lines:
+            sections.append("### 商业模式追问\n" + "\n".join(lines))
+
+    company_ideas = _as_list(parsed_data.get("company_optimization_ideas"))[:5]
+    if company_ideas:
+        sections.append("### 公司优化建议\n" + "\n".join(f"- {item}" for item in company_ideas if item))
+
+    startup_ideas = _as_list(parsed_data.get("startup_landing_ideas"))[:5]
+    if startup_ideas:
+        sections.append("### 创业落地方案\n" + "\n".join(f"- {item}" for item in startup_ideas if item))
+
+    return "\n\n".join(section for section in sections if section).strip()
+
+
+def _apply_resume_intelligence(resume: Resume, parsed_data: Dict[str, Any], raw_text: str, use_user_info: bool) -> None:
+    contact_info = parsed_data.get("contact_info", {})
+    if isinstance(contact_info, dict):
+        contact = contact_info.get("phone") or parsed_data.get("contact") or ""
+        email = contact_info.get("email") or parsed_data.get("email") or ""
+    else:
+        contact = parsed_data.get("contact", "")
+        email = parsed_data.get("email", "")
+
+    if not use_user_info:
+        resume.candidate_name = parsed_data.get("candidate_name") or "未识别"
+        resume.contact = contact
+        resume.email = email or None
+
+    project_evaluation = parsed_data.get("project_evaluation")
+    project_score = project_evaluation.get("score") if isinstance(project_evaluation, dict) else None
+
+    resume.parsed_data = parsed_data
+    resume.match_score = _safe_int(
+        parsed_data.get("evaluation_score")
+        or project_score
+        or parsed_data.get("match_score")
+    )
+    resume.screening_result = ScreeningResult.PASSED
+    resume.ai_review = _build_resume_intelligence_review(parsed_data)
+    resume.resume_markdown = generate_resume_markdown(raw_text)
+    resume.parse_status = "success"
+    resume.parse_error = None
+    resume.parsed_at = datetime.utcnow()
+    resume.status = ResumeStatus.COMPLETED
+
+
 def process_resume_task(payload: Dict[str, Any]):
     resume_id = payload["resume_id"]
-    position_id = payload["position_id"]
     use_user_info = payload.get("use_user_info", False)
 
     db = SessionLocal()
@@ -128,140 +242,30 @@ def process_resume_task(payload: Dict[str, Any]):
         resume.parse_error = None
         db.commit()
 
-        content = read_file_content(resume.file_path)
-        if not content:
-            resume.parse_status = "failed"
-            resume.parse_error = "读取简历内容失败"
-            db.commit()
-            return
+        parsed_data = {}
+        content = ""
+        if _is_pdf_file(resume.file_path):
+            parsed_data = analyze_resume_intelligence_from_document(resume.file_path)
+            if parsed_data:
+                content = _raw_text_from_direct_analysis(parsed_data)
 
-        resume.raw_text = content
+        if not parsed_data:
+            content = read_file_content(resume.file_path)
+            if not content:
+                resume.parse_status = "failed"
+                resume.parse_error = "读取简历内容失败"
+                db.commit()
+                return
+            parsed_data = analyze_resume_intelligence(content)
 
-        position = db.query(Position).filter(Position.id == position_id).first()
-        if not position:
-            resume.parse_status = "failed"
-            resume.parse_error = "未找到对应岗位"
-            db.commit()
-            return
-
-        position_desc = f"{position.title}\n{position.description}\n{position.requirements}"
-
-        # 获取其他相近岗位（状态为 OPEN 或 PUBLISHED，排除当前岗位）
-        other_positions = db.query(Position).filter(
-            Position.id != position_id,
-            Position.status.in_([PositionStatus.OPEN, PositionStatus.PUBLISHED])
-        ).limit(5).all()
-
-        # 构建其他岗位信息字符串
-        other_positions_info = ""
-        if other_positions:
-            positions_list = []
-            for pos in other_positions:
-                pos_info = {
-                    "position_id": str(pos.id),
-                    "position_title": pos.title,
-                    "description": pos.description[:500] if pos.description else "",
-                    "requirements": pos.requirements[:300] if pos.requirements else "",
-                    "department": pos.department or "",
-                }
-                positions_list.append(pos_info)
-            other_positions_info = json.dumps(positions_list, ensure_ascii=False)
-        else:
-            other_positions_info = "暂无其他相近岗位"
-
-        parsed_data = analyze_resume(content, position_desc, other_positions_info)
-
-        # 解析 AI 返回结果，兼容多种格式
         if not parsed_data:
             resume.parse_status = "failed"
             resume.parse_error = "AI 解析失败"
             db.commit()
             return
 
-        # 提取 match_score（可能在顶层或在 main_job_evaluation/main_position_match 中）
-        match_score = parsed_data.get("match_score")
-        if match_score is None:
-            main_eval = parsed_data.get("main_job_evaluation") or parsed_data.get("main_position_match") or {}
-            match_score = main_eval.get("match_score", 0)
-        if match_score is None:
-            match_score = 0
-
-        # 提取 screening_result
-        screening_result = parsed_data.get("screening_result", ScreeningResult.PENDING)
-
-        # 提取 ai_review
-        ai_review = parsed_data.get("ai_review", "")
-        if not ai_review:
-            main_eval = parsed_data.get("main_job_evaluation") or parsed_data.get("main_position_match") or {}
-            analysis = main_eval.get("analysis", {})
-            if isinstance(analysis, dict):
-                advantages = analysis.get("advantages", [])
-                disadvantages = analysis.get("disadvantages", [])
-                summary = analysis.get("summary", "")
-                ai_review_parts = []
-                if advantages:
-                    ai_review_parts.append("### ✅ 优势\n- " + "\n- ".join(advantages))
-                if disadvantages:
-                    ai_review_parts.append("### ⚠️ 不足\n- " + "\n- ".join(disadvantages))
-                if summary:
-                    ai_review_parts.append("### 💡 综合建议\n" + summary)
-                ai_review = "\n\n".join(ai_review_parts)
-            elif isinstance(analysis, str):
-                # analysis 是字符串的情况
-                ai_review = f"### 💡 分析\n{analysis}"
-            if not ai_review and parsed_data.get("recommendation"):
-                ai_review = "### 💡 综合建议\n" + parsed_data.get("recommendation", "")
-
-        # 提取联系方式
-        contact_info = parsed_data.get("contact_info", {})
-        if isinstance(contact_info, dict):
-            contact = contact_info.get("phone", "")
-            email = contact_info.get("email", "")
-        else:
-            contact = parsed_data.get("contact", "")
-            email = parsed_data.get("email", "")
-
-        # 提取姓名
-        candidate_name = parsed_data.get("candidate_name", "")
-
-        # 提取其他岗位匹配信息
-        other_matches = parsed_data.get("other_position_matches", [])
-
-        # 更新简历信息
-        resume.parsed_data = parsed_data
-        resume.match_score = match_score if isinstance(match_score, int) else 0
-        resume.screening_result = screening_result if isinstance(screening_result, str) else ScreeningResult.PENDING
-        resume.ai_review = ai_review
-
-        # 存储其他岗位匹配信息
-        if other_matches:
-            resume.other_position_matches = other_matches
-
-        if not use_user_info:
-            resume.candidate_name = candidate_name or "未识别"
-            resume.contact = contact
-            resume.email = email or None
-
-        resume.parse_status = "success"
-        resume.parse_error = None
-        resume.parsed_at = datetime.utcnow()
-
-        # 根据主岗位匹配分数和其他岗位匹配情况决定状态
-        has_better_match = False
-        if other_matches:
-            for match in other_matches:
-                if match.get("is_better_match") or match.get("match_score", 0) >= 70:
-                    has_better_match = True
-                    break
-
-        if resume.match_score >= 60:
-            resume.status = ResumeStatus.PENDING_REVIEW
-        elif has_better_match:
-            # 有更适合的其他岗位，设为备选状态
-            resume.status = ResumeStatus.WAITLIST
-        else:
-            resume.status = ResumeStatus.AUTO_REJECTED_PENDING_REVIEW
-
+        _apply_resume_intelligence(resume, parsed_data, content, use_user_info)
+        resume.raw_text = content
         db.commit()
 
     except Exception as e:
@@ -294,7 +298,7 @@ def on_resume_parse_failure(payload: Dict[str, Any], error: str):
         db.close()
 
 
-def process_resume_background(resume_id: UUID, position_id: UUID, use_user_info: bool = False):
+def process_resume_background(resume_id: UUID, position_id: Optional[UUID] = None, use_user_info: bool = False):
     queue = get_task_queue()
     queue.submit(
         task_id=str(resume_id),
@@ -308,7 +312,7 @@ def process_resume_background(resume_id: UUID, position_id: UUID, use_user_info:
         on_failure=on_resume_parse_failure,
     )
 
-def upload_resume(db: Session, file: UploadFile, position_id: UUID, background_tasks: BackgroundTasks,
+def upload_resume(db: Session, file: UploadFile, position_id: Optional[UUID], background_tasks: BackgroundTasks,
                   candidate_name: str = None, email: str = None, contact: str = None):
     """
     上传简历
@@ -340,7 +344,7 @@ def upload_resume(db: Session, file: UploadFile, position_id: UUID, background_t
 
     return db_resume
 
-def batch_upload_resumes(db: Session, files: List[UploadFile], position_id: UUID, background_tasks: BackgroundTasks):
+def batch_upload_resumes(db: Session, files: List[UploadFile], position_id: Optional[UUID], background_tasks: BackgroundTasks):
     uploaded_resumes = []
     for file in files:
         resume = upload_resume(db, file, position_id, background_tasks)
@@ -351,8 +355,6 @@ def reparse_resume(db: Session, resume_id: UUID, background_tasks: BackgroundTas
     resume = db.query(Resume).filter(Resume.id == resume_id).first()
     if not resume:
         return None
-    if not resume.position_id:
-        raise HTTPException(status_code=400, detail="Resume missing position_id")
 
     resume.parse_status = "processing"
     resume.parse_error = None
@@ -384,9 +386,6 @@ def reparse_failed_resumes(db: Session, background_tasks: BackgroundTasks, limit
     queued_ids = []
     skipped_ids = []
     for resume in failed_resumes:
-        if not resume.position_id:
-            skipped_ids.append(str(resume.id))
-            continue
         reparse_resume(db, resume.id, background_tasks)
         queued_ids.append(str(resume.id))
 
@@ -397,6 +396,110 @@ def reparse_failed_resumes(db: Session, background_tasks: BackgroundTasks, limit
         "resume_ids": queued_ids,
         "skipped_resume_ids": skipped_ids,
     }
+
+
+def _attach_resume_context(item: Any, resume: Resume) -> Optional[Dict[str, Any]]:
+    if not isinstance(item, dict):
+        return None
+    return {
+        **item,
+        "resume_id": str(resume.id),
+        "candidate_name": resume.candidate_name,
+        "created_at": resume.created_at.isoformat() if resume.created_at else None,
+    }
+
+
+def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 500), 1000))
+    resumes = (
+        db.query(Resume)
+        .filter(Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    work_experiences: List[Dict[str, Any]] = []
+    project_experiences: List[Dict[str, Any]] = []
+    logic_analyses: List[Dict[str, Any]] = []
+
+    for resume in resumes:
+        parsed_data = resume.parsed_data or {}
+        for item in _as_list(parsed_data.get("work_experiences")):
+            with_context = _attach_resume_context(item, resume)
+            if with_context:
+                work_experiences.append(with_context)
+
+        for item in _as_list(parsed_data.get("project_experiences")):
+            with_context = _attach_resume_context(item, resume)
+            if with_context:
+                project_experiences.append(with_context)
+
+        if parsed_data.get("logic_analysis"):
+            logic_analyses.append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "analysis": parsed_data["logic_analysis"],
+                }
+            )
+
+    return {
+        "resume_count": len(resumes),
+        "work_experiences": work_experiences,
+        "project_experiences": project_experiences,
+        "logic_analyses": logic_analyses,
+    }
+
+
+def _project_has_missing_business_evidence(project: Dict[str, Any]) -> bool:
+    missing_evidence = _as_list(project.get("missing_evidence"))
+    business_model = str(project.get("business_model") or "").strip()
+    return bool(missing_evidence) or not business_model
+
+
+def summarize_resume_projects(
+    db: Session,
+    limit: int = 500,
+    missing_only: bool = False,
+    candidate_name: str = None,
+) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 500), 1000))
+    query = (
+        db.query(Resume)
+        .filter(Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc())
+    )
+    if candidate_name:
+        query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
+
+    projects: List[Dict[str, Any]] = []
+    for resume in query.limit(safe_limit).all():
+        parsed_data = resume.parsed_data or {}
+        landing_ideas = _as_list(parsed_data.get("startup_landing_ideas"))
+        for project in _as_list(parsed_data.get("project_experiences")):
+            if not isinstance(project, dict):
+                continue
+            if missing_only and not _project_has_missing_business_evidence(project):
+                continue
+            projects.append(
+                {
+                    **project,
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "resume_score": resume.match_score,
+                    "logic_analysis": parsed_data.get("logic_analysis"),
+                    "landing_ideas": landing_ideas,
+                    "created_at": resume.created_at.isoformat() if resume.created_at else None,
+                }
+            )
+
+    return {
+        "resume_count": len({item["resume_id"] for item in projects}),
+        "project_count": len(projects),
+        "projects": projects,
+    }
+
 
 def get_resumes(db: Session, skip: int = 0, limit: int = 100, candidate_name: str = None, status: str = None, position_id: UUID = None, reviewer_id: UUID = None):
     query = db.query(Resume).options(joinedload(Resume.position))
@@ -421,6 +524,170 @@ def get_resumes(db: Session, skip: int = 0, limit: int = 100, candidate_name: st
 
 def get_resume(db: Session, resume_id: UUID):
     return db.query(Resume).options(joinedload(Resume.position)).filter(Resume.id == resume_id).first()
+
+
+CHINA_TIMEZONE = timezone(timedelta(hours=8))
+
+
+def _format_datetime_cn(dt: Optional[datetime]) -> str:
+    if not dt:
+        return "N/A"
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(CHINA_TIMEZONE).strftime("%Y-%m-%d %H:%M")
+
+
+def _enum_text(value: Any, mapping: Optional[Dict[str, str]] = None) -> str:
+    if value is None:
+        return "N/A"
+    raw_value = value.value if hasattr(value, "value") else str(value)
+    return (mapping or {}).get(raw_value, raw_value)
+
+
+def _text(value: Any, fallback: str = "N/A") -> str:
+    if value is None:
+        return fallback
+    value = str(value).strip()
+    return value or fallback
+
+
+def _append_question_section(lines: List[str], title: str, questions: List[Any]) -> None:
+    if not questions:
+        return
+    lines.extend([f"### {title}", ""])
+    for index, item in enumerate(questions, start=1):
+        if isinstance(item, dict):
+            question = item.get("question") or item.get("title") or f"问题 {index}"
+            lines.append(f"{index}. {_text(question, f'问题 {index}')}")
+            detail_parts = [
+                ("目的", item.get("purpose")),
+                ("关联经历", item.get("target_experience")),
+                ("关联项目", item.get("target_project")),
+                ("缺失信息", item.get("missing_context")),
+            ]
+            for label, detail in detail_parts:
+                if detail:
+                    lines.append(f"   - {label}: {detail}")
+        elif item:
+            lines.append(f"{index}. {item}")
+    lines.append("")
+
+
+def export_resume_analysis_report(db: Session, resume_id: UUID, format: str = "markdown") -> Optional[str]:
+    resume = db.query(Resume).options(joinedload(Resume.position)).filter(Resume.id == resume_id).first()
+    if not resume:
+        return None
+
+    parsed_data = resume.parsed_data or {}
+    position_title = resume.position.title if resume.position else "N/A"
+    screening_result_map = {
+        "pending": "待定",
+        "passed": "通过",
+        "rejected": "淘汰",
+        "waitlist": "待定",
+    }
+    status_map = {
+        "pending_screening": "待初筛",
+        "pending_review": "待评审",
+        "pending_dept_review": "待部门评审",
+        "pending_hr_decision": "待 HR 决策",
+        "auto_rejected_pending_review": "AI 建议淘汰待确认",
+        "pending_interview": "待面试",
+        "interview_passed": "面试通过",
+        "interview_failed": "面试未通过",
+        "offer_pending": "Offer 待确认",
+        "offer_accepted": "Offer 已接受",
+        "offer_rejected": "Offer 已拒绝",
+        "onboarding": "入职中",
+        "completed": "已完成",
+        "rejected": "已淘汰",
+        "waitlist": "备选",
+    }
+
+    lines = [
+        "# 简历分析报告",
+        "",
+        "## 基本信息",
+        "",
+        f"- **候选人**: {_text(resume.candidate_name, '未识别')}",
+        f"- **应聘岗位**: {position_title}",
+        f"- **联系方式**: {_text(resume.contact)}",
+        f"- **邮箱**: {_text(resume.email)}",
+        f"- **分析状态**: {_text(resume.parse_status)}",
+        f"- **流程状态**: {_enum_text(resume.status, status_map)}",
+        f"- **初筛结果**: {_enum_text(resume.screening_result, screening_result_map)}",
+        f"- **匹配度评分**: {resume.match_score if resume.match_score is not None else 'N/A'} 分",
+        f"- **分析完成时间**: {_format_datetime_cn(resume.parsed_at)}",
+        "",
+        "## AI 综合分析",
+        "",
+        resume.ai_review or "暂无分析结果",
+        "",
+        "## 结构化画像",
+        "",
+        f"- **工作年限**: {_text(parsed_data.get('years_of_experience'))}",
+        f"- **最近公司**: {_text(parsed_data.get('recent_company'))}",
+        f"- **最高学历**: {_text(parsed_data.get('highest_degree'))}",
+        f"- **毕业学校**: {_text(parsed_data.get('school'))}",
+    ]
+
+    if parsed_data.get("experience_summary"):
+        lines.extend(["", "### 经历概要", "", str(parsed_data["experience_summary"])])
+
+    project_evaluation = parsed_data.get("project_evaluation")
+    if isinstance(project_evaluation, dict) and project_evaluation.get("summary"):
+        score = project_evaluation.get("score")
+        score_text = f"（评分: {score}）" if score is not None else ""
+        lines.extend(["", "### 项目评估", "", f"{project_evaluation['summary']}{score_text}"])
+
+    if parsed_data.get("logic_analysis"):
+        lines.extend(["", "### 底层逻辑分析", "", str(parsed_data["logic_analysis"])])
+
+    work_experiences = _as_list(parsed_data.get("work_experiences"))
+    lines.extend(["", "## 工作经历", ""])
+    if work_experiences:
+        for index, item in enumerate(work_experiences, start=1):
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"### {index}. {_text(item.get('company'), '未命名公司')}")
+            lines.append(f"- **角色**: {_text(item.get('role'))}")
+            lines.append(f"- **时间**: {_text(item.get('period'))}")
+            lines.append(f"- **概要**: {_text(item.get('summary'))}")
+            capabilities = [str(capability) for capability in _as_list(item.get("capabilities")) if capability]
+            if capabilities:
+                lines.append(f"- **能力标签**: {', '.join(capabilities)}")
+            lines.append("")
+    else:
+        lines.extend(["暂无工作经历", ""])
+
+    project_experiences = _as_list(parsed_data.get("project_experiences"))
+    lines.extend(["## 项目经历与商业模式", ""])
+    if project_experiences:
+        for index, item in enumerate(project_experiences, start=1):
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"### {index}. {_text(item.get('name'), '未命名项目')}")
+            lines.append(f"- **角色**: {_text(item.get('role'))}")
+            lines.append(f"- **问题**: {_text(item.get('problem'))}")
+            lines.append(f"- **方案**: {_text(item.get('solution'))}")
+            if item.get("business_model"):
+                lines.append(f"- **商业模式**: {item['business_model']}")
+            missing_evidence = [str(evidence) for evidence in _as_list(item.get("missing_evidence")) if evidence]
+            if missing_evidence:
+                lines.append(f"- **待补充证据**: {', '.join(missing_evidence)}")
+            lines.append("")
+    else:
+        lines.extend(["暂无项目经历", ""])
+
+    lines.extend(["## 面试追问建议", ""])
+    before_question_count = len(lines)
+    _append_question_section(lines, "针对经历的面试追问", _as_list(parsed_data.get("interview_questions")))
+    _append_question_section(lines, "商业模式解释问题", _as_list(parsed_data.get("business_model_questions")))
+    _append_question_section(lines, "经历补全问题", _as_list(parsed_data.get("experience_completion_questions")))
+    if len(lines) == before_question_count:
+        lines.extend(["暂无追问建议", ""])
+
+    return "\n".join(lines).strip() + "\n"
 
 def update_resume(db: Session, resume_id: UUID, resume: ResumeUpdate):
     db_resume = db.query(Resume).filter(Resume.id == resume_id).first()
@@ -482,7 +749,7 @@ def delete_resume(db: Session, resume_id: UUID):
 
 # ==================== 简历查重 ====================
 
-def check_duplicate_resume(db: Session, email: Optional[str], contact: Optional[str], position_id: UUID) -> Optional[Resume]:
+def check_duplicate_resume(db: Session, email: Optional[str], contact: Optional[str], position_id: Optional[UUID] = None) -> Optional[Resume]:
     """
     检查同一岗位下是否存在相同邮箱或手机号的简历
     返回已存在的简历或 None
@@ -498,11 +765,11 @@ def check_duplicate_resume(db: Session, email: Optional[str], contact: Optional[
     if not conditions:
         return None
 
-    # 查找同一岗位下邮箱或手机号匹配的简历
-    existing = db.query(Resume).filter(
-        Resume.position_id == position_id,
-        or_(*conditions)
-    ).first()
+    query = db.query(Resume).filter(or_(*conditions))
+    if position_id:
+        query = query.filter(Resume.position_id == position_id)
+
+    existing = query.first()
 
     return existing
 
@@ -640,8 +907,6 @@ def _send_hr_review_notification(db: Session, resume: Resume, reviews: List[Depa
         overall_scores = [r.overall_score for r in reviews if r.overall_score is not None]
         avg_score = sum(overall_scores) / len(overall_scores) if overall_scores else 0
         
-        position = resume.position
-        
         for hr in hr_users:
             if not hr.email:
                 continue
@@ -659,8 +924,7 @@ def _send_hr_review_notification(db: Session, resume: Resume, reviews: List[Depa
                     <p>候选人 <strong>{resume.candidate_name}</strong> 的部门评审已完成，请进行最终审核：</p>
                     
                     <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
-                        <p><strong>应聘岗位：</strong>{position.title if position else '未知'}</p>
-                        <p><strong>匹配度评分：</strong>{resume.match_score}分</p>
+                        <p><strong>经历评估分：</strong>{resume.match_score}分</p>
                         <p><strong>部门评审结果：</strong></p>
                         <ul>
                             <li>推荐：{recommend_count}人</li>

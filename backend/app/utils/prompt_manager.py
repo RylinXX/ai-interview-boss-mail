@@ -49,6 +49,165 @@ DEFAULT_PROMPTS = {
 2. other_position_matches 数组中列出候选人可能更适合的其他岗位
 3. ai_review 必须使用Markdown格式，包含优势、不足、综合建议三个部分"""
         },
+        "analyze_resume_intelligence": {
+            "system": "你是一个擅长从简历中拆解真实项目经验、商业逻辑和创业落地可能性的智能分析专家。请严格返回 JSON，不要添加额外说明。",
+            "user": """请分析以下简历。不要做人岗匹配，不要给招聘录用结论。重点是抽取工作经历、项目经历、商业模式、候选人的底层思考逻辑，并生成可用于追问和项目评估的问题。
+
+简历内容:
+{resume_text}
+
+请严格按照以下 JSON 格式返回：
+
+{{
+  "candidate_name": "候选人姓名",
+  "contact": "联系方式",
+  "email": "邮箱地址",
+  "years_of_experience": 工作年限数字,
+  "highest_degree": "最高学历",
+  "school": "毕业院校",
+  "major": "专业",
+  "recent_company": "最近工作单位",
+  "evaluation_score": 0到100的综合经历可信度与商业价值评分,
+  "experience_summary": "用 150 字以内概括这个人的核心经历和可复用能力",
+  "work_experiences": [
+    {{
+      "company": "公司名",
+      "role": "角色/职位",
+      "period": "时间段",
+      "summary": "这段经历的核心职责、资源位置和结果",
+      "capabilities": ["体现出的能力"],
+      "logic_signals": ["能反映候选人决策逻辑或业务理解的信号"]
+    }}
+  ],
+  "project_experiences": [
+    {{
+      "name": "项目名称",
+      "period": "时间段",
+      "role": "候选人在项目中的角色",
+      "problem": "项目解决的问题",
+      "solution": "解决方案",
+      "business_model": "商业模式或收入/成本逻辑，如果简历未写清请指出假设",
+      "metrics": ["简历中出现的结果指标"],
+      "missing_evidence": ["还缺哪些关键证据"],
+      "logic_signals": ["能反映候选人思考方式的信号"]
+    }}
+  ],
+  "interview_questions": [
+    {{
+      "question": "针对某段经历的追问",
+      "target_experience": "关联工作或项目经历",
+      "purpose": "为什么要问",
+      "good_answer_signals": ["好回答应包含什么"]
+    }}
+  ],
+  "business_model_questions": [
+    {{
+      "question": "要求候选人解释商业模式或落地逻辑的问题",
+      "target_project": "关联项目",
+      "purpose": "验证收入、成本、客户、交付或壁垒中的哪一项"
+    }}
+  ],
+  "experience_completion_questions": [
+    {{
+      "question": "用于补全简历经历的信息缺口问题",
+      "missing_context": "缺失的上下文"
+    }}
+  ],
+  "logic_analysis": "分析这个人的项目判断、资源整合、商业化、执行路径等底层逻辑",
+  "project_evaluation": {{
+    "summary": "对其项目经历可复制性和商业价值的总体评估",
+    "strengths": ["项目强项"],
+    "risks": ["项目风险"],
+    "opportunities": ["可优化机会"]
+  }},
+  "company_optimization_ideas": ["基于这些经历可以迁移到公司优化的建议"],
+  "startup_landing_ideas": ["基于这些经历可以发展出的创业/落地方案"]
+}}
+
+要求：
+1. 只基于简历内容推断，不要虚构具体公司客户或财务数据。
+2. 如果商业模式不清晰，要明确写出缺失证据和需要追问的问题。
+3. 问题要具体到经历或项目，不要泛泛而谈。"""
+        },
+        "analyze_resume_intelligence_from_document": {
+            "system": "你是一个擅长直接读取简历文件、拆解真实项目经验、商业逻辑和创业落地可能性的智能分析专家。请严格返回 JSON，不要添加额外说明。",
+            "user": """请直接读取随请求上传的简历文件。不要做人岗匹配，不要给招聘录用结论。重点是抽取工作经历、项目经历、商业模式、候选人的底层思考逻辑，并生成可用于追问和项目评估的问题。
+
+请严格按照以下 JSON 格式返回：
+
+{{
+  "raw_text": "从简历文件中按原始顺序提取出的正文文本",
+  "candidate_name": "候选人姓名",
+  "contact": "联系方式",
+  "email": "邮箱地址",
+  "years_of_experience": 工作年限数字,
+  "highest_degree": "最高学历",
+  "school": "毕业院校",
+  "major": "专业",
+  "recent_company": "最近工作单位",
+  "evaluation_score": 0到100的综合经历可信度与商业价值评分,
+  "experience_summary": "用 150 字以内概括这个人的核心经历和可复用能力",
+  "work_experiences": [
+    {{
+      "company": "公司名",
+      "role": "角色/职位",
+      "period": "时间段",
+      "summary": "这段经历的核心职责、资源位置和结果",
+      "capabilities": ["体现出的能力"],
+      "logic_signals": ["能反映候选人决策逻辑或业务理解的信号"]
+    }}
+  ],
+  "project_experiences": [
+    {{
+      "name": "项目名称",
+      "period": "时间段",
+      "role": "候选人在项目中的角色",
+      "problem": "项目解决的问题",
+      "solution": "解决方案",
+      "business_model": "商业模式或收入/成本逻辑，如果简历未写清请指出假设",
+      "metrics": ["简历中出现的结果指标"],
+      "missing_evidence": ["还缺哪些关键证据"],
+      "logic_signals": ["能反映候选人思考方式的信号"]
+    }}
+  ],
+  "interview_questions": [
+    {{
+      "question": "针对某段经历的追问",
+      "target_experience": "关联工作或项目经历",
+      "purpose": "为什么要问",
+      "good_answer_signals": ["好回答应包含什么"]
+    }}
+  ],
+  "business_model_questions": [
+    {{
+      "question": "要求候选人解释商业模式或落地逻辑的问题",
+      "target_project": "关联项目",
+      "purpose": "验证收入、成本、客户、交付或壁垒中的哪一项"
+    }}
+  ],
+  "experience_completion_questions": [
+    {{
+      "question": "用于补全简历经历的信息缺口问题",
+      "missing_context": "缺失的上下文"
+    }}
+  ],
+  "logic_analysis": "分析这个人的项目判断、资源整合、商业化、执行路径等底层逻辑",
+  "project_evaluation": {{
+    "summary": "对其项目经历可复制性和商业价值的总体评估",
+    "strengths": ["项目强项"],
+    "risks": ["项目风险"],
+    "opportunities": ["可优化机会"]
+  }},
+  "company_optimization_ideas": ["基于这些经历可以迁移到公司优化的建议"],
+  "startup_landing_ideas": ["基于这些经历可以发展出的创业/落地方案"]
+}}
+
+要求：
+1. raw_text 必须保留简历正文，便于系统存档和后续展示。
+2. 只基于简历内容推断，不要虚构具体公司客户或财务数据。
+3. 如果商业模式不清晰，要明确写出缺失证据和需要追问的问题。
+4. 问题要具体到经历或项目，不要泛泛而谈。"""
+        },
         "generate_resume_markdown": {
             "system": "你是一个专业的简历优化专家。",
             "user": """请将以下简历内容整理为 Markdown 格式，要求美观、易读、结构清晰。

@@ -7,6 +7,10 @@ PROMPT_VARIABLES = {
         {"name": "resume_text", "description": "简历原始文本内容"},
         {"name": "other_positions", "description": "其他相近岗位信息（JSON格式，包含岗位ID、名称、描述等）"},
     ],
+    "analyze_resume_intelligence": [
+        {"name": "resume_text", "description": "简历原始文本内容"},
+    ],
+    "analyze_resume_intelligence_from_document": [],
     "generate_resume_markdown": [
         {"name": "resume_text", "description": "简历原始文本内容"},
     ],

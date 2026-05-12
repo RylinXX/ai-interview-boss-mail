@@ -64,7 +64,7 @@ def test_reparse_failed_resumes_requeues_failed_only(
     assert success_resume.match_score == 88
 
 
-def test_reparse_failed_resumes_skips_missing_position(
+def test_reparse_failed_resumes_requeues_without_position(
     client, admin_auth_headers, db, monkeypatch
 ):
     queued_tasks = []
@@ -92,9 +92,9 @@ def test_reparse_failed_resumes_skips_missing_position(
     response = client.post("/api/resumes/reparse-failed", headers=admin_auth_headers)
 
     assert response.status_code == 200
-    assert response.json()["queued_count"] == 0
-    assert response.json()["skipped_count"] == 1
-    assert queued_tasks == []
+    assert response.json()["queued_count"] == 1
+    assert response.json()["skipped_count"] == 0
+    assert queued_tasks == [(failed_resume.id, None, False)]
 
     db.refresh(failed_resume)
-    assert failed_resume.parse_status == "failed"
+    assert failed_resume.parse_status == "processing"
