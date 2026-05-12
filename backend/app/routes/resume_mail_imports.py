@@ -13,7 +13,7 @@ router = APIRouter(prefix="/resume-mail-import", tags=["resume-mail-import"])
 @router.post("/sync")
 def sync_resume_mail_import(
     db: Session = Depends(get_db),
-    _current_user=Depends(check_roles([UserRole.ADMIN])),
+    _current_user=Depends(check_roles([UserRole.ADMIN, UserRole.HR])),
 ):
     try:
         summary = ResumeMailImportService().sync_once(db)
@@ -31,7 +31,7 @@ def sync_resume_mail_import(
 def list_resume_mail_import_logs(
     limit: int = 50,
     db: Session = Depends(get_db),
-    _current_user=Depends(check_roles([UserRole.ADMIN])),
+    _current_user=Depends(check_roles([UserRole.ADMIN, UserRole.HR])),
 ):
     logs = (
         db.query(ResumeMailImport)

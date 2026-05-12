@@ -1,8 +1,23 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from app.models.models import Position, Resume, ResumeStatus, QuestionBank, User
+from sqlalchemy import func, or_
+from app.models.models import (
+    CodingSubmission,
+    CodingTest,
+    DepartmentReview,
+    Interview,
+    InterviewPanel,
+    Offer,
+    OfferTemplate,
+    Position,
+    PositionStatus,
+    Resume,
+    ResumeMailImport,
+    ResumeStatus,
+    QuestionBank,
+    SystemConfig,
+    User,
+)
 from app.schemas.position import PositionCreate, PositionUpdate, PositionStats, PositionWithStats, QuestionBankBrief
-from app.models.models import Position, PositionStatus
 from uuid import UUID
 from typing import List, Optional
 from app.services.ai_service import generate_jd
@@ -121,26 +136,87 @@ def update_position(db: Session, position_id: UUID, position: PositionUpdate):
     db.refresh(db_position)
     return db_position
 
-def delete_position(db: Session, position_id: UUID):
+def delete_position(db: Session, position_id: UUID, force: bool = False):
     db_position = db.query(Position).filter(Position.id == position_id).first()
     if not db_position:
         return None
 
-    # 检查是否有关联的简历
     related_resumes = db.query(Resume).filter(Resume.position_id == position_id).count()
-    if related_resumes > 0:
+    if related_resumes > 0 and not force:
         raise HTTPException(
             status_code=400,
-            detail=f"无法删除该岗位，存在 {related_resumes} 份关联简历"
+            detail=f"无法删除该岗位，存在 {related_resumes} 份关联简历。请先删除关联数据，或使用强制删除。"
         )
 
-    # 检查是否有关联的题库
     related_banks = db.query(QuestionBank).filter(QuestionBank.position_id == position_id).count()
-    if related_banks > 0:
+    if related_banks > 0 and not force:
         raise HTTPException(
             status_code=400,
-            detail=f"无法删除该岗位，存在 {related_banks} 个关联题库"
+            detail=f"无法删除该岗位，存在 {related_banks} 个关联题库。请先删除关联数据，或使用强制删除。"
         )
+
+    if force:
+        resume_ids = [
+            resume_id
+            for (resume_id,) in db.query(Resume.id).filter(Resume.position_id == position_id).all()
+        ]
+        question_bank_ids = [
+            bank_id
+            for (bank_id,) in db.query(QuestionBank.id).filter(QuestionBank.position_id == position_id).all()
+        ]
+
+        coding_test_filters = [CodingTest.position_id == position_id]
+        if resume_ids:
+            coding_test_filters.append(CodingTest.resume_id.in_(resume_ids))
+        if question_bank_ids:
+            coding_test_filters.append(CodingTest.question_bank_id.in_(question_bank_ids))
+        coding_test_ids = [
+            test_id
+            for (test_id,) in db.query(CodingTest.id).filter(or_(*coding_test_filters)).all()
+        ]
+        if coding_test_ids:
+            db.query(CodingSubmission).filter(
+                CodingSubmission.coding_test_id.in_(coding_test_ids)
+            ).delete(synchronize_session=False)
+            db.query(CodingTest).filter(CodingTest.id.in_(coding_test_ids)).delete(synchronize_session=False)
+
+        if resume_ids:
+            interview_ids = [
+                interview_id
+                for (interview_id,) in db.query(Interview.id).filter(
+                    Interview.resume_id.in_(resume_ids)
+                ).all()
+            ]
+            if interview_ids:
+                db.query(InterviewPanel).filter(
+                    InterviewPanel.interview_id.in_(interview_ids)
+                ).delete(synchronize_session=False)
+            db.query(Interview).filter(Interview.resume_id.in_(resume_ids)).delete(synchronize_session=False)
+            db.query(DepartmentReview).filter(
+                DepartmentReview.resume_id.in_(resume_ids)
+            ).delete(synchronize_session=False)
+            db.query(Offer).filter(Offer.resume_id.in_(resume_ids)).delete(synchronize_session=False)
+            db.query(ResumeMailImport).filter(
+                ResumeMailImport.resume_id.in_(resume_ids)
+            ).update({"resume_id": None}, synchronize_session=False)
+            db.query(Resume).filter(Resume.id.in_(resume_ids)).delete(synchronize_session=False)
+
+        db.query(Offer).filter(Offer.position_id == position_id).delete(synchronize_session=False)
+        db.query(OfferTemplate).filter(OfferTemplate.position_id == position_id).update(
+            {"position_id": None},
+            synchronize_session=False,
+        )
+        db.query(ResumeMailImport).filter(ResumeMailImport.position_id == position_id).update(
+            {"position_id": None},
+            synchronize_session=False,
+        )
+        db.query(SystemConfig).filter(
+            SystemConfig.resume_mail_default_position_id == position_id
+        ).update({"resume_mail_default_position_id": None}, synchronize_session=False)
+        if question_bank_ids:
+            db.query(QuestionBank).filter(QuestionBank.id.in_(question_bank_ids)).delete(
+                synchronize_session=False
+            )
 
     db.delete(db_position)
     db.commit()

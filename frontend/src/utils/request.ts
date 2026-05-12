@@ -6,6 +6,14 @@ const request: any = axios.create({
   timeout: 10000,
 });
 
+export const getApiErrorMessage = (error: any, fallback = '操作失败') => {
+  const detail = error?.response?.data?.detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item?.msg || item?.message || String(item)).join('；') || fallback;
+  }
+  return detail || error?.message || fallback;
+};
+
 request.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');

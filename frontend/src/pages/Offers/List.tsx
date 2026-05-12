@@ -519,12 +519,12 @@ const OffersList: React.FC = () => {
           </Col>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="待处理" value={stats.pending_offers + stats.sent_offers} valueStyle={{ color: '#faad14' }} />
+              <Statistic title="待处理" value={stats.pending_offers + stats.sent_offers} styles={{ content: { color: '#faad14' } }} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
             <Card>
-              <Statistic title="已接受" value={stats.accepted_offers} valueStyle={{ color: '#52c41a' }} />
+              <Statistic title="已接受" value={stats.accepted_offers} styles={{ content: { color: '#52c41a' } }} />
             </Card>
           </Col>
           <Col xs={12} sm={6}>
@@ -533,7 +533,7 @@ const OffersList: React.FC = () => {
                 title="接受率" 
                 value={stats.acceptance_rate} 
                 suffix="%" 
-                valueStyle={{ color: stats.acceptance_rate >= 50 ? '#52c41a' : '#ff4d4f' }}
+                styles={{ content: { color: stats.acceptance_rate >= 50 ? '#52c41a' : '#ff4d4f' } }}
               />
             </Card>
           </Col>
@@ -541,16 +541,18 @@ const OffersList: React.FC = () => {
       )}
 
       <Card>
-        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-          <Space wrap>
+        <div className="offer-toolbar">
+          <Space wrap align="center" className="offer-filter-group">
             <Input.Search
+              className="offer-search"
               placeholder="搜索候选人/岗位"
               allowClear
-              style={{ width: 200 }}
+              style={{ width: 240 }}
               onSearch={setSearchText}
               onChange={(e) => !e.target.value && setSearchText('')}
             />
             <Select
+              className="offer-status-select"
               placeholder="状态筛选"
               allowClear
               style={{ width: 120 }}
@@ -563,14 +565,14 @@ const OffersList: React.FC = () => {
             <Button icon={<ReloadOutlined />} onClick={() => { fetchOffers(); fetchStats(); }}>刷新</Button>
             {selectedRowKeys.length > 0 && (
               <>
-                <span style={{ color: '#64748B', lineHeight: '32px' }}>已选 {selectedRowKeys.length} 项</span>
+                <span style={{ color: 'var(--text-secondary)', lineHeight: '32px' }}>已选 {selectedRowKeys.length} 项</span>
                 <Button type="primary" onClick={handleBatchSend}>批量发送</Button>
                 <Button danger onClick={handleBatchDelete}>批量删除</Button>
                 <Button onClick={() => setSelectedRowKeys([])}>取消选择</Button>
               </>
             )}
           </Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+          <Button className="offer-create-button" type="primary" icon={<PlusOutlined />} onClick={() => {
             createForm.resetFields();
             setCreateModalVisible(true);
           }}>新建Offer</Button>
@@ -910,7 +912,7 @@ const OffersList: React.FC = () => {
       <Drawer
         title="Offer详情"
         placement="right"
-        width={600}
+        size="large"
         onClose={() => setDetailDrawerVisible(false)}
         open={detailDrawerVisible}
       >

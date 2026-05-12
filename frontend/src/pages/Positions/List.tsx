@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, message, Modal, Form, Input, Select, Tag, Tooltip, Typography, Drawer, Descriptions, Divider, Progress, Badge, Spin, Popconfirm } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, GlobalOutlined, StopOutlined, CopyOutlined, RobotOutlined, ThunderboltOutlined, DeleteFilled } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import JDGeneratorModal from '../../components/JDGeneratorModal';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -135,6 +135,12 @@ const PositionsList: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
+    const deletePosition = async (force = false) => {
+      await request.delete(`/positions/${id}`, { params: { force } });
+      message.success('删除成功');
+      fetchPositions();
+    };
+
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个岗位吗？',
@@ -143,11 +149,21 @@ const PositionsList: React.FC = () => {
       okType: 'danger',
       onOk: async () => {
         try {
-          await request.delete(`/positions/${id}`);
-          message.success('删除成功');
-          fetchPositions();
-        } catch (error) {
-          message.error('删除失败');
+          await deletePosition(false);
+        } catch (error: any) {
+          const errorMsg = getApiErrorMessage(error, '删除失败');
+          if (error?.response?.status === 400 && errorMsg.includes('强制删除')) {
+            Modal.confirm({
+              title: '该岗位存在关联数据',
+              content: `${errorMsg} 强制删除会同时清理关联简历、面试、笔试、Offer 和题库。`,
+              okText: '强制删除',
+              cancelText: '取消',
+              okType: 'danger',
+              onOk: () => deletePosition(true),
+            });
+            return;
+          }
+          message.error(errorMsg);
         }
       },
     });
@@ -160,18 +176,18 @@ const PositionsList: React.FC = () => {
     }
     Modal.confirm({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedRowKeys.length} 个岗位吗？`,
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个岗位吗？会同时清理这些岗位的关联招聘数据。`,
       okText: '确认',
       cancelText: '取消',
       okType: 'danger',
       onOk: async () => {
         try {
-          await Promise.all(selectedRowKeys.map(id => request.delete(`/positions/${id}`)));
+          await Promise.all(selectedRowKeys.map(id => request.delete(`/positions/${id}`, { params: { force: true } })));
           message.success(`成功删除 ${selectedRowKeys.length} 个岗位`);
           setSelectedRowKeys([]);
           fetchPositions();
         } catch (error) {
-          message.error('批量删除失败');
+          message.error(getApiErrorMessage(error, '批量删除失败'));
         }
       },
     });
@@ -279,7 +295,7 @@ const PositionsList: React.FC = () => {
     if (!stats) return <Text type="secondary">-</Text>;
     const total = stats.total_resumes || 0;
     if (total === 0) return <Text type="secondary">暂无简历</Text>;
-    
+
     return (
       <Tooltip title={
         <div>
@@ -293,9 +309,9 @@ const PositionsList: React.FC = () => {
       }>
         <Space size={4}>
           <Badge count={total} style={{ backgroundColor: '#3B82F6' }} />
-          <Progress 
-            percent={Math.round((stats.offer_accepted / total) * 100) || 0} 
-            size="small" 
+          <Progress
+            percent={Math.round((stats.offer_accepted / total) * 100) || 0}
+            size="small"
             style={{ width: 60 }}
             showInfo={false}
             strokeColor="#10B981"
@@ -306,35 +322,39 @@ const PositionsList: React.FC = () => {
   };
 
   const columns = [
-    { 
+    {
       title: '岗位名称',
-      dataIndex: 'title', 
+      dataIndex: 'title',
       key: 'title',
-      render: (text: string) => <span style={{ fontWeight: 500, color: '#0F172A' }}>{text}</span>
+      width: 220,
+      render: (text: string) => <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text}</span>
     },
-    { title: '部门', dataIndex: 'department', key: 'department', render: (v: string) => v || '-' },
-    { 
-      title: '类型', 
-      dataIndex: 'position_type', 
+    { title: '部门', dataIndex: 'department', key: 'department', width: 130, render: (v: string) => v || '-' },
+    {
+      title: '类型',
+      dataIndex: 'position_type',
       key: 'position_type',
+      width: 90,
       render: (type: string) => {
         const config = positionTypeConfig[type] || { color: 'default', text: type };
         return <Tag color={config.color} style={{ border: 'none' }}>{config.text}</Tag>;
       }
     },
-    { 
-      title: '紧急度', 
-      dataIndex: 'urgency', 
+    {
+      title: '紧急度',
+      dataIndex: 'urgency',
       key: 'urgency',
+      width: 90,
       render: (urgency: string) => {
         const config = urgencyConfig[urgency] || { color: 'default', text: urgency };
         return <Tag color={config.color} style={{ border: 'none' }}>{config.text}</Tag>;
       }
     },
-    { 
-      title: '状态', 
-      dataIndex: 'status', 
+    {
+      title: '状态',
+      dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (status: string) => {
         let color = 'default';
         let text = '已关闭';
@@ -348,20 +368,25 @@ const PositionsList: React.FC = () => {
         return <Tag color={color} style={{ border: 'none' }}>{text}</Tag>;
       }
     },
-    { 
-      title: '招聘进度', 
+    {
+      title: '招聘进度',
       key: 'stats',
+      width: 140,
       render: (_: any, record: Position) => renderStats(record.stats)
     },
-    { 
-      title: '创建时间', 
-      dataIndex: 'created_at', 
+    {
+      title: '创建时间',
+      dataIndex: 'created_at',
       key: 'created_at',
-      render: (date: string) => <span style={{ color: '#64748B' }}>{new Date(date).toLocaleDateString()}</span>
+      width: 120,
+      render: (date: string) => <span style={{ color: 'var(--text-secondary)' }}>{new Date(date).toLocaleDateString()}</span>
     },
     {
       title: '操作',
       key: 'action',
+      width: 240,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: Position) => (
         <Space size="small">
           <Tooltip title="查看详情">
@@ -382,7 +407,7 @@ const PositionsList: React.FC = () => {
              </Tooltip>
           )}
           <Tooltip title="编辑">
-            <Button type="text" icon={<EditOutlined style={{ color: '#64748B' }} />} onClick={() => handleEdit(record)} />
+            <Button type="text" icon={<EditOutlined style={{ color: 'var(--text-secondary)' }} />} onClick={() => handleEdit(record)} />
           </Tooltip>
           <Tooltip title="删除">
             <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
@@ -401,12 +426,12 @@ const PositionsList: React.FC = () => {
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size="large" style={{ borderRadius: '8px' }}>新增岗位</Button>
       </div>
-      
-      <div style={{ marginBottom: 24, padding: '24px', background: '#fff', borderRadius: '12px', border: '1px solid #E2E8F0', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <Input 
-              placeholder="搜索岗位名称" 
-              prefix={<EyeOutlined style={{ color: '#94A3B8' }} />} 
-              style={{ width: 300 }} 
+
+      <div style={{ marginBottom: 24, padding: '24px', background: 'var(--surface-color)', borderRadius: 8, border: '1px solid var(--border-color)', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <Input
+              placeholder="搜索岗位名称"
+              prefix={<EyeOutlined style={{ color: '#94A3B8' }} />}
+              style={{ width: 300 }}
               allowClear
               onChange={(e) => setSearchTitle(e.target.value)}
           />
@@ -422,7 +447,7 @@ const PositionsList: React.FC = () => {
           </Select>
           {selectedRowKeys.length > 0 && (
             <Space>
-              <span style={{ color: '#64748B' }}>已选 {selectedRowKeys.length} 项</span>
+              <span style={{ color: 'var(--text-secondary)' }}>已选 {selectedRowKeys.length} 项</span>
               <Button onClick={() => handleBatchPublish(true)} type="primary" ghost>批量发布</Button>
               <Button onClick={() => handleBatchPublish(false)}>批量下架</Button>
               <Button danger onClick={handleBatchDelete}>批量删除</Button>
@@ -430,13 +455,14 @@ const PositionsList: React.FC = () => {
             </Space>
           )}
       </div>
-      
-      <Table 
-        columns={columns} 
-        dataSource={data} 
-        loading={loading} 
-        rowKey="id" 
+
+      <Table
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        rowKey="id"
         pagination={{ pageSize: 10, showSizeChanger: true }}
+        scroll={{ x: 1160 }}
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
@@ -538,14 +564,14 @@ const PositionsList: React.FC = () => {
               </Select>
             </Form.Item>
 
- 
+
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <Text strong>岗位职责</Text>
-            <Button 
-              type="link" 
-              icon={<RobotOutlined />} 
+            <Button
+              type="link"
+              icon={<RobotOutlined />}
               onClick={handleOpenJDModal}
             >
               AI 生成 JD
@@ -623,7 +649,7 @@ const PositionsList: React.FC = () => {
               </div>
             </div>
 
-            <Descriptions column={2} size="middle" labelStyle={{ color: '#64748B' }} contentStyle={{ fontWeight: 500, color: '#0F172A' }}>
+            <Descriptions column={2} size="middle" labelStyle={{ color: 'var(--text-secondary)' }} contentStyle={{ fontWeight: 500, color: 'var(--text-primary)' }}>
               <Descriptions.Item label="所属部门">{viewingRecord.department || '-'}</Descriptions.Item>
               <Descriptions.Item label="工作地点">{viewingRecord.location || '-'}</Descriptions.Item>
               <Descriptions.Item label="薪资范围">{viewingRecord.salary_range || '-'}</Descriptions.Item>
@@ -636,19 +662,19 @@ const PositionsList: React.FC = () => {
             <div style={{ marginBottom: 24 }}>
               <Title level={5} style={{ marginBottom: 12 }}>招聘进度</Title>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: 8 }}>
+                <div style={{ background: 'var(--surface-muted)', padding: '12px 16px', borderRadius: 8 }}>
                   <Text type="secondary">总简历</Text>
                   <div style={{ fontSize: 24, fontWeight: 600, color: '#3B82F6' }}>{viewingRecord.stats?.total_resumes || 0}</div>
                 </div>
-                <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: 8 }}>
+                <div style={{ background: 'var(--surface-muted)', padding: '12px 16px', borderRadius: 8 }}>
                   <Text type="secondary">待筛选</Text>
                   <div style={{ fontSize: 24, fontWeight: 600, color: '#F59E0B' }}>{viewingRecord.stats?.pending_screening || 0}</div>
                 </div>
-                <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: 8 }}>
+                <div style={{ background: 'var(--surface-muted)', padding: '12px 16px', borderRadius: 8 }}>
                   <Text type="secondary">待面试</Text>
                   <div style={{ fontSize: 24, fontWeight: 600, color: '#8B5CF6' }}>{viewingRecord.stats?.pending_interview || 0}</div>
                 </div>
-                <div style={{ background: '#F8FAFC', padding: '12px 16px', borderRadius: 8 }}>
+                <div style={{ background: 'var(--surface-muted)', padding: '12px 16px', borderRadius: 8 }}>
                   <Text type="secondary">已入职</Text>
                   <div style={{ fontSize: 24, fontWeight: 600, color: '#10B981' }}>{viewingRecord.stats?.offer_accepted || 0}</div>
                 </div>
@@ -659,11 +685,11 @@ const PositionsList: React.FC = () => {
 
             <div style={{ marginBottom: 24 }}>
               <Title level={5} style={{ marginBottom: 12 }}>岗位职责</Title>
-              <div style={{ 
-                background: '#F8FAFC', 
-                padding: '16px', 
-                borderRadius: '8px', 
-                color: '#334155',
+              <div style={{
+                background: 'var(--surface-muted)',
+                padding: '16px',
+                borderRadius: '8px',
+                color: 'var(--text-primary)',
                 lineHeight: 1.8
               }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -674,11 +700,11 @@ const PositionsList: React.FC = () => {
 
             <div style={{ marginBottom: 24 }}>
               <Title level={5} style={{ marginBottom: 12 }}>任职要求</Title>
-              <div style={{ 
-                background: '#F8FAFC', 
-                padding: '16px', 
-                borderRadius: '8px', 
-                color: '#334155',
+              <div style={{
+                background: 'var(--surface-muted)',
+                padding: '16px',
+                borderRadius: '8px',
+                color: 'var(--text-primary)',
                 lineHeight: 1.8
               }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -694,17 +720,17 @@ const PositionsList: React.FC = () => {
               {viewingRecord.linked_question_banks && viewingRecord.linked_question_banks.length > 0 ? (
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   {viewingRecord.linked_question_banks.map((bank: QuestionBankBrief) => (
-                    <div 
+                    <div
                       key={bank.id}
-                      style={{ 
-                        background: '#F8FAFC', 
-                        padding: '12px 16px', 
+                      style={{
+                        background: 'var(--surface-muted)',
+                        padding: '12px 16px',
                         borderRadius: 8,
-                        border: '1px solid #E2E8F0',
+                        border: '1px solid var(--border-color)',
                         minWidth: 200
                       }}
                     >
-                      <div style={{ fontWeight: 500, color: '#0F172A' }}>{bank.name}</div>
+                      <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{bank.name}</div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                         <Tag color="blue" style={{ border: 'none', margin: 0 }}>{bank.category}</Tag>
                         <Text type="secondary" style={{ fontSize: 12 }}>{bank.question_count} 道题</Text>
@@ -713,11 +739,11 @@ const PositionsList: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <div style={{ 
-                  background: '#F8FAFC', 
-                  padding: '16px', 
-                  borderRadius: '8px', 
-                  color: '#64748B',
+                <div style={{
+                  background: 'var(--surface-muted)',
+                  padding: '16px',
+                  borderRadius: '8px',
+                  color: 'var(--text-secondary)',
                   textAlign: 'center'
                 }}>
                   暂无关联题库，可在题库管理中关联到此岗位

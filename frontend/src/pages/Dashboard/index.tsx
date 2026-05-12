@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, List, Avatar, Typography, Spin, message, Table, Tag, Progress, Statistic, Tabs, Select, Empty } from 'antd';
-import { 
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Legend, LineChart, Line, PieChart, Pie, Cell, FunnelChart, Funnel, LabelList
+import { App, Card, Row, Col, List, Avatar, Typography, Spin, Table, Tag, Progress, Tabs, Select, Empty } from 'antd';
+import {
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Legend, LineChart, Line
 } from 'recharts';
 import { 
   UserOutlined, FileTextOutlined, TeamOutlined, BankOutlined,
   ArrowUpOutlined, ClockCircleOutlined, ArrowDownOutlined,
-  CheckCircleOutlined, CloseCircleOutlined, SyncOutlined,
-  TrophyOutlined, RiseOutlined, FallOutlined
+  CheckCircleOutlined,
+  TrophyOutlined, RiseOutlined
 } from '@ant-design/icons';
 import request from '../../utils/request';
 import dayjs from 'dayjs';
@@ -19,13 +19,7 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const { Title, Text } = Typography;
-const { TabPane } = Tabs;
 const { Option } = Select;
-
-interface TrendData {
-  date: string;
-  count: number;
-}
 
 interface DashboardStats {
   active_positions: number;
@@ -118,6 +112,7 @@ interface OverviewMetrics {
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
 
 const Dashboard: React.FC = () => {
+  const { message } = App.useApp();
   const [statsData, setStatsData] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -201,16 +196,12 @@ const Dashboard: React.FC = () => {
     }
   ];
 
-  const defaultTrends = Array.from({ length: 7 }, (_, i) => ({
-    date: dayjs().subtract(6 - i, 'day').format('YYYY-MM-DD'),
-    count: 0
-  }));
-
   const positionColumns = [
     {
       title: '岗位名称',
       dataIndex: 'title',
       key: 'title',
+      width: 250,
       render: (text: string, record: PositionAnalytics) => (
         <div>
           <Text strong>{text}</Text>
@@ -223,6 +214,7 @@ const Dashboard: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 110,
       render: (status: string) => {
         const colorMap: Record<string, string> = {
           'open': 'blue',
@@ -241,12 +233,14 @@ const Dashboard: React.FC = () => {
       title: '简历数',
       dataIndex: 'total_resumes',
       key: 'total_resumes',
+      width: 80,
       sorter: (a: PositionAnalytics, b: PositionAnalytics) => a.total_resumes - b.total_resumes
     },
     {
       title: '待初筛',
       dataIndex: 'pending_screening',
       key: 'pending_screening',
+      width: 80,
       render: (val: number, record: PositionAnalytics) => (
         <Text type={val > 0 ? 'warning' : 'secondary'}>{val}</Text>
       )
@@ -255,6 +249,7 @@ const Dashboard: React.FC = () => {
       title: '待面试',
       dataIndex: 'pending_interview',
       key: 'pending_interview',
+      width: 80,
       render: (val: number) => (
         <Text type={val > 0 ? 'warning' : 'secondary'}>{val}</Text>
       )
@@ -263,6 +258,7 @@ const Dashboard: React.FC = () => {
       title: '已录用',
       dataIndex: 'hired',
       key: 'hired',
+      width: 80,
       render: (val: number) => (
         <Text type="success" strong>{val}</Text>
       )
@@ -271,13 +267,17 @@ const Dashboard: React.FC = () => {
       title: '转化率',
       dataIndex: 'conversion_rate',
       key: 'conversion_rate',
+      width: 150,
       render: (rate: number) => (
-        <Progress 
-          percent={rate} 
-          size="small" 
-          format={(percent) => `${percent?.toFixed(1)}%`}
-          strokeColor={rate >= 20 ? '#10B981' : rate >= 10 ? '#F59E0B' : '#EF4444'}
-        />
+        <div className="rate-cell">
+          <Progress
+            percent={rate}
+            size="small"
+            showInfo={false}
+            strokeColor={rate >= 20 ? '#10B981' : rate >= 10 ? '#F59E0B' : '#EF4444'}
+          />
+          <Text>{rate.toFixed(1)}%</Text>
+        </div>
       )
     }
   ];
@@ -342,131 +342,208 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: '400px' }}>
-        <Spin size="large" tip="正在加载数据..." />
+      <div className="loading-state">
+        <Spin size="large" />
+        <Text type="secondary">正在加载招聘工作台</Text>
       </div>
     );
   }
 
-  return (
-    <div>
-      <div style={{ marginBottom: 32 }}>
-        <Title level={2} style={{ margin: 0, fontWeight: 700 }}>数据分析</Title>
-        <Text type="secondary">招聘数据概览与深度分析</Text>
-      </div>
+  const coreMetrics = [
+    {
+      label: '面试通过率',
+      value: `${overview?.interview_pass_rate || 0}%`,
+      tone: overview?.interview_pass_rate && overview.interview_pass_rate >= 50 ? 'success' : 'danger',
+      icon: <CheckCircleOutlined />
+    },
+    {
+      label: 'Offer 接受率',
+      value: `${overview?.offer_accept_rate || 0}%`,
+      tone: overview?.offer_accept_rate && overview.offer_accept_rate >= 70 ? 'success' : 'warning',
+      icon: <TrophyOutlined />
+    },
+    {
+      label: '平均招聘周期',
+      value: overview?.avg_time_to_hire ? `${overview.avg_time_to_hire} 天` : '-',
+      tone: 'neutral',
+      icon: <ClockCircleOutlined />
+    },
+    {
+      label: '平均匹配分',
+      value: overview?.avg_match_score ? overview.avg_match_score.toFixed(1) : '-',
+      tone: overview?.avg_match_score && overview.avg_match_score >= 70 ? 'success' : 'warning',
+      icon: <RiseOutlined />
+    }
+  ];
 
-      <Row gutter={[24, 24]}>
+  const tabItems = [
+    {
+      key: 'positions',
+      label: '岗位分析',
+      children: (
+        <Card variant="borderless" className="analysis-card">
+          <Table
+            className="compact-table"
+            dataSource={positions}
+            columns={positionColumns}
+            rowKey="id"
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 840 }}
+            locale={{ emptyText: '暂无岗位数据' }}
+          />
+        </Card>
+      )
+    },
+    {
+      key: 'interviewers',
+      label: '面试官分析',
+      children: (
+        <Card variant="borderless" className="analysis-card">
+          <Table
+            className="compact-table"
+            dataSource={interviewers}
+            columns={interviewerColumns}
+            rowKey="id"
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 840 }}
+            locale={{ emptyText: '暂无面试官数据' }}
+          />
+        </Card>
+      )
+    },
+    {
+      key: 'activities',
+      label: '最新动态',
+      children: (
+        <Card variant="borderless" className="analysis-card">
+          <List
+            className="activity-list"
+            itemLayout="horizontal"
+            dataSource={activities}
+            locale={{ emptyText: '暂无动态' }}
+            renderItem={item => (
+              <List.Item>
+                <List.Item.Meta
+                  avatar={
+                    <Avatar
+                      icon={<UserOutlined />}
+                      style={{ backgroundColor: item.avatar_color, color: '#fff' }}
+                    />
+                  }
+                  title={<span>{item.title}</span>}
+                  description={
+                    <div className="activity-meta">
+                      <ClockCircleOutlined />
+                      <span>{dayjs(item.time).fromNow()}</span>
+                      <Tag color={item.avatar_color}>{item.status}</Tag>
+                    </div>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        </Card>
+      )
+    }
+  ];
+
+  return (
+    <div className="dashboard-page">
+      <section className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <Text className="eyebrow">Recruiting Operations</Text>
+          <Title level={1}>招聘运营工作台</Title>
+          <Text>
+            集中查看岗位进展、候选人流转、面试执行和 Offer 转化，让招聘团队以统一数据推进决策。
+          </Text>
+        </div>
+        <div className="dashboard-hero-panel">
+          <div>
+            <span>总候选人</span>
+            <strong>{overview?.total_resumes || 0}</strong>
+          </div>
+          <div>
+            <span>进行中岗位</span>
+            <strong>{overview?.active_positions || statsData?.active_positions || 0}</strong>
+          </div>
+          <div>
+            <span>已完成面试</span>
+            <strong>{overview?.completed_interviews || 0}</strong>
+          </div>
+        </div>
+      </section>
+
+      <Row gutter={[16, 16]} className="kpi-grid">
         {stats.map((stat, index) => (
-          <Col xs={24} sm={12} lg={6} key={index}>
-            <Card bordered={false} hoverable style={{ height: '100%', border: '1px solid #E2E8F0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <Text type="secondary" style={{ fontSize: '13px', fontWeight: 500 }}>{stat.title}</Text>
-                  <div style={{ fontSize: '32px', fontWeight: 700, margin: '8px 0', lineHeight: 1, color: '#0F172A' }}>
-                    {stat.value}
-                  </div>
-                  <div style={{ 
-                    fontSize: '13px', 
-                    fontWeight: 500,
-                    display: 'flex', 
-                    alignItems: 'center',
-                    color: stat.trend > 0 ? '#10B981' : (stat.trend < 0 ? '#EF4444' : '#64748B')
-                  }}>
-                    {stat.trend > 0 ? <ArrowUpOutlined style={{ marginRight: 4 }} /> : (stat.trend < 0 ? <ArrowDownOutlined style={{ marginRight: 4 }} /> : null)}
-                    {stat.trend !== 0 ? `${Math.abs(stat.trend)} 本周新增` : '无变化'}
-                  </div>
-                </div>
-                <div style={{ 
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '12px', 
-                  background: stat.color,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
+          <Col xs={24} sm={12} lg={6} key={stat.title}>
+            <Card variant="borderless" className="metric-card">
+              <div className="metric-card-head">
+                <span className="metric-icon" style={{ background: stat.color }}>
                   {stat.icon}
-                </div>
+                </span>
+                <Tag color={stat.trend > 0 ? 'success' : stat.trend < 0 ? 'error' : 'default'}>
+                  {stat.trend > 0 ? <ArrowUpOutlined /> : stat.trend < 0 ? <ArrowDownOutlined /> : null}
+                  {stat.trend !== 0 ? `${Math.abs(stat.trend)} 本周新增` : '无变化'}
+                </Tag>
               </div>
+              <Text>{stat.title}</Text>
+              <strong>{stat.value}</strong>
+              <div className="metric-baseline">指标 {index + 1} / 4</div>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-        <Col xs={24} lg={8}>
-          <Card 
-            title={<span style={{ fontSize: 16, fontWeight: 600 }}>核心指标</span>} 
-            bordered={false} 
-            style={{ height: '100%', borderRadius: '12px', border: '1px solid #E2E8F0' }}
-          >
-            <Row gutter={[16, 16]}>
-              <Col span={12}>
-                <Statistic 
-                  title="面试通过率" 
-                  value={overview?.interview_pass_rate || 0} 
-                  suffix="%" 
-                  valueStyle={{ color: overview?.interview_pass_rate && overview.interview_pass_rate >= 50 ? '#10B981' : '#EF4444' }}
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="Offer接受率" 
-                  value={overview?.offer_accept_rate || 0} 
-                  suffix="%" 
-                  valueStyle={{ color: overview?.offer_accept_rate && overview.offer_accept_rate >= 70 ? '#10B981' : '#F59E0B' }}
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="平均招聘周期" 
-                  value={overview?.avg_time_to_hire || '-'} 
-                  suffix={overview?.avg_time_to_hire ? '天' : ''} 
-                />
-              </Col>
-              <Col span={12}>
-                <Statistic 
-                  title="平均匹配分" 
-                  value={overview?.avg_match_score || '-'} 
-                  valueStyle={{ color: overview?.avg_match_score && overview.avg_match_score >= 70 ? '#10B981' : '#F59E0B' }}
-                />
-              </Col>
-            </Row>
+      <Row gutter={[16, 16]} className="dashboard-section">
+        <Col xs={24} xl={8}>
+          <Card variant="borderless" className="executive-card">
+            <div className="section-card-head">
+              <div>
+                <Text className="eyebrow">Performance</Text>
+                <Title level={4}>核心转化指标</Title>
+              </div>
+            </div>
+            <div className="core-metric-grid">
+              {coreMetrics.map(metric => (
+                <div className={`core-metric ${metric.tone}`} key={metric.label}>
+                  <span>{metric.icon}</span>
+                  <Text>{metric.label}</Text>
+                  <strong>{metric.value}</strong>
+                </div>
+              ))}
+            </div>
           </Card>
         </Col>
-        <Col xs={24} lg={16}>
-          <Card 
-            title={<span style={{ fontSize: 16, fontWeight: 600 }}>招聘漏斗</span>} 
-            bordered={false} 
-            style={{ height: '100%', borderRadius: '12px', border: '1px solid #E2E8F0' }}
-          >
+        <Col xs={24} xl={16}>
+          <Card variant="borderless" className="executive-card">
+            <div className="section-card-head">
+              <div>
+                <Text className="eyebrow">Pipeline</Text>
+                <Title level={4}>招聘漏斗</Title>
+              </div>
+              <div className="section-summary">
+                <span>整体转化率</span>
+                <strong>{funnel?.conversion_rate || 0}%</strong>
+              </div>
+            </div>
             {funnel && funnel.stages.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div className="funnel-list">
                 {funnel.stages.map((stage, index) => (
-                  <div key={stage.stage} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ width: 80, textAlign: 'right' }}>
-                      <Text type="secondary">{stage.stage_name}</Text>
+                  <div key={stage.stage} className="funnel-row">
+                    <div className="funnel-stage">
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                      <strong>{stage.stage_name}</strong>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <Progress 
-                        percent={stage.percentage} 
-                        strokeColor={COLORS[index % COLORS.length]}
-                        format={() => `${stage.count}人`}
-                      />
-                    </div>
+                    <Progress
+                      percent={stage.percentage}
+                      strokeColor={COLORS[index % COLORS.length]}
+                      format={() => `${stage.count} 人`}
+                    />
                   </div>
                 ))}
-                <div style={{ marginTop: 16, padding: '12px 16px', background: '#F8FAFC', borderRadius: 8 }}>
-                  <Row gutter={16}>
-                    <Col span={12}>
-                      <Text type="secondary">总简历数：</Text>
-                      <Text strong>{funnel.total_resumes}</Text>
-                    </Col>
-                    <Col span={12}>
-                      <Text type="secondary">整体转化率：</Text>
-                      <Text strong style={{ color: '#10B981' }}>{funnel.conversion_rate}%</Text>
-                    </Col>
-                  </Row>
+                <div className="funnel-footer">
+                  <span>总简历数</span>
+                  <strong>{funnel.total_resumes}</strong>
                 </div>
               </div>
             ) : (
@@ -476,110 +553,58 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      <Card 
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 16, fontWeight: 600 }}>时间趋势分析</span>
-            <Select value={timelineDays} onChange={setTimelineDays} style={{ width: 120 }}>
-              <Option value={7}>近7天</Option>
-              <Option value={14}>近14天</Option>
-              <Option value={30}>近30天</Option>
-              <Option value={60}>近60天</Option>
-              <Option value={90}>近90天</Option>
-            </Select>
+      <Card variant="borderless" className="timeline-card">
+        <div className="section-card-head">
+          <div>
+            <Text className="eyebrow">Trend</Text>
+            <Title level={4}>时间趋势分析</Title>
           </div>
-        }
-        bordered={false} 
-        style={{ marginTop: 24, borderRadius: '12px', border: '1px solid #E2E8F0' }}
-      >
-        <div style={{ height: 350, width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={timeline}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fill: '#64748B', fontSize: 12 }} 
+          <Select value={timelineDays} onChange={setTimelineDays} className="period-select">
+            <Option value={7}>近7天</Option>
+            <Option value={14}>近14天</Option>
+            <Option value={30}>近30天</Option>
+            <Option value={60}>近60天</Option>
+            <Option value={90}>近90天</Option>
+          </Select>
+        </div>
+        <div className="chart-panel">
+          <ResponsiveContainer width="100%" height={350} minWidth={280}>
+            <LineChart data={timeline} margin={{ top: 12, right: 8, left: -8, bottom: 30 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(value) => dayjs(value).format('MM-DD')}
               />
-              <YAxis 
-                tick={{ fill: '#64748B', fontSize: 12 }} 
+              <YAxis
+                tick={{ fill: 'var(--text-secondary)', fontSize: 12 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
               />
-              <Tooltip 
-                contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+              <Tooltip
+                contentStyle={{
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--surface-elevated)',
+                  color: 'var(--text-primary)',
+                  boxShadow: 'var(--shadow-md)'
+                }}
                 labelFormatter={(label) => dayjs(label).format('YYYY年MM月DD日')}
               />
-              <Legend />
-              <Line type="monotone" dataKey="resumes_received" name="简历接收" stroke="#3B82F6" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="interviews_scheduled" name="面试安排" stroke="#F59E0B" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="interviews_completed" name="面试完成" stroke="#10B981" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="hires" name="入职" stroke="#8B5CF6" strokeWidth={2} dot={false} />
+              <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+              <Line type="monotone" dataKey="resumes_received" name="简历接收" stroke="#2563EB" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="interviews_scheduled" name="面试安排" stroke="#D97706" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="interviews_completed" name="面试完成" stroke="#059669" strokeWidth={2.5} dot={false} />
+              <Line type="monotone" dataKey="hires" name="入职" stroke="#7C3AED" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
-      <Tabs defaultActiveKey="positions" style={{ marginTop: 24 }}>
-        <TabPane tab="岗位分析" key="positions">
-          <Card bordered={false} style={{ borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-            <Table 
-              dataSource={positions} 
-              columns={positionColumns} 
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-              locale={{ emptyText: '暂无岗位数据' }}
-            />
-          </Card>
-        </TabPane>
-        <TabPane tab="面试官分析" key="interviewers">
-          <Card bordered={false} style={{ borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-            <Table 
-              dataSource={interviewers} 
-              columns={interviewerColumns} 
-              rowKey="id"
-              pagination={{ pageSize: 10 }}
-              locale={{ emptyText: '暂无面试官数据' }}
-            />
-          </Card>
-        </TabPane>
-        <TabPane tab="最新动态" key="activities">
-          <Card bordered={false} style={{ borderRadius: '12px', border: '1px solid #E2E8F0' }}>
-            <List
-              itemLayout="horizontal"
-              dataSource={activities}
-              locale={{ emptyText: '暂无动态' }}
-              renderItem={item => (
-                <List.Item style={{ padding: '16px 0', borderBottom: '1px solid #F1F5F9' }}>
-                  <List.Item.Meta
-                    avatar={
-                      <Avatar 
-                        icon={<UserOutlined />} 
-                        style={{ 
-                          backgroundColor: item.avatar_color, 
-                          color: '#fff',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)' 
-                        }} 
-                      />
-                    }
-                    title={<span style={{ fontWeight: 500, color: '#0F172A' }}>{item.title}</span>}
-                    description={
-                      <div style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                        <ClockCircleOutlined style={{ color: '#94A3B8' }} /> 
-                        <span style={{ color: '#64748B' }}>{dayjs(item.time).fromNow()}</span>
-                        <Tag style={{ marginLeft: 8 }} color={item.avatar_color}>{item.status}</Tag>
-                      </div>
-                    }
-                  />
-                </List.Item>
-              )}
-            />
-          </Card>
-        </TabPane>
-      </Tabs>
+      <Tabs defaultActiveKey="positions" className="dashboard-tabs" items={tabItems} />
     </div>
   );
 };

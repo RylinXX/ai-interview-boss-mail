@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag, message, Tooltip, Typography, Popconfirm, InputNumber, Divider, Tabs, Empty, Descriptions, Collapse, Radio, Checkbox } from 'antd';
 import { PlusOutlined, LinkOutlined, SendOutlined, StopOutlined, EyeOutlined, EditOutlined, ImportOutlined, DeleteOutlined, ArrowLeftOutlined, UserOutlined, ClockCircleOutlined, CheckCircleOutlined, CloseCircleOutlined, CodeOutlined, FileTextOutlined, RobotOutlined, MinusCircleOutlined, SaveOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import CodeEditor from '../../components/CodeEditor';
@@ -451,7 +451,7 @@ const CodingTestsList: React.FC = () => {
       message.success('删除成功');
       fetchList();
     } catch (error) {
-      message.error('删除失败');
+      message.error(getApiErrorMessage(error, '删除失败'));
     }
   };
 
@@ -473,7 +473,7 @@ const CodingTestsList: React.FC = () => {
           setSelectedRowKeys([]);
           fetchList();
         } catch (error) {
-          message.error('批量删除失败');
+          message.error(getApiErrorMessage(error, '批量删除失败'));
         }
       },
     });

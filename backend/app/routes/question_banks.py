@@ -74,10 +74,11 @@ def update_question_bank_route(
 @router.delete("/{question_bank_id}", response_model=QuestionBankResponse)
 def delete_question_bank_route(
     question_bank_id: UUID,
+    force: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(check_roles([UserRole.ADMIN, UserRole.HR]))
 ):
-    db_question_bank = delete_question_bank(db, question_bank_id)
+    db_question_bank = delete_question_bank(db, question_bank_id, force=force)
     if not db_question_bank:
         raise HTTPException(status_code=404, detail="Question bank not found")
     return db_question_bank

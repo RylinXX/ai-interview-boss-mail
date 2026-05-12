@@ -322,7 +322,9 @@ def update_prompt_config(
 
     # 确保配置已初始化
     if not config.prompt_configs:
-        config.prompt_configs = prompt_manager._prompts.get('prompts', {})
+        import copy
+        from app.utils.prompt_manager import DEFAULT_PROMPTS
+        config.prompt_configs = copy.deepcopy(DEFAULT_PROMPTS["prompts"])
 
     # 获取现有配置
     existing_config = config.prompt_configs.get(key, {})

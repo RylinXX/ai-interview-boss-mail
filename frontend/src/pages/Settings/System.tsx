@@ -92,7 +92,6 @@ const SystemSettingsPage: React.FC = () => {
   const [mailSaving, setMailSaving] = useState(false);
   const [resumeMailSaving, setResumeMailSaving] = useState(false);
   const [resumeMailTesting, setResumeMailTesting] = useState(false);
-  const [resumeMailSyncing, setResumeMailSyncing] = useState(false);
   const [meta, setMeta] = useState<SystemSettings | null>(null);
   const [mailMeta, setMailMeta] = useState<MailSettings | null>(null);
   const [resumeMailMeta, setResumeMailMeta] = useState<ResumeMailImportSettings | null>(null);
@@ -244,20 +243,6 @@ const SystemSettingsPage: React.FC = () => {
       message.error((e as any)?.response?.data?.detail || '邮箱连接失败');
     } finally {
       setResumeMailTesting(false);
-    }
-  };
-
-  const syncResumeMailNow = async () => {
-    setResumeMailSyncing(true);
-    try {
-      const res = (await request.post('/resume-mail-import/sync')) as any;
-      message.success(`同步完成：导入 ${res.imported}，跳过 ${res.skipped}，失败 ${res.failed}`);
-      await fetchResumeMailLogs();
-      await fetchResumeMailSettings();
-    } catch (e) {
-      message.error((e as any)?.response?.data?.detail || '手动同步失败');
-    } finally {
-      setResumeMailSyncing(false);
     }
   };
 
@@ -475,7 +460,7 @@ const SystemSettingsPage: React.FC = () => {
     children: (
       <Form form={promptForm} layout="vertical">
         <Alert
-          message="注意：修改提示词后立即生效，请谨慎操作"
+          title="注意：修改提示词后立即生效，请谨慎操作"
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -501,7 +486,6 @@ const SystemSettingsPage: React.FC = () => {
             placeholder="用户提示词模板，包含具体任务指令"
           />
         </Form.Item>
-        {/* 可用变量列表 */}
         {promptVariables && promptVariables.variables_by_prompt[key] && (
           <div style={{ marginBottom: 16 }}>
             <Text strong style={{ marginRight: 8 }}>可用变量：</Text>
@@ -518,7 +502,9 @@ const SystemSettingsPage: React.FC = () => {
                 </Tooltip>
               ))}
             </div>
-            <Text type="secondary" style={{ fontSize: 12 }}>点击变量可插入到 User Prompt 中</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              点击变量可插入到 User Prompt 中
+            </Text>
           </div>
         )}
         <Button type="primary" onClick={savePrompt} loading={promptSaving}>
@@ -620,7 +606,7 @@ const SystemSettingsPage: React.FC = () => {
             name="llm_api_key"
             label="API Key"
             extra={
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Text type="secondary">
                   {meta?.llm_api_key_set
                     ? `已设置${meta.llm_api_key_last4 ? `（末 4 位：${meta.llm_api_key_last4}）` : ''}，不会回显完整 Key`
@@ -707,7 +693,7 @@ const SystemSettingsPage: React.FC = () => {
             name="smtp_password"
             label="SMTP 密码/授权码"
             extra={
-              <Space direction="vertical" size={4}>
+              <Space orientation="vertical" size={4}>
                 <Text type="secondary">
                   {mailMeta?.smtp_password_set
                     ? '已设置密码，不会回显'
@@ -794,12 +780,11 @@ const SystemSettingsPage: React.FC = () => {
           <Space wrap>
             <Button onClick={fetchResumeMailSettings}>刷新</Button>
             <Button loading={resumeMailTesting} onClick={testResumeMailConnection}>测试连接</Button>
-            <Button loading={resumeMailSyncing} onClick={syncResumeMailNow}>立即同步</Button>
             <Button type="primary" loading={resumeMailSaving} onClick={saveResumeMailSettings}>保存</Button>
           </Space>
         }
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space orientation="vertical" style={{ width: '100%' }} size="large">
           <Form form={resumeMailForm} layout="vertical" autoComplete="off">
             <Form.Item name="enabled" label="启用自动导入" valuePropName="checked">
               <Switch checkedChildren="开启" unCheckedChildren="关闭" />

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, message, Tag, Modal, Form, Input, Select, Upload, Tooltip, Typography, Drawer, Divider, Spin } from 'antd';
 import { PlusOutlined, UploadOutlined, DeleteOutlined, EyeOutlined, DownloadOutlined, FileWordOutlined, FileTextOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mammoth from 'mammoth';
@@ -19,7 +19,7 @@ const QuestionBanksList: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [fileList, setFileList] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  
+
   // File Preview State
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -64,7 +64,7 @@ const QuestionBanksList: React.FC = () => {
     setDocxHtml('');
     const ext = filePath.split('.').pop()?.toLowerCase();
     const url = `/${filePath}`;
-    
+
     try {
       if (ext === 'md' || ext === 'txt') {
         const res = await fetch(url);
@@ -114,6 +114,12 @@ const QuestionBanksList: React.FC = () => {
   };
 
   const handleDelete = (id: string) => {
+    const deleteQuestionBank = async (force = false) => {
+      await request.delete(`/question-banks/${id}`, { params: { force } });
+      message.success('删除成功');
+      fetchQuestionBanks();
+    };
+
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个题库吗？',
@@ -122,11 +128,20 @@ const QuestionBanksList: React.FC = () => {
       okType: 'danger',
       onOk: async () => {
         try {
-          await request.delete(`/question-banks/${id}`);
-          message.success('删除成功');
-          fetchQuestionBanks();
+          await deleteQuestionBank(false);
         } catch (error: any) {
-          const errorMsg = error?.response?.data?.detail || '删除失败';
+          const errorMsg = getApiErrorMessage(error, '删除失败');
+          if (error?.response?.status === 400 && errorMsg.includes('强制删除')) {
+            Modal.confirm({
+              title: '该题库存在关联笔试',
+              content: `${errorMsg} 强制删除会同时清理关联笔试和答题记录。`,
+              okText: '强制删除',
+              cancelText: '取消',
+              okType: 'danger',
+              onOk: () => deleteQuestionBank(true),
+            });
+            return;
+          }
           message.error(errorMsg);
         }
       },
@@ -140,18 +155,18 @@ const QuestionBanksList: React.FC = () => {
     }
     Modal.confirm({
       title: '确认批量删除',
-      content: `确定要删除选中的 ${selectedRowKeys.length} 个题库吗？`,
+      content: `确定要删除选中的 ${selectedRowKeys.length} 个题库吗？会同时清理关联笔试和答题记录。`,
       okText: '确认',
       cancelText: '取消',
       okType: 'danger',
       onOk: async () => {
         try {
-          await Promise.all(selectedRowKeys.map(id => request.delete(`/question-banks/${id}`)));
+          await Promise.all(selectedRowKeys.map(id => request.delete(`/question-banks/${id}`, { params: { force: true } })));
           message.success(`成功删除 ${selectedRowKeys.length} 个题库`);
           setSelectedRowKeys([]);
           fetchQuestionBanks();
         } catch (error: any) {
-          const errorMsg = error?.response?.data?.detail || '批量删除失败';
+          const errorMsg = getApiErrorMessage(error, '批量删除失败');
           message.error(errorMsg);
         }
       },
@@ -204,15 +219,15 @@ const QuestionBanksList: React.FC = () => {
   };
 
   const columns = [
-    { 
-      title: '题库名称', 
-      dataIndex: 'name', 
+    {
+      title: '题库名称',
+      dataIndex: 'name',
       key: 'name',
-      render: (text: string) => <span style={{ fontWeight: 500, color: '#0F172A' }}>{text}</span>
+      render: (text: string) => <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text}</span>
     },
-    { 
-      title: '分类', 
-      dataIndex: 'category', 
+    {
+      title: '分类',
+      dataIndex: 'category',
       key: 'category',
       render: (category: string) => {
         const colors: Record<string, string> = {
@@ -230,9 +245,9 @@ const QuestionBanksList: React.FC = () => {
         return <Tag color={colors[category] || 'default'} style={{ border: 'none' }}>{labels[category] || category}</Tag>;
       }
     },
-    { 
-      title: '难度', 
-      dataIndex: 'difficulty', 
+    {
+      title: '难度',
+      dataIndex: 'difficulty',
       key: 'difficulty',
       render: (difficulty: string) => {
         const colors: Record<string, string> = {
@@ -248,14 +263,14 @@ const QuestionBanksList: React.FC = () => {
         return <Tag color={colors[difficulty] || 'default'} style={{ border: 'none' }}>{labels[difficulty] || difficulty}</Tag>;
       }
     },
-    { 
-      title: '标签', 
-      dataIndex: 'tags', 
+    {
+      title: '标签',
+      dataIndex: 'tags',
       key: 'tags',
       render: (tags: string[]) => (
         <>
           {tags && tags.map(tag => (
-            <Tag key={tag} style={{ border: 'none', background: '#F1F5F9', color: '#64748B' }}>
+            <Tag key={tag} style={{ border: 'none', background: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>
               {tag}
             </Tag>
           ))}
@@ -280,29 +295,29 @@ const QuestionBanksList: React.FC = () => {
 
   const renderFilePreview = (fileUrl: string) => {
     if (!fileUrl) return <div style={{ padding: 24, textAlign: 'center', color: '#94A3B8' }}>暂无文件</div>;
-    
+
     const ext = fileUrl.split('.').pop()?.toLowerCase();
-    
+
     if (previewLoading) {
       return (
         <div style={{ padding: 40, textAlign: 'center' }}>
           <Spin size="large" />
-          <div style={{ marginTop: 8, color: '#64748B' }}>加载预览中...</div>
+          <div style={{ marginTop: 8, color: 'var(--text-secondary)' }}>加载预览中...</div>
         </div>
       );
     }
 
     if (previewError) {
       return (
-        <div style={{ 
-          height: '300px', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
+        <div style={{
+          height: '300px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           justifyContent: 'center',
-          background: '#F8FAFC',
+          background: 'var(--surface-muted)',
           borderRadius: '8px',
-          border: '1px dashed #E2E8F0'
+          border: '1px dashed var(--border-color)'
         }}>
           <FileWordOutlined style={{ fontSize: '64px', color: '#94A3B8', marginBottom: '16px' }} />
           <Text type="secondary" style={{ marginBottom: '16px' }}>{previewError}</Text>
@@ -315,17 +330,17 @@ const QuestionBanksList: React.FC = () => {
 
     if (ext === 'pdf') {
       return (
-        <iframe 
-          src={fileUrl} 
-          style={{ width: '100%', height: 'calc(100vh - 250px)', border: 'none', borderRadius: '8px' }} 
+        <iframe
+          src={fileUrl}
+          style={{ width: '100%', height: 'calc(100vh - 250px)', border: 'none', borderRadius: '8px' }}
           title="PDF Preview"
         />
       );
     }
-    
+
     if (ext === 'md') {
       return (
-        <div className="markdown-body" style={{ padding: '24px', background: '#fff', height: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+        <div className="markdown-body" style={{ padding: '24px', background: 'var(--surface-color)', height: 'calc(100vh - 250px)', overflowY: 'auto' }}>
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {fileContent || ''}
           </ReactMarkdown>
@@ -335,15 +350,15 @@ const QuestionBanksList: React.FC = () => {
 
     if (ext === 'txt') {
       return (
-        <pre style={{ 
-          padding: '24px', 
-          background: '#fff', 
-          height: 'calc(100vh - 250px)', 
+        <pre style={{
+          padding: '24px',
+          background: 'var(--surface-color)',
+          height: 'calc(100vh - 250px)',
           overflowY: 'auto',
           whiteSpace: 'pre-wrap',
           fontFamily: 'monospace',
           fontSize: '14px',
-          color: '#334155'
+          color: 'var(--text-primary)'
         }}>
           {fileContent || ''}
         </pre>
@@ -355,17 +370,17 @@ const QuestionBanksList: React.FC = () => {
         return (
           <div style={{ padding: 40, textAlign: 'center' }}>
             <Spin size="large" />
-            <div style={{ marginTop: 8, color: '#64748B' }}>加载预览中...</div>
+            <div style={{ marginTop: 8, color: 'var(--text-secondary)' }}>加载预览中...</div>
           </div>
         );
       }
       if (previewError) {
         return (
-          <div style={{ 
-            height: '300px', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
+          <div style={{
+            height: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             justifyContent: 'center',
           }}>
             <FileWordOutlined style={{ fontSize: '64px', color: '#94A3B8', marginBottom: '16px' }} />
@@ -378,11 +393,11 @@ const QuestionBanksList: React.FC = () => {
       }
       if (!docxHtml) {
         return (
-          <div style={{ 
-            height: '300px', 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
+          <div style={{
+            height: '300px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             justifyContent: 'center',
           }}>
             <FileWordOutlined style={{ fontSize: '64px', color: '#94A3B8', marginBottom: '16px' }} />
@@ -394,32 +409,32 @@ const QuestionBanksList: React.FC = () => {
         );
       }
       return (
-        <div 
-          style={{ 
-            background: '#fff', 
-            padding: '24px', 
-            minHeight: 'calc(100vh - 250px)', 
-            overflowY: 'auto' 
+        <div
+          style={{
+            background: 'var(--surface-color)',
+            padding: '24px',
+            minHeight: 'calc(100vh - 250px)',
+            overflowY: 'auto'
           }}
           dangerouslySetInnerHTML={{ __html: docxHtml }}
         />
       );
     }
-    
+
     // For doc (old format) and others
     let Icon = FileTextOutlined;
     if (ext === 'doc') Icon = FileWordOutlined;
-    
+
     return (
-      <div style={{ 
-        height: '300px', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
+      <div style={{
+        height: '300px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
         justifyContent: 'center',
-        background: '#F8FAFC',
+        background: 'var(--surface-muted)',
         borderRadius: '8px',
-        border: '1px dashed #E2E8F0'
+        border: '1px dashed var(--border-color)'
       }}>
         <Icon style={{ fontSize: '64px', color: '#94A3B8', marginBottom: '16px' }} />
         <Text type="secondary" style={{ marginBottom: '16px' }}>该文件格式暂不支持在线预览</Text>
@@ -440,7 +455,7 @@ const QuestionBanksList: React.FC = () => {
         <Space>
           {selectedRowKeys.length > 0 && (
             <>
-              <span style={{ color: '#64748B' }}>已选 {selectedRowKeys.length} 项</span>
+              <span style={{ color: 'var(--text-secondary)' }}>已选 {selectedRowKeys.length} 项</span>
               <Button danger onClick={handleBatchDelete}>批量删除</Button>
               <Button onClick={() => setSelectedRowKeys([])}>取消选择</Button>
             </>
@@ -448,12 +463,12 @@ const QuestionBanksList: React.FC = () => {
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} size="large" style={{ borderRadius: '8px' }}>上传题库</Button>
         </Space>
       </div>
-      
-      <Table 
-        columns={columns} 
-        dataSource={data} 
-        loading={loading} 
-        rowKey="id" 
+
+      <Table
+        columns={columns}
+        dataSource={data}
+        loading={loading}
+        rowKey="id"
         pagination={{ pageSize: 10, showSizeChanger: true }}
         rowSelection={{
           selectedRowKeys,
@@ -574,7 +589,7 @@ const QuestionBanksList: React.FC = () => {
                       }[viewingRecord.difficulty] || viewingRecord.difficulty
                     }</Tag>
                     {viewingRecord.tags && viewingRecord.tags.map((tag: string) => (
-                      <Tag key={tag} style={{ border: 'none', background: '#F1F5F9', color: '#64748B' }}>{tag}</Tag>
+                      <Tag key={tag} style={{ border: 'none', background: 'var(--surface-subtle)', color: 'var(--text-secondary)' }}>{tag}</Tag>
                     ))}
                   </div>
                 </div>
@@ -586,11 +601,11 @@ const QuestionBanksList: React.FC = () => {
               </div>
             </div>
 
-            <Divider style={{ borderColor: '#E2E8F0' }} />
-            
+            <Divider style={{ borderColor: 'var(--border-color)' }} />
+
             <Title level={5} style={{ marginBottom: 16 }}>文件预览</Title>
-            
-            <div style={{ border: '1px solid #E2E8F0', borderRadius: '8px', overflow: 'hidden' }}>
+
+            <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
               {renderFilePreview(viewingRecord.source_file ? `/${viewingRecord.source_file}` : '')}
             </div>
           </div>

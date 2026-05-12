@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, message, Tag, Modal, Tooltip, Select, Input, Form, DatePicker, InputNumber, Row, Col, Checkbox, Typography } from 'antd';
 import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, EyeOutlined, StopOutlined, TeamOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -103,7 +103,7 @@ const InterviewsList: React.FC = () => {
           message.success('删除成功');
           fetchInterviews();
         } catch (error) {
-          message.error('删除失败');
+          message.error(getApiErrorMessage(error, '删除失败'));
         }
       },
     });
@@ -302,7 +302,7 @@ const InterviewsList: React.FC = () => {
           setSelectedRowKeys([]);
           fetchInterviews();
         } catch (error) {
-          message.error('批量删除失败');
+          message.error(getApiErrorMessage(error, '批量删除失败'));
         }
       },
     });
@@ -313,13 +313,13 @@ const InterviewsList: React.FC = () => {
       title: '候选人',
       dataIndex: ['resume', 'candidate_name'],
       key: 'candidate_name',
-      render: (text: string) => <span style={{ fontWeight: 500, color: '#0F172A' }}>{text || '未知'}</span>
+      render: (text: string) => <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text || '未知'}</span>
     },
     {
       title: '岗位',
       dataIndex: ['position', 'title'],
       key: 'position',
-      render: (text: string) => <span style={{ color: '#64748B' }}>{text || '未知'}</span>
+      render: (text: string) => <span style={{ color: 'var(--text-secondary)' }}>{text || '未知'}</span>
     },
     {
       title: '轮次',
@@ -375,7 +375,7 @@ const InterviewsList: React.FC = () => {
         if (values.length === 0) return '-';
         const sum = values.reduce((a, b) => a + b, 0);
         const avg = (sum / values.length).toFixed(1);
-        return <span style={{ fontWeight: 600, color: '#0F172A' }}>{avg}</span>;
+        return <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{avg}</span>;
       }
     },
     {
@@ -490,7 +490,7 @@ const InterviewsList: React.FC = () => {
         cancelText="返回"
         okButtonProps={{ danger: true }}
       >
-        <p style={{ marginBottom: 12, color: '#64748B' }}>请输入取消面试的原因：</p>
+        <p style={{ marginBottom: 12, color: 'var(--text-secondary)' }}>请输入取消面试的原因：</p>
         <Input.TextArea
           rows={3}
           value={cancelReason}
@@ -516,7 +516,7 @@ const InterviewsList: React.FC = () => {
               title: '候选人', 
               dataIndex: 'candidate_name', 
               key: 'candidate_name',
-              render: (text: string) => <span style={{ fontWeight: 500, color: '#0F172A' }}>{text || '解析中...'}</span>
+              render: (text: string) => <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text || '解析中...'}</span>
             },
             { title: '联系方式', dataIndex: 'contact', key: 'contact' },
             { title: '应聘岗位', dataIndex: ['position', 'title'], key: 'position' },
@@ -569,7 +569,7 @@ const InterviewsList: React.FC = () => {
         cancelText="取消"
       >
         {selectedResume && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface-muted)', borderRadius: 8 }}>
             <Text strong>候选人：</Text>{selectedResume.candidate_name}
             <br />
             <Text strong>应聘岗位：</Text>{selectedResume.position?.title || '-'}
@@ -577,7 +577,7 @@ const InterviewsList: React.FC = () => {
         )}
 
         {existingInterviews.length > 0 && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface-muted)', borderRadius: 8 }}>
             <Text strong>该候选人已有 {existingInterviews.length} 轮面试：</Text>
             <div style={{ marginTop: 8 }}>
               {existingInterviews.map((i: any) => (
@@ -760,7 +760,7 @@ const InterviewsList: React.FC = () => {
         ]}
       >
         {emailContent && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, padding: 12, background: 'var(--surface-muted)', borderRadius: 8 }}>
             <p><strong>收件人：</strong>{emailContent.to_email}</p>
             <p><strong>候选人：</strong>{emailContent.candidate_name}</p>
           </div>
@@ -792,12 +792,12 @@ const InterviewsList: React.FC = () => {
           >
             <div
               style={{
-                border: '1px solid #d9d9d9',
+                border: '1px solid var(--border-color)',
                 borderRadius: 8,
                 padding: 16,
                 maxHeight: 300,
                 overflow: 'auto',
-                background: '#fff'
+                background: 'var(--surface-color)'
               }}
               dangerouslySetInnerHTML={{ __html: emailForm.getFieldValue('content') || '' }}
             />

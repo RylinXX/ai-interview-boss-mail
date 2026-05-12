@@ -7,6 +7,8 @@
 *.db
 .claude/
 .worktrees/
+.local/
+.superpowers/
 .env
 .env.*
 !.env.example

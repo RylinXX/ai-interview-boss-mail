@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, joinedload
 from app.models.models import (
-    Resume, Position, Interview, InterviewPanel, DepartmentReview, User, Offer,
+    CodingSubmission, CodingTest, Resume, Position, Interview, InterviewPanel,
+    DepartmentReview, User, Offer, ResumeMailImport,
     ResumeStatus, ScreeningResult, RejectReasonCategory, ReviewRecommendation, PositionStatus
 )
 from app.schemas.resume import (
@@ -412,6 +413,16 @@ def delete_resume(db: Session, resume_id: UUID):
     if not db_resume:
         return None
 
+    coding_test_ids = [
+        test_id
+        for (test_id,) in db.query(CodingTest.id).filter(CodingTest.resume_id == resume_id).all()
+    ]
+    if coding_test_ids:
+        db.query(CodingSubmission).filter(
+            CodingSubmission.coding_test_id.in_(coding_test_ids)
+        ).delete(synchronize_session=False)
+        db.query(CodingTest).filter(CodingTest.id.in_(coding_test_ids)).delete(synchronize_session=False)
+
     # Get interview IDs for this resume
     interview_ids = [i.id for i in db.query(Interview).filter(Interview.resume_id == resume_id).all()]
 
@@ -427,6 +438,11 @@ def delete_resume(db: Session, resume_id: UUID):
 
     # Delete associated offers
     db.query(Offer).filter(Offer.resume_id == resume_id).delete(synchronize_session=False)
+
+    db.query(ResumeMailImport).filter(ResumeMailImport.resume_id == resume_id).update(
+        {"resume_id": None},
+        synchronize_session=False,
+    )
 
     # Solution: Eager load position before deletion, so it's in memory.
     # Re-query with options

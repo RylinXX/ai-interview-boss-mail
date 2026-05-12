@@ -1,8 +1,18 @@
 import React from 'react';
-import { Form, Input, Button, Card, Typography, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { App, Form, Input, Button, Card, Typography } from 'antd';
+import {
+  UserOutlined,
+  LockOutlined,
+  CheckCircleOutlined,
+  ClusterOutlined,
+  LineChartOutlined,
+  SafetyCertificateOutlined,
+  MoonOutlined,
+  SunOutlined
+} from '@ant-design/icons';
 import request from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
+import { useThemeMode } from '../../contexts/ThemeContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const { Title, Text } = Typography;
@@ -10,6 +20,8 @@ const { Title, Text } = Typography;
 const Login: React.FC = () => {
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useThemeMode();
+  const { message } = App.useApp();
   useLocation();
   const [loading, setLoading] = React.useState(false);
 
@@ -44,50 +56,117 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      background: '#f0f2f5' 
-    }}>
-      <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Title level={3}>AI 智能面试系统</Title>
-          <Text type="secondary">请登录您的账号</Text>
+    <div className="login-shell">
+      <Button
+        type="text"
+        className="login-theme-toggle theme-toggle-button"
+        icon={isDark ? <SunOutlined /> : <MoonOutlined />}
+        onClick={toggleTheme}
+        aria-label={isDark ? '切换到浅色模式' : '切换到深色模式'}
+      />
+      <section className="login-product-panel">
+        <div className="login-brand-line">
+          <div className="login-brand-mark">
+            <img src="/logo.svg" alt="QylinHR OS" />
+          </div>
+          <span>QylinHR OS</span>
         </div>
-        
+        <div className="login-copy">
+          <Text className="eyebrow">Executive Hiring Console</Text>
+          <Title level={1}>把招聘流程变成可度量、可协作、可复制的管理系统</Title>
+          <Text>
+            面向 HR、面试官和管理层的智能招聘工作台，覆盖岗位、题库、简历、面试、笔试与 Offer 全流程。
+          </Text>
+        </div>
+
+        <div className="login-preview">
+          <div className="preview-toolbar">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="preview-grid">
+            <div className="preview-kpi">
+              <span>候选人转化率</span>
+              <strong>32.8%</strong>
+              <em>+6.2%</em>
+            </div>
+            <div className="preview-kpi accent">
+              <span>平均招聘周期</span>
+              <strong>18 天</strong>
+              <em>优化中</em>
+            </div>
+          </div>
+          <div className="preview-chart" aria-hidden="true">
+            <i style={{ height: '42%' }} />
+            <i style={{ height: '56%' }} />
+            <i style={{ height: '34%' }} />
+            <i style={{ height: '72%' }} />
+            <i style={{ height: '64%' }} />
+            <i style={{ height: '82%' }} />
+          </div>
+          <div className="preview-pipeline">
+            {['简历初筛', 'AI 匹配', '面试评估', 'Offer 决策'].map((item, index) => (
+              <div key={item}>
+                <span>{index + 1}</span>
+                <strong>{item}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="login-trust-row">
+          <span><SafetyCertificateOutlined /> 权限分级</span>
+          <span><LineChartOutlined /> 数据看板</span>
+          <span><ClusterOutlined /> 流程协同</span>
+        </div>
+      </section>
+
+      <section className="login-form-panel">
+        <Card className="login-card" variant="borderless">
+          <div className="login-card-head">
+            <Text className="eyebrow">Secure Access</Text>
+            <Title level={2}>登录工作台</Title>
+            <Text type="secondary">使用管理员演示账号进入系统</Text>
+          </div>
+
         <Form
           name="login"
           initialValues={{ remember: true }}
           onFinish={onFinish}
           size="large"
+          layout="vertical"
+          className="login-form"
         >
           <Form.Item
             name="email"
-            rules={[{ required: true, message: '请输入邮箱!' }]}
+            label="邮箱"
+            rules={[{ required: true, message: '请输入邮箱' }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="邮箱 (admin@example.com)" />
+            <Input prefix={<UserOutlined />} placeholder="邮箱 (admin@example.com)" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
             name="password"
-            rules={[{ required: true, message: '请输入密码!' }]}
+            label="密码"
+            rules={[{ required: true, message: '请输入密码' }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码 (admin123)" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码 (admin123)" autoComplete="current-password" />
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ width: '100%' }} loading={loading}>
-              登录
+            <Button type="primary" htmlType="submit" block loading={loading}>
+              进入系统
             </Button>
           </Form.Item>
-          
-          <div style={{ textAlign: 'center' }}>
-             <Text type="secondary" style={{ fontSize: 12 }}>默认账号: admin@example.com / admin123</Text>
+
+          <div className="demo-account">
+            <CheckCircleOutlined />
+            <Text>默认账号：admin@example.com / admin123</Text>
           </div>
         </Form>
       </Card>
+      </section>
     </div>
   );
 };

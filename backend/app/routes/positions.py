@@ -156,10 +156,11 @@ def update_position_route(
 @router.delete("/{position_id}", response_model=PositionResponse)
 def delete_position_route(
     position_id: UUID,
+    force: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(check_roles([UserRole.ADMIN, UserRole.HR]))
 ):
-    db_position = delete_position(db, position_id)
+    db_position = delete_position(db, position_id, force=force)
     if not db_position:
         raise HTTPException(status_code=404, detail="Position not found")
     return db_position

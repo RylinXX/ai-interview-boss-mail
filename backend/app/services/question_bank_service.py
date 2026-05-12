@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.models import QuestionBank, QuestionCategory, QuestionDifficulty, CodingTest
+from app.models.models import CodingSubmission, CodingTest, QuestionBank, QuestionCategory, QuestionDifficulty
 from app.schemas.question_bank import QuestionBankCreate, QuestionBankUpdate
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
@@ -57,17 +57,26 @@ def update_question_bank(db: Session, question_bank_id: UUID, update_data: Quest
     db.refresh(db_question_bank)
     return db_question_bank
 
-def delete_question_bank(db: Session, question_bank_id: UUID):
+def delete_question_bank(db: Session, question_bank_id: UUID, force: bool = False):
     db_question_bank = db.query(QuestionBank).filter(QuestionBank.id == question_bank_id).first()
     if not db_question_bank:
         return None
 
-    linked_tests = db.query(CodingTest).filter(CodingTest.question_bank_id == question_bank_id).count()
-    if linked_tests > 0:
+    linked_test_ids = [
+        test_id
+        for (test_id,) in db.query(CodingTest.id).filter(CodingTest.question_bank_id == question_bank_id).all()
+    ]
+    if linked_test_ids and not force:
         raise HTTPException(
             status_code=400,
-            detail=f"无法删除：该题库已关联 {linked_tests} 个笔试题，请先解除关联"
+            detail=f"无法删除：该题库已关联 {len(linked_test_ids)} 个笔试题。请先删除关联笔试，或使用强制删除。"
         )
+
+    if linked_test_ids:
+        db.query(CodingSubmission).filter(
+            CodingSubmission.coding_test_id.in_(linked_test_ids)
+        ).delete(synchronize_session=False)
+        db.query(CodingTest).filter(CodingTest.id.in_(linked_test_ids)).delete(synchronize_session=False)
 
     db.delete(db_question_bank)
     db.commit()

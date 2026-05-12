@@ -81,6 +81,9 @@ def delete_coding_test(db: Session, coding_test_id: UUID) -> bool:
     db_test = get_coding_test(db, coding_test_id)
     if not db_test:
         return False
+    db.query(CodingSubmission).filter(
+        CodingSubmission.coding_test_id == coding_test_id
+    ).delete(synchronize_session=False)
     db.delete(db_test)
     db.commit()
     return True
