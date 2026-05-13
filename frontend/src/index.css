@@ -1742,9 +1742,13 @@ code {
 
 .industry-agent-toolbar {
   display: grid;
-  grid-template-columns: minmax(300px, 520px) 1fr;
+  grid-template-columns: minmax(300px, 1fr) minmax(260px, 360px);
   gap: 12px;
   align-items: center;
+}
+
+.industry-scope-select {
+  width: 100%;
 }
 
 .industry-agent-card .ant-card-small .ant-card-body {

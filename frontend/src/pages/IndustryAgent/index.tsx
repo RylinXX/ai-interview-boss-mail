@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { App, Card, Col, Empty, Input, Row, Segmented, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { App, Card, Col, Empty, Input, Row, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
 import { ApartmentOutlined, BulbOutlined, ProjectOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
 
@@ -61,9 +61,9 @@ const IndustryAgent: React.FC = () => {
 
   const industries = data?.industries || [];
   const scopeOptions = [
-    { label: `全部 ${industries.length}`, value: 'all' },
+    { label: `全部行业（${industries.length}）`, value: 'all' },
     ...industries.map(industry => ({
-      label: industry.name,
+      label: `${industry.name}（${industry.project_count} 项目 / ${industry.candidate_count} 人）`,
       value: industry.key,
     })),
   ];
@@ -181,7 +181,13 @@ const IndustryAgent: React.FC = () => {
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
           />
-          <Segmented value={scope} onChange={(value) => setScope(String(value))} options={scopeOptions} />
+          <Select
+            className="industry-scope-select"
+            value={scope}
+            onChange={(value) => setScope(value)}
+            options={scopeOptions}
+            popupMatchSelectWidth={false}
+          />
         </div>
       </Card>
 

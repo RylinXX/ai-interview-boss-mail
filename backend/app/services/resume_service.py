@@ -460,44 +460,50 @@ def _project_has_missing_business_evidence(project: Dict[str, Any]) -> bool:
 
 INDUSTRY_PROFILES = [
     {
+        "key": "software_ai_delivery",
+        "name": "软件/AI/系统交付",
+        "strong_keywords": ["软件外包", "系统集成", "AI交付", "AI Agent", "大模型", "数据中台", "知识库", "SaaS", "低代码"],
+        "keywords": ["外包", "系统", "平台", "Agent", "AI", "开发", "软件", "交付", "产品化"],
+        "solution_focus": ["需求到交付闭环", "AI工具化提效", "数据中台/知识库", "项目制转标准产品"],
+        "offer_template": "把候选人做系统平台、AI Agent、数据运营和项目交付的经验，沉淀为软件与AI交付企业的标准化交付、提效工具和行业解决方案。",
+    },
+    {
         "key": "engineering",
-        "name": "工程建设/审计/维保",
-        "keywords": ["工程", "审计", "造价", "结算", "维保", "地产", "物业", "SOP", "竣工", "施工", "制造"],
+        "name": "工程建设/运维/成本管控",
+        "strong_keywords": ["工程造价", "工程结算", "工程审计", "施工管理", "竣工结算", "物业维保", "项目成本"],
+        "keywords": ["工程", "造价", "结算", "维保", "地产", "物业", "施工", "制造", "成本", "巡检"],
         "solution_focus": ["流程标准化", "数据资产治理", "成本审计与风险预警", "AI辅助工单/报表/巡检"],
         "offer_template": "把候选人过往的工程结算、维保运营和流程治理经验，包装为工程企业的项目成本管控、维保效率提升和数据看板方案。",
     },
     {
         "key": "hr_enterprise",
         "name": "人力资源/企业管理",
-        "keywords": ["人事", "HR", "绩效", "OA", "审批", "企业管理", "组织", "员工", "招聘", "考勤", "薪酬"],
+        "strong_keywords": ["人力资源", "企业管理", "人事系统", "绩效管理", "组织管理", "薪酬绩效"],
+        "keywords": ["人事", "HR", "绩效", "OA", "审批", "组织", "员工", "招聘", "考勤", "薪酬"],
         "solution_focus": ["人事流程数字化", "绩效口径治理", "审批协同", "组织数据看板"],
         "offer_template": "复用候选人的人事系统、OA审批和绩效治理经验，为企业管理客户设计流程梳理、系统落地和管理数据化方案。",
     },
     {
         "key": "finance",
-        "name": "金融/信贷/银行服务",
-        "keywords": ["金融", "银行", "信贷", "农信", "支付", "风控", "贷款", "合规", "审计", "授信", "保险"],
+        "name": "金融服务/信贷/风控",
+        "strong_keywords": ["金融服务", "银行服务", "信贷", "风控", "贷款审批", "授信", "保险"],
+        "keywords": ["金融", "银行", "农信", "支付", "贷款", "合规", "渠道", "转化"],
         "solution_focus": ["金融产品流程优化", "风控合规", "渠道拓展", "客户转化与留存"],
         "offer_template": "将候选人的信贷、银行APP、风控合规和渠道经验，复用为金融机构的产品流程优化、风险控制和获客转化方案。",
     },
     {
-        "key": "software_outsourcing",
-        "name": "软件外包/系统集成/AI交付",
-        "keywords": ["外包", "系统", "平台", "SaaS", "低代码", "Agent", "AI", "大模型", "数据中台", "交付", "开发", "软件"],
-        "solution_focus": ["需求分析到交付闭环", "AI工具化提效", "数据中台/知识库", "项目制转标准化产品"],
-        "offer_template": "把候选人做系统平台、AI Agent、数据运营和项目交付的经验，沉淀为软件外包企业的标准化交付、AI提效和行业解决方案。",
-    },
-    {
         "key": "education",
-        "name": "教育/院校数字化",
-        "keywords": ["教育", "院校", "学生", "教学", "课程", "就业", "双高", "培训", "学校", "岗位推荐"],
+        "name": "教育培训/院校数字化",
+        "strong_keywords": ["院校数字化", "教学评估", "就业服务", "岗位推荐", "课程体系", "双高建设"],
+        "keywords": ["教育", "院校", "学生", "教学", "课程", "就业", "培训", "学校"],
         "solution_focus": ["教学数据分析", "就业岗位匹配", "AIGC报告", "院校服务SaaS化"],
         "offer_template": "复用候选人在教学评估、岗位推荐和AIGC报告生成上的经验，为院校客户提供教学数据化和就业服务方案。",
     },
     {
         "key": "retail_ecommerce",
-        "name": "零售/电商/本地生活",
-        "keywords": ["零售", "电商", "商户", "会员", "GMV", "私域", "本地生活", "用户增长", "门店", "营销", "社交"],
+        "name": "零售电商/本地生活",
+        "strong_keywords": ["本地生活", "私域增长", "会员运营", "商户运营", "门店营销", "电商平台"],
+        "keywords": ["零售", "电商", "商户", "会员", "GMV", "私域", "门店", "营销", "社交"],
         "solution_focus": ["会员增长", "商户运营", "数据化营销", "交易转化与留存"],
         "offer_template": "将候选人的电商、私域增长和零售数据经验，转化为商户运营、会员增长和本地生活平台方案。",
     },
@@ -520,7 +526,8 @@ def _match_industry(text: str) -> Dict[str, Any]:
     lowered = (text or "").lower()
     scored = []
     for profile in INDUSTRY_PROFILES:
-        score = sum(1 for keyword in profile["keywords"] if keyword.lower() in lowered)
+        score = sum(3 for keyword in profile.get("strong_keywords", []) if keyword.lower() in lowered)
+        score += sum(1 for keyword in profile["keywords"] if keyword.lower() in lowered)
         if score:
             scored.append((score, profile))
     if not scored:
