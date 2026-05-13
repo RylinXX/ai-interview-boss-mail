@@ -18,16 +18,6 @@ type ProjectLibrary = {
   projects: any[];
 };
 
-type QueueStats = {
-  queue_size: number;
-  running_tasks: number;
-  completed_tasks: number;
-  max_concurrent: number;
-  total_submitted: number;
-  total_completed: number;
-  total_failed: number;
-};
-
 const projectHasBusinessGap = (project: any) => {
   const missing = Array.isArray(project.missing_evidence) ? project.missing_evidence : [];
   return missing.length > 0 || !project.business_model;
@@ -59,7 +49,6 @@ const Dashboard: React.FC = () => {
   const [resumes, setResumes] = useState<any[]>([]);
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
   const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
-  const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [projectKeyword, setProjectKeyword] = useState('');
@@ -74,16 +63,14 @@ const Dashboard: React.FC = () => {
       setRefreshing(true);
     }
     try {
-      const [resumeRes, summaryRes, projectRes, queueRes] = await Promise.all([
+      const [resumeRes, summaryRes, projectRes] = await Promise.all([
         request.get('/resumes'),
         request.get('/resumes/experience-summary'),
         request.get('/resumes/project-library'),
-        request.get('/resumes/queue-stats'),
       ]);
       setResumes(resumeRes as any[]);
       setSummary(summaryRes as ExperienceSummary);
       setProjectLibrary(projectRes as ProjectLibrary);
-      setQueueStats(queueRes as QueueStats);
     } catch (error) {
       message.error('获取分析仪表盘失败');
     } finally {
@@ -152,9 +139,6 @@ const Dashboard: React.FC = () => {
       + (Array.isArray(parsed.experience_completion_questions) ? parsed.experience_completion_questions.length : 0);
   }, 0);
   const completionRate = resumes.length ? Math.round((analyzed / resumes.length) * 100) : 0;
-  const queueLoad = queueStats?.max_concurrent
-    ? Math.round(((queueStats.running_tasks || 0) / queueStats.max_concurrent) * 100)
-    : 0;
 
   const renderProjectDetail = (record: any) => (
     <div className="project-expanded-detail">
@@ -422,33 +406,7 @@ const Dashboard: React.FC = () => {
             )}
           </Card>
         </Col>
-        <Col span={8}>
-          <Card title="模型处理队列">
-            <Space orientation="vertical" size={12} style={{ width: '100%' }}>
-              <Progress percent={queueLoad} size="small" status={queueLoad >= 100 ? 'active' : 'normal'} />
-              <Row gutter={[8, 8]}>
-                <Col span={12}>
-                  <Text type="secondary">等待中</Text>
-                  <Title level={4}>{queueStats?.queue_size ?? 0}</Title>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary">处理中</Text>
-                  <Title level={4}>{queueStats?.running_tasks ?? 0}</Title>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary">已完成</Text>
-                  <Title level={4}>{queueStats?.total_completed ?? 0}</Title>
-                </Col>
-                <Col span={12}>
-                  <Text type="secondary">失败</Text>
-                  <Title level={4}>{queueStats?.total_failed ?? 0}</Title>
-                </Col>
-              </Row>
-              <Text type="secondary">最大并发：{queueStats?.max_concurrent ?? 0}，累计提交：{queueStats?.total_submitted ?? 0}</Text>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={16}>
+        <Col span={24}>
           <Card
             title="候选人库"
             extra={<Text type="secondary">显示 {candidateRows.length} / {summary?.logic_analyses.length || 0}</Text>}
