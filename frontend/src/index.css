@@ -1755,6 +1755,16 @@ code {
   vertical-align: top;
 }
 
+.project-library-card .ant-table-wrapper,
+.project-library-card .ant-table {
+  width: 100%;
+}
+
+.project-library-card .ant-table-cell p {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
 .work-title-cell {
   display: grid;
   gap: 6px;

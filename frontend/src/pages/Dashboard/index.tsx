@@ -188,7 +188,7 @@ const Dashboard: React.FC = () => {
       title: '项目',
       dataIndex: 'name',
       key: 'name',
-      width: 300,
+      width: '28%',
       render: (text: string, record: any) => (
         <div className="project-title-cell">
           <Text strong>{text || '未命名项目'}</Text>
@@ -200,19 +200,10 @@ const Dashboard: React.FC = () => {
       ),
     },
     {
-      title: '业务问题',
-      key: 'problem',
-      render: (_: any, record: any) => (
-        <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>
-          {record.problem || '待补充项目上下文'}
-        </Paragraph>
-      ),
-    },
-    {
       title: '商业模式',
       dataIndex: 'business_model',
       key: 'business_model',
-      width: 330,
+      width: '28%',
       render: (value: string) => (
         <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>
           {value || '待追问'}
@@ -223,7 +214,7 @@ const Dashboard: React.FC = () => {
       title: '缺失证据',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: 280,
+      width: '22%',
       render: (value: string[]) => Array.isArray(value) && value.length ? (
         <div className="project-tag-row">
           {value.slice(0, 3).map(item => <Tag color="warning" key={item}>{item}</Tag>)}
@@ -235,7 +226,7 @@ const Dashboard: React.FC = () => {
       title: '落地方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: 360,
+      width: '22%',
       render: (value: string[]) => Array.isArray(value) && value.length ? (
         <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>{value[0]}</Paragraph>
       ) : '待沉淀',
@@ -399,7 +390,7 @@ const Dashboard: React.FC = () => {
                   rowExpandable: () => true,
                 }}
                 pagination={{ pageSize: 6, showSizeChanger: false }}
-                scroll={{ x: 1320 }}
+                tableLayout="fixed"
               />
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={projects.length ? '没有匹配的项目' : '暂无项目经历'} />
