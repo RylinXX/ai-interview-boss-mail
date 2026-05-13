@@ -65,7 +65,8 @@ new customer project layer on top:
 3. Generate business diagnosis from project inputs.
 4. Match relevant capability samples to the diagnosis.
 5. Create an execution task board.
-6. Generate and update a solution document from completed or reviewed tasks.
+6. Attach an AI employee MVP entry to generated tasks.
+7. Generate and update a solution document from completed or reviewed tasks.
 
 This preserves the existing data asset while changing the visible product from
 recruiting to business solution design.
@@ -154,8 +155,47 @@ Suggested task fields:
 - AI employee type for future use.
 - Linked evidence and linked capability samples.
 
-Version 1 does not need autonomous AI employees. It only needs task structure that
-can support them later.
+Version 1 should support an AI employee entry point on each task, but it does not
+need full autonomous execution. A user should be able to see which AI employee type
+is suggested for a task, open the employee workspace, and generate a first-pass task
+output with the current project context.
+
+### AI Employee
+
+An AI employee is a role-specific execution agent that turns a solution task into a
+draft work product.
+
+Version 1 should include a minimal AI employee layer so the product has a durable
+entry point for later automation.
+
+MVP employee types:
+
+- Business analyst: summarizes customer context, root causes, and missing information.
+- Industry researcher: gathers industry assumptions and comparable business patterns.
+- Product manager: turns diagnosis into solution modules, requirements, and roadmap.
+- Operations consultant: designs process optimization, SOP, and handoff plans.
+- Data analyst: proposes metrics, dashboards, and validation methods.
+- Implementation planner: breaks the selected solution into milestones, owners, and
+  delivery risks.
+
+Suggested AI employee fields:
+
+- Employee type.
+- Display name.
+- Responsibility.
+- Input requirements.
+- Output template.
+- Available project context.
+- Allowed tools, initially none or internal-only.
+- Status: draft, available, disabled.
+
+Version 1 AI employees should be manually triggered. They receive project context,
+linked capability samples, task instructions, and the solution-document draft, then
+return a structured output for review. The consultant decides whether to accept,
+edit, or discard the output.
+
+Phase 2 can turn these entries into persistent workers with scheduled execution,
+tool access, memory, handoff rules, and progress reporting.
 
 ### Solution Document
 
@@ -188,9 +228,12 @@ Markdown or PDF, reusing the existing report export pattern.
 5. AI generates an initial diagnosis and missing-information questions.
 6. AI matches relevant capability samples and summarizes why they matter.
 7. AI creates an execution task board for internal work.
-8. The consultant reviews and edits tasks.
-9. Completed or reviewed task outputs update the solution document.
-10. The solution document can be exported for later customer-facing packaging.
+8. Each generated task includes a suggested AI employee type.
+9. The consultant can open an AI employee MVP workspace from a task.
+10. The consultant manually triggers the AI employee to generate a first-pass output.
+11. The consultant reviews, edits, accepts, or discards the output.
+12. Accepted task outputs update the solution document.
+13. The solution document can be exported for later customer-facing packaging.
 
 ## First-Version Navigation
 
@@ -200,6 +243,7 @@ Recommended main navigation:
 - `客户项目`
 - `高级人才能力样本库`
 - `业务优化方案智能体`
+- `AI 员工`
 - `系统设置`
 
 Existing labels should be changed gradually:
@@ -209,6 +253,11 @@ Existing labels should be changed gradually:
 - `上传简历` -> `导入人才样本`
 - `行业方案智能体` -> `业务优化方案智能体`
 - `导出报告` -> `导出方案文档`
+
+The `AI 员工` navigation item can start as a lightweight registry page. It should list
+available employee types and explain what each employee can produce. The primary
+execution entry should still be from project tasks, because AI employees need project
+context to be useful.
 
 ## Backend Design
 
@@ -222,6 +271,8 @@ Recommended new modules:
 - `business_diagnoses`
 - `project_tasks`
 - `solution_documents`
+- `ai_employees`
+- `ai_employee_runs`
 
 The first implementation can reuse existing resume parsing services to populate
 capability sample data. A later migration can rename database tables if needed, but
@@ -242,6 +293,15 @@ Recommended APIs:
 - `POST /api/customer-projects/{project_id}/solution-document/export`
 - `GET /api/capability-samples`
 - `POST /api/resumes/{resume_id}/capability-sample`
+- `GET /api/ai-employees`
+- `POST /api/project-tasks/{task_id}/ai-runs`
+- `GET /api/project-tasks/{task_id}/ai-runs`
+- `POST /api/ai-runs/{run_id}/accept`
+- `POST /api/ai-runs/{run_id}/discard`
+
+The first AI run implementation can be synchronous or short background work. It
+should store the generated output, linked task, linked employee type, prompt context,
+status, and reviewer decision.
 
 ## AI Behavior
 
@@ -274,8 +334,19 @@ For solution generation, produce:
 - Execution tasks.
 - Validation metrics.
 
+For AI employee task execution, produce:
+
+- A task-specific draft output.
+- Assumptions used.
+- Source project facts used.
+- Capability samples referenced.
+- Follow-up questions.
+- Suggested solution-document section updates.
+
 AI should not invent specific personal identities, employer details, or performance
 claims that are not present in the source material.
+
+AI employee outputs should be treated as drafts until a human accepts them.
 
 ## Privacy And Data Handling
 
@@ -295,11 +366,49 @@ workflow.
 ## Out Of Scope For Version 1
 
 - Customer self-service portal.
-- Full autonomous AI employee execution.
+- Full autonomous AI employee execution beyond manually triggered draft generation.
 - CRM, billing, contract, or proposal signing.
 - Complex multi-user review workflow.
 - Full table and route rename from resume terminology.
 - Interview, offer, coding-test, and recruiting pipeline revival.
+
+## Phase 2 AI Employee Direction
+
+Phase 2 should turn the MVP entry into an execution system.
+
+The target model is a team of AI employees that can receive a project goal, operate
+within assigned task boundaries, produce work artifacts, and report progress back to
+the project task board and solution document.
+
+Phase 2 capabilities:
+
+- Persistent employee profiles with responsibilities, tone, output templates, and
+  tool permissions.
+- Project-scoped memory so each employee can understand customer context, prior
+  decisions, accepted outputs, and rejected assumptions.
+- Task handoff rules, such as analyst output feeding the product manager, then the
+  implementation planner.
+- Tool access for approved internal data sources, such as document search, web
+  research, spreadsheet analysis, browser checks, and later customer-system connectors.
+- Scheduled or queued execution for long-running tasks.
+- Human approval gates before customer-facing material is updated or external actions
+  are taken.
+- Quality checks for evidence, hallucination risk, missing assumptions, and business
+  feasibility.
+- Progress reporting on the task board.
+
+Suggested Phase 2 workflow:
+
+1. A customer project diagnosis creates a set of tasks.
+2. The system assigns each task to an AI employee type.
+3. Employees generate draft outputs in sequence or parallel.
+4. Outputs are reviewed by the consultant.
+5. Accepted outputs update the solution document and create follow-up tasks.
+6. The implementation planner converts the final solution into milestones.
+7. Later, customer-approved work can be pushed into external execution systems.
+
+Phase 2 should still keep human control over scope, external communication, and
+customer-facing deliverables.
 
 ## Testing
 
@@ -309,6 +418,8 @@ Backend tests:
 - Customer project create, update, and list.
 - Diagnosis generation with mocked LLM output.
 - Task board generation with deterministic mocked output.
+- AI employee registry list and task-run creation.
+- AI employee run accept and discard behavior.
 - Solution document update and export.
 - Permission checks for project and sample access.
 
@@ -317,13 +428,17 @@ Frontend checks:
 - Navigation labels reflect the new product positioning.
 - Customer project list and detail pages load.
 - Task board supports status movement and edit.
+- AI employee entry appears on generated tasks.
+- AI employee registry page lists available employee types.
+- AI employee draft output can be reviewed and accepted into the project workflow.
 - Solution document can be generated, edited, and exported.
 - Existing talent sample import path remains usable.
 
 Integration checks:
 
 - Upload a resume, create a capability sample, create a customer project, generate
-  diagnosis, generate tasks, and export a solution document.
+  diagnosis, generate tasks, run an AI employee draft, accept the output, and export
+  a solution document.
 
 ## Rollout Plan
 
@@ -332,8 +447,9 @@ Integration checks:
 3. Add capability sample extraction on top of existing resume analysis.
 4. Add diagnosis generation for customer projects.
 5. Add project task board generation.
-6. Add solution document generation and export.
-7. Add integration tests for the complete internal workflow.
+6. Add AI employee MVP registry and task-run entry.
+7. Add solution document generation and export.
+8. Add integration tests for the complete internal workflow.
 
 ## Success Criteria
 
@@ -344,6 +460,7 @@ The first version is successful when the consultant can:
 - Generate a structured business diagnosis.
 - Match capability samples to the customer problem.
 - Generate an internal execution task board.
+- Open an AI employee entry from a task and generate a reviewable draft output.
 - Produce and export a coherent solution document.
 
 The product should feel like an internal AI solution workbench, not a recruiting or
