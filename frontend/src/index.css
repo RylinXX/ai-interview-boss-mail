@@ -1732,8 +1732,21 @@ code {
   margin-bottom: 16px;
 }
 
+.dashboard-library-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 420px) 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
 .project-library-card .ant-table-cell {
   vertical-align: top;
+}
+
+.work-title-cell {
+  display: grid;
+  gap: 6px;
 }
 
 .project-title-cell {
@@ -1855,6 +1868,10 @@ code {
   }
 
   .project-library-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-library-toolbar {
     grid-template-columns: 1fr;
   }
 }

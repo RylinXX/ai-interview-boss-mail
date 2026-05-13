@@ -49,6 +49,11 @@ const projectMatchesKeyword = (project: any, keyword: string) => {
   return values.some(value => String(value || '').toLowerCase().includes(keyword));
 };
 
+const valuesMatchKeyword = (values: any[], keyword: string) => {
+  if (!keyword) return true;
+  return values.some(value => String(value || '').toLowerCase().includes(keyword));
+};
+
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const [resumes, setResumes] = useState<any[]>([]);
@@ -59,6 +64,8 @@ const Dashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
+  const [candidateKeyword, setCandidateKeyword] = useState('');
+  const [workKeyword, setWorkKeyword] = useState('');
 
   const fetchData = useCallback(async (initialLoad = false) => {
     if (initialLoad) {
@@ -94,6 +101,8 @@ const Dashboard: React.FC = () => {
 
   const projects = projectLibrary?.projects || [];
   const normalizedKeyword = projectKeyword.trim().toLowerCase();
+  const normalizedCandidateKeyword = candidateKeyword.trim().toLowerCase();
+  const normalizedWorkKeyword = workKeyword.trim().toLowerCase();
   const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
   const filteredProjects = useMemo(
     () => projects
@@ -104,6 +113,24 @@ const Dashboard: React.FC = () => {
         _rowKey: `${project.resume_id || 'resume'}-${project.name || 'project'}-${project.role || 'role'}-${index}`,
       })),
     [normalizedKeyword, projectScope, projects],
+  );
+  const candidateRows = useMemo(
+    () => (summary?.logic_analyses || [])
+      .filter(item => valuesMatchKeyword([item.candidate_name, item.analysis], normalizedCandidateKeyword))
+      .map((item, index) => ({ ...item, _rowKey: `${item.resume_id || 'candidate'}-${index}` })),
+    [normalizedCandidateKeyword, summary?.logic_analyses],
+  );
+  const workRows = useMemo(
+    () => (summary?.work_experiences || [])
+      .filter(item => valuesMatchKeyword([
+        item.candidate_name,
+        item.company,
+        item.role,
+        item.summary,
+        ...(Array.isArray(item.capabilities) ? item.capabilities : []),
+      ], normalizedWorkKeyword))
+      .map((item, index) => ({ ...item, _rowKey: `${item.resume_id || 'work'}-${item.company || 'company'}-${index}` })),
+    [normalizedWorkKeyword, summary?.work_experiences],
   );
 
   if (loading) {
@@ -228,6 +255,69 @@ const Dashboard: React.FC = () => {
       render: (value: string[]) => Array.isArray(value) && value.length ? (
         <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>{value[0]}</Paragraph>
       ) : '待沉淀',
+    },
+  ];
+
+  const candidateColumns = [
+    {
+      title: '候选人',
+      dataIndex: 'candidate_name',
+      key: 'candidate_name',
+      width: 180,
+      render: (value: string) => <Text strong>{value || '未识别候选人'}</Text>,
+    },
+    {
+      title: '底层逻辑分析',
+      dataIndex: 'analysis',
+      key: 'analysis',
+      render: (value: string) => (
+        <Paragraph ellipsis={{ rows: 4, expandable: true, symbol: '展开' }} style={{ margin: 0 }}>
+          {value || '暂无逻辑分析'}
+        </Paragraph>
+      ),
+    },
+  ];
+
+  const workColumns = [
+    {
+      title: '候选人',
+      dataIndex: 'candidate_name',
+      key: 'candidate_name',
+      width: 160,
+      render: (value: string) => <Text strong>{value || '未识别候选人'}</Text>,
+    },
+    {
+      title: '公司/角色',
+      key: 'company_role',
+      width: 260,
+      render: (_: any, record: any) => (
+        <div className="work-title-cell">
+          <Text strong>{record.company || '未命名公司'}</Text>
+          <Text type="secondary">{record.role || '角色未明'}</Text>
+        </div>
+      ),
+    },
+    {
+      title: '经历概要',
+      dataIndex: 'summary',
+      key: 'summary',
+      render: (value: string) => (
+        <Paragraph ellipsis={{ rows: 4, expandable: true, symbol: '展开' }} style={{ margin: 0 }}>
+          {value || '暂无概要'}
+        </Paragraph>
+      ),
+    },
+    {
+      title: '能力标签',
+      dataIndex: 'capabilities',
+      key: 'capabilities',
+      width: 260,
+      render: (value: string[]) => Array.isArray(value) && value.length ? (
+        <div className="project-tag-row">
+          {value.slice(0, 4).map(item => <Tag key={item}>{item}</Tag>)}
+          {value.length > 4 && <Tag>+{value.length - 4}</Tag>}
+        </div>
+      ) : '-',
     },
   ];
 
@@ -359,37 +449,56 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
         <Col span={16}>
-          <Card title="候选人逻辑分析" extra={<BulbOutlined />}>
-            {summary?.logic_analyses.length ? (
-              <div className="analysis-list compact">
-                {summary.logic_analyses.slice(0, 6).map((item, index) => (
-                  <div className="analysis-list-item" key={`${item.candidate_name || 'unknown'}-${index}`}>
-                    <Text strong>{item.candidate_name || '未识别候选人'}</Text>
-                    <Paragraph ellipsis={{ rows: 3 }} style={{ margin: '6px 0 0' }}>{item.analysis}</Paragraph>
-                  </div>
-                ))}
-              </div>
+          <Card
+            title="候选人库"
+            extra={<Text type="secondary">显示 {candidateRows.length} / {summary?.logic_analyses.length || 0}</Text>}
+          >
+            <div className="dashboard-library-toolbar">
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="搜索候选人或底层逻辑"
+                value={candidateKeyword}
+                onChange={(event) => setCandidateKeyword(event.target.value)}
+              />
+              <BulbOutlined />
+            </div>
+            {candidateRows.length ? (
+              <Table
+                rowKey={(record) => record._rowKey}
+                dataSource={candidateRows}
+                columns={candidateColumns}
+                pagination={{ pageSize: 6, showSizeChanger: false }}
+              />
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无逻辑分析" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无候选人逻辑" />
             )}
           </Card>
         </Col>
       </Row>
 
-      <Card title="工作经验库" style={{ marginTop: 16 }} extra={<Text type="secondary">沉淀可复用能力、公司经验和角色上下文</Text>}>
-        {summary?.work_experiences.length ? (
-          <Row gutter={[16, 16]}>
-            {summary.work_experiences.slice(0, 12).map((item, index) => (
-              <Col span={8} key={`${item.company || 'company'}-${item.candidate_name || 'candidate'}-${index}`}>
-                <Card size="small" title={item.company || '未命名公司'}>
-                  <Space orientation="vertical" size={6}>
-                    <Text type="secondary">{item.candidate_name} · {item.role || '角色未明'}</Text>
-                    <Paragraph ellipsis={{ rows: 3 }}>{item.summary || '暂无概要'}</Paragraph>
-                  </Space>
-                </Card>
-              </Col>
-            ))}
-          </Row>
+      <Card
+        title="工作经验库"
+        style={{ marginTop: 16 }}
+        extra={<Text type="secondary">显示 {workRows.length} / {summary?.work_experiences.length || 0}</Text>}
+      >
+        <div className="dashboard-library-toolbar">
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="搜索候选人、公司、角色或经历"
+            value={workKeyword}
+            onChange={(event) => setWorkKeyword(event.target.value)}
+          />
+          <Text type="secondary">沉淀可复用能力、公司经验和角色上下文</Text>
+        </div>
+        {workRows.length ? (
+          <Table
+            rowKey={(record) => record._rowKey}
+            dataSource={workRows}
+            columns={workColumns}
+            pagination={{ pageSize: 8, showSizeChanger: false }}
+          />
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无工作经历" />
         )}
