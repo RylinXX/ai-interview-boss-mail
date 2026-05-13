@@ -11,7 +11,7 @@ from app.schemas.resume import (
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
-    summarize_resume_experiences, summarize_resume_projects,
+    summarize_resume_experiences, summarize_resume_projects, summarize_industry_solution_agent,
     check_duplicate_resume, create_department_review, get_department_reviews,
     complete_department_review, aggregate_department_reviews, submit_hr_decision,
     confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position,
@@ -147,6 +147,15 @@ def get_resume_queue_stats_route(
     current_user: User = Depends(get_current_user)
 ):
     return get_task_queue().get_stats()
+
+
+@router.get("/industry-agent")
+def get_industry_solution_agent_route(
+    limit: int = 500,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return summarize_industry_solution_agent(db, limit=limit)
 
 # ==================== 简历详情与更新 ====================
 

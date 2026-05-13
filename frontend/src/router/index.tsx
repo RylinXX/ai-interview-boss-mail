@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Login = lazy(() => import('../pages/Login'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
+const IndustryAgent = lazy(() => import('../pages/IndustryAgent'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
 const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
 const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
@@ -64,6 +65,10 @@ const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: lazyPage(<Dashboard />),
+      },
+      {
+        path: 'industry-agent',
+        element: lazyPage(<IndustryAgent />),
       },
       {
         path: 'resumes',

@@ -458,6 +458,197 @@ def _project_has_missing_business_evidence(project: Dict[str, Any]) -> bool:
     return bool(missing_evidence) or not business_model
 
 
+INDUSTRY_PROFILES = [
+    {
+        "key": "engineering",
+        "name": "工程建设/审计/维保",
+        "keywords": ["工程", "审计", "造价", "结算", "维保", "地产", "物业", "SOP", "竣工", "施工", "制造"],
+        "solution_focus": ["流程标准化", "数据资产治理", "成本审计与风险预警", "AI辅助工单/报表/巡检"],
+        "offer_template": "把候选人过往的工程结算、维保运营和流程治理经验，包装为工程企业的项目成本管控、维保效率提升和数据看板方案。",
+    },
+    {
+        "key": "hr_enterprise",
+        "name": "人力资源/企业管理",
+        "keywords": ["人事", "HR", "绩效", "OA", "审批", "企业管理", "组织", "员工", "招聘", "考勤", "薪酬"],
+        "solution_focus": ["人事流程数字化", "绩效口径治理", "审批协同", "组织数据看板"],
+        "offer_template": "复用候选人的人事系统、OA审批和绩效治理经验，为企业管理客户设计流程梳理、系统落地和管理数据化方案。",
+    },
+    {
+        "key": "finance",
+        "name": "金融/信贷/银行服务",
+        "keywords": ["金融", "银行", "信贷", "农信", "支付", "风控", "贷款", "合规", "审计", "授信", "保险"],
+        "solution_focus": ["金融产品流程优化", "风控合规", "渠道拓展", "客户转化与留存"],
+        "offer_template": "将候选人的信贷、银行APP、风控合规和渠道经验，复用为金融机构的产品流程优化、风险控制和获客转化方案。",
+    },
+    {
+        "key": "software_outsourcing",
+        "name": "软件外包/系统集成/AI交付",
+        "keywords": ["外包", "系统", "平台", "SaaS", "低代码", "Agent", "AI", "大模型", "数据中台", "交付", "开发", "软件"],
+        "solution_focus": ["需求分析到交付闭环", "AI工具化提效", "数据中台/知识库", "项目制转标准化产品"],
+        "offer_template": "把候选人做系统平台、AI Agent、数据运营和项目交付的经验，沉淀为软件外包企业的标准化交付、AI提效和行业解决方案。",
+    },
+    {
+        "key": "education",
+        "name": "教育/院校数字化",
+        "keywords": ["教育", "院校", "学生", "教学", "课程", "就业", "双高", "培训", "学校", "岗位推荐"],
+        "solution_focus": ["教学数据分析", "就业岗位匹配", "AIGC报告", "院校服务SaaS化"],
+        "offer_template": "复用候选人在教学评估、岗位推荐和AIGC报告生成上的经验，为院校客户提供教学数据化和就业服务方案。",
+    },
+    {
+        "key": "retail_ecommerce",
+        "name": "零售/电商/本地生活",
+        "keywords": ["零售", "电商", "商户", "会员", "GMV", "私域", "本地生活", "用户增长", "门店", "营销", "社交"],
+        "solution_focus": ["会员增长", "商户运营", "数据化营销", "交易转化与留存"],
+        "offer_template": "将候选人的电商、私域增长和零售数据经验，转化为商户运营、会员增长和本地生活平台方案。",
+    },
+]
+
+
+def _text_blob(*values: Any) -> str:
+    parts: List[str] = []
+    for value in values:
+        if isinstance(value, list):
+            parts.extend(str(item) for item in value)
+        elif isinstance(value, dict):
+            parts.extend(str(item) for item in value.values())
+        elif value is not None:
+            parts.append(str(value))
+    return " ".join(parts)
+
+
+def _match_industry(text: str) -> Dict[str, Any]:
+    lowered = (text or "").lower()
+    scored = []
+    for profile in INDUSTRY_PROFILES:
+        score = sum(1 for keyword in profile["keywords"] if keyword.lower() in lowered)
+        if score:
+            scored.append((score, profile))
+    if not scored:
+        return {
+            "key": "general",
+            "name": "通用企业数字化/商业优化",
+            "keywords": [],
+            "solution_focus": ["需求梳理", "流程优化", "数据看板", "商业模式补全"],
+            "offer_template": "把候选人的项目管理、需求分析和业务落地经验，整理为通用企业的流程优化、数据化运营和商业闭环方案。",
+        }
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1]
+
+
+def summarize_industry_solution_agent(db: Session, limit: int = 500) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 500), 1000))
+    resumes = (
+        db.query(Resume)
+        .filter(Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    industry_map: Dict[str, Dict[str, Any]] = {}
+
+    def ensure_bucket(profile: Dict[str, Any]) -> Dict[str, Any]:
+        key = profile["key"]
+        if key not in industry_map:
+            industry_map[key] = {
+                "key": key,
+                "name": profile["name"],
+                "solution_focus": profile["solution_focus"],
+                "offer_template": profile["offer_template"],
+                "project_cases": [],
+                "work_cases": [],
+                "candidate_pool": {},
+                "reusable_patterns": [],
+            }
+        return industry_map[key]
+
+    for resume in resumes:
+        parsed_data = resume.parsed_data or {}
+        landing_ideas = _as_list(parsed_data.get("startup_landing_ideas"))
+        logic_analysis = parsed_data.get("logic_analysis")
+
+        for project in _as_list(parsed_data.get("project_experiences")):
+            if not isinstance(project, dict):
+                continue
+            profile = _match_industry(_text_blob(project, landing_ideas, logic_analysis, resume.candidate_name))
+            bucket = ensure_bucket(profile)
+            bucket["project_cases"].append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "project_name": project.get("name") or "未命名项目",
+                    "role": project.get("role"),
+                    "problem": project.get("problem"),
+                    "solution": project.get("solution"),
+                    "business_model": project.get("business_model"),
+                    "missing_evidence": _as_list(project.get("missing_evidence")),
+                    "landing_ideas": landing_ideas,
+                }
+            )
+            candidate = bucket["candidate_pool"].setdefault(
+                str(resume.id),
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "logic_analysis": logic_analysis,
+                    "case_count": 0,
+                },
+            )
+            candidate["case_count"] += 1
+
+        for work in _as_list(parsed_data.get("work_experiences")):
+            if not isinstance(work, dict):
+                continue
+            profile = _match_industry(_text_blob(work, logic_analysis, resume.candidate_name))
+            bucket = ensure_bucket(profile)
+            bucket["work_cases"].append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "company": work.get("company") or "未命名公司",
+                    "role": work.get("role"),
+                    "summary": work.get("summary"),
+                    "capabilities": _as_list(work.get("capabilities")),
+                }
+            )
+            candidate = bucket["candidate_pool"].setdefault(
+                str(resume.id),
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "logic_analysis": logic_analysis,
+                    "case_count": 0,
+                },
+            )
+            candidate["case_count"] += 1
+
+    industries = []
+    for bucket in industry_map.values():
+        candidates = sorted(bucket["candidate_pool"].values(), key=lambda item: item["case_count"], reverse=True)
+        patterns = []
+        if bucket["project_cases"]:
+            patterns.append(f"可复用 {len(bucket['project_cases'])} 个项目案例做行业方案背书")
+        if bucket["work_cases"]:
+            patterns.append(f"可调用 {len(bucket['work_cases'])} 段工作经历支撑交付能力")
+        if candidates:
+            patterns.append("核心候选人：" + "、".join(item["candidate_name"] or "未识别" for item in candidates[:5]))
+        bucket["candidate_pool"] = candidates[:12]
+        bucket["reusable_patterns"] = patterns
+        bucket["project_count"] = len(bucket["project_cases"])
+        bucket["work_count"] = len(bucket["work_cases"])
+        bucket["candidate_count"] = len(candidates)
+        bucket["project_cases"] = bucket["project_cases"][:12]
+        bucket["work_cases"] = bucket["work_cases"][:12]
+        industries.append(bucket)
+
+    industries.sort(key=lambda item: (item["project_count"] + item["work_count"], item["candidate_count"]), reverse=True)
+    return {
+        "resume_count": len(resumes),
+        "industry_count": len(industries),
+        "industries": industries,
+    }
+
+
 def summarize_resume_projects(
     db: Session,
     limit: int = 500,

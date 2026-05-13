@@ -13,6 +13,7 @@ import {
   ReloadOutlined,
   CheckCircleOutlined,
   UploadOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -223,6 +224,11 @@ const AppLayout: React.FC = () => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: '分析仪表盘',
+    },
+    {
+      key: '/industry-agent',
+      icon: <RobotOutlined />,
+      label: '行业方案智能体',
     },
     {
       key: '/resumes',

@@ -1740,6 +1740,17 @@ code {
   margin-bottom: 16px;
 }
 
+.industry-agent-toolbar {
+  display: grid;
+  grid-template-columns: minmax(300px, 520px) 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.industry-agent-card .ant-card-small .ant-card-body {
+  min-height: 132px;
+}
+
 .project-library-card .ant-table-cell {
   vertical-align: top;
 }
@@ -1872,6 +1883,10 @@ code {
   }
 
   .dashboard-library-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .industry-agent-toolbar {
     grid-template-columns: 1fr;
   }
 }

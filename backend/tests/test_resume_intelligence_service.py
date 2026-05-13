@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from uuid import uuid4
 
 from app.models.models import Resume, ResumeStatus, ScreeningResult
@@ -70,6 +71,7 @@ def test_resume_project_library_route_flattens_projects_and_filters_missing(
         status=ResumeStatus.COMPLETED,
         screening_result=ScreeningResult.PASSED,
         match_score=86,
+        created_at=datetime.utcnow() - timedelta(minutes=1),
         parsed_data={
             "project_experiences": [
                 {
@@ -97,6 +99,7 @@ def test_resume_project_library_route_flattens_projects_and_filters_missing(
         status=ResumeStatus.COMPLETED,
         screening_result=ScreeningResult.PASSED,
         match_score=78,
+        created_at=datetime.utcnow(),
         parsed_data={
             "project_experiences": [
                 {
@@ -163,6 +166,85 @@ def test_resume_queue_stats_route_returns_task_queue_metrics(
         "total_completed": 11,
         "total_failed": 1,
     }
+
+
+def test_industry_solution_agent_groups_cases_by_industry(client, admin_auth_headers, db):
+    engineering = Resume(
+        id=uuid4(),
+        candidate_name="李工",
+        position_id=None,
+        file_path="uploads/resumes/engineering.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [
+                {
+                    "company": "工程造价咨询公司",
+                    "role": "项目经理",
+                    "summary": "负责工程结算审计、维保流程标准化和成本风险预警。",
+                    "capabilities": ["工程审计", "流程治理"],
+                }
+            ],
+            "project_experiences": [
+                {
+                    "name": "工程结算审计平台",
+                    "role": "负责人",
+                    "problem": "工程结算资料不全、造价核算不准确。",
+                    "solution": "搭建结算审计SOP和风险预警看板。",
+                    "business_model": "项目制咨询费+年度服务费",
+                    "missing_evidence": ["核减金额", "客户续费率"],
+                }
+            ],
+            "logic_analysis": "先做流程标准化，再用数据预警降低成本。",
+            "startup_landing_ideas": ["面向工程企业提供AI审计和维保运营方案"],
+        },
+    )
+    finance = Resume(
+        id=uuid4(),
+        candidate_name="周金",
+        position_id=None,
+        file_path="uploads/resumes/finance.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [
+                {
+                    "company": "银行科技公司",
+                    "role": "产品经理",
+                    "summary": "负责信贷产品流程优化和风控合规。",
+                    "capabilities": ["金融产品", "风控合规"],
+                }
+            ],
+            "project_experiences": [
+                {
+                    "name": "信贷流程优化系统",
+                    "role": "产品经理",
+                    "problem": "银行贷款审批链路长，转化率低。",
+                    "solution": "优化授信流程，建立风险分层和渠道转化看板。",
+                    "business_model": "金融机构项目交付",
+                }
+            ],
+            "logic_analysis": "围绕合规、转化和风险做产品闭环。",
+        },
+    )
+    db.add_all([engineering, finance])
+    db.commit()
+
+    response = client.get("/api/resumes/industry-agent", headers=admin_auth_headers)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["resume_count"] == 2
+    industries = {item["key"]: item for item in data["industries"]}
+    assert "engineering" in industries
+    assert "finance" in industries
+    assert industries["engineering"]["project_count"] == 1
+    assert industries["engineering"]["project_cases"][0]["project_name"] == "工程结算审计平台"
+    assert industries["engineering"]["candidate_pool"][0]["candidate_name"] == "李工"
+    assert "工程" in industries["engineering"]["offer_template"]
+    assert industries["finance"]["project_cases"][0]["candidate_name"] == "周金"
 
 
 def test_process_resume_task_analyzes_resume_without_position(db, monkeypatch):
