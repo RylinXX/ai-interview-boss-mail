@@ -1710,6 +1710,10 @@ code {
   gap: 12px;
 }
 
+.analysis-list.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .analysis-list-item {
   padding-bottom: 12px;
   border-bottom: 1px solid #E5E7EB;
@@ -1726,6 +1730,45 @@ code {
   gap: 12px;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.project-library-card .ant-table-cell {
+  vertical-align: top;
+}
+
+.project-title-cell {
+  display: grid;
+  gap: 10px;
+}
+
+.project-title-cell .ant-typography {
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.project-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.project-tag-row .ant-tag {
+  margin: 0;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.project-expanded-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 24px;
+  padding: 8px 16px 12px 48px;
+  background: #F8FAFC;
+}
+
+.project-expanded-detail .ant-typography {
+  margin-bottom: 0;
 }
 
 /* Animations */
@@ -1804,6 +1847,11 @@ code {
 
   .chart-panel {
     height: 390px;
+  }
+
+  .analysis-list.compact,
+  .project-expanded-detail {
+    grid-template-columns: 1fr;
   }
 
   .project-library-toolbar {

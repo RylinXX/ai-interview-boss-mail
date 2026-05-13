@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Empty, Input, Progress, Row, Segmented, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { App, Button, Card, Col, Empty, Input, Progress, Row, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
 import { BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
 
@@ -129,62 +129,104 @@ const Dashboard: React.FC = () => {
     ? Math.round(((queueStats.running_tasks || 0) / queueStats.max_concurrent) * 100)
     : 0;
 
+  const renderProjectDetail = (record: any) => (
+    <div className="project-expanded-detail">
+      <div>
+        <Text type="secondary">业务问题</Text>
+        <Paragraph>{record.problem || '未说明问题'}</Paragraph>
+      </div>
+      <div>
+        <Text type="secondary">解决方案</Text>
+        <Paragraph>{record.solution || '未说明方案'}</Paragraph>
+      </div>
+      <div>
+        <Text type="secondary">商业模式</Text>
+        <Paragraph>{record.business_model || '待追问'}</Paragraph>
+      </div>
+      <div>
+        <Text type="secondary">落地/创业方向</Text>
+        {Array.isArray(record.landing_ideas) && record.landing_ideas.length ? (
+          <Space orientation="vertical" size={6}>
+            {record.landing_ideas.map((idea: string, index: number) => (
+              <Paragraph key={`${idea}-${index}`} style={{ margin: 0 }}>{idea}</Paragraph>
+            ))}
+          </Space>
+        ) : (
+          <Paragraph>待沉淀</Paragraph>
+        )}
+      </div>
+      <div>
+        <Text type="secondary">缺失证据</Text>
+        {Array.isArray(record.missing_evidence) && record.missing_evidence.length ? (
+          <div className="project-tag-row">
+            {record.missing_evidence.map((item: string) => <Tag color="warning" key={item}>{item}</Tag>)}
+          </div>
+        ) : (
+          <Paragraph>暂无明显缺失</Paragraph>
+        )}
+      </div>
+      <div>
+        <Text type="secondary">候选人逻辑</Text>
+        <Paragraph>{record.logic_analysis || '暂无逻辑分析'}</Paragraph>
+      </div>
+    </div>
+  );
+
   const projectColumns = [
     {
       title: '项目',
       dataIndex: 'name',
       key: 'name',
-      width: 240,
+      width: 300,
       render: (text: string, record: any) => (
-        <div>
+        <div className="project-title-cell">
           <Text strong>{text || '未命名项目'}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.candidate_name}</Text>
+          <div>
+            <Tag color="blue">{record.candidate_name || '未识别候选人'}</Tag>
+            {record.role && <Tag>{record.role}</Tag>}
+          </div>
         </div>
       ),
     },
     {
-      title: '角色',
-      dataIndex: 'role',
-      key: 'role',
-      width: 150,
-      render: (value: string) => value || '-',
-    },
-    {
-      title: '问题/方案',
+      title: '业务问题',
       key: 'problem',
-      ellipsis: true,
       render: (_: any, record: any) => (
-        <Tooltip title={`${record.problem || '未说明问题'} / ${record.solution || '未说明方案'}`}>
-          <span>{record.problem || record.solution || '待补充项目上下文'}</span>
-        </Tooltip>
+        <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>
+          {record.problem || '待补充项目上下文'}
+        </Paragraph>
       ),
     },
     {
       title: '商业模式',
       dataIndex: 'business_model',
       key: 'business_model',
-      ellipsis: true,
-      render: (value: string) => value || '待追问',
+      width: 330,
+      render: (value: string) => (
+        <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>
+          {value || '待追问'}
+        </Paragraph>
+      ),
     },
     {
       title: '缺失证据',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: 220,
+      width: 280,
       render: (value: string[]) => Array.isArray(value) && value.length ? (
-        <Space wrap>
+        <div className="project-tag-row">
           {value.slice(0, 3).map(item => <Tag color="warning" key={item}>{item}</Tag>)}
-        </Space>
+          {value.length > 3 && <Tag>+{value.length - 3}</Tag>}
+        </div>
       ) : '-',
     },
     {
       title: '落地方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: 260,
+      width: 360,
       render: (value: string[]) => Array.isArray(value) && value.length ? (
-        <Paragraph ellipsis={{ rows: 2 }} style={{ margin: 0 }}>{value[0]}</Paragraph>
+        <Paragraph ellipsis={{ rows: 3 }} style={{ margin: 0 }}>{value[0]}</Paragraph>
       ) : '待沉淀',
     },
   ];
@@ -246,9 +288,10 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      <Row gutter={16}>
-        <Col span={18}>
+      <Row gutter={[16, 16]}>
+        <Col span={24}>
           <Card
+            className="project-library-card"
             title="项目经验库"
             extra={<Text type="secondary">显示 {filteredProjects.length} / {projects.length}</Text>}
           >
@@ -277,16 +320,20 @@ const Dashboard: React.FC = () => {
                 rowKey={(record) => record._rowKey}
                 dataSource={filteredProjects}
                 columns={projectColumns}
-                pagination={{ pageSize: 8, showSizeChanger: false }}
-                scroll={{ x: 1200 }}
+                expandable={{
+                  expandedRowRender: renderProjectDetail,
+                  rowExpandable: () => true,
+                }}
+                pagination={{ pageSize: 6, showSizeChanger: false }}
+                scroll={{ x: 1320 }}
               />
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={projects.length ? '没有匹配的项目' : '暂无项目经历'} />
             )}
           </Card>
         </Col>
-        <Col span={6}>
-          <Card title="模型处理队列" style={{ marginBottom: 16 }}>
+        <Col span={8}>
+          <Card title="模型处理队列">
             <Space orientation="vertical" size={12} style={{ width: '100%' }}>
               <Progress percent={queueLoad} size="small" status={queueLoad >= 100 ? 'active' : 'normal'} />
               <Row gutter={[8, 8]}>
@@ -310,9 +357,11 @@ const Dashboard: React.FC = () => {
               <Text type="secondary">最大并发：{queueStats?.max_concurrent ?? 0}，累计提交：{queueStats?.total_submitted ?? 0}</Text>
             </Space>
           </Card>
+        </Col>
+        <Col span={16}>
           <Card title="候选人逻辑分析" extra={<BulbOutlined />}>
             {summary?.logic_analyses.length ? (
-              <div className="analysis-list">
+              <div className="analysis-list compact">
                 {summary.logic_analyses.slice(0, 6).map((item, index) => (
                   <div className="analysis-list-item" key={`${item.candidate_name || 'unknown'}-${index}`}>
                     <Text strong>{item.candidate_name || '未识别候选人'}</Text>
