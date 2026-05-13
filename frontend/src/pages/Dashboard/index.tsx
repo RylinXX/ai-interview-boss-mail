@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { App, Card, Col, Empty, Progress, Row, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
-import { BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { App, Button, Card, Col, Empty, Input, Progress, Row, Segmented, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
+import { BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
 
 const { Title, Text, Paragraph } = Typography;
@@ -28,6 +28,27 @@ type QueueStats = {
   total_failed: number;
 };
 
+const projectHasBusinessGap = (project: any) => {
+  const missing = Array.isArray(project.missing_evidence) ? project.missing_evidence : [];
+  return missing.length > 0 || !project.business_model;
+};
+
+const projectMatchesKeyword = (project: any, keyword: string) => {
+  if (!keyword) return true;
+  const values = [
+    project.name,
+    project.candidate_name,
+    project.role,
+    project.problem,
+    project.solution,
+    project.business_model,
+    project.logic_analysis,
+    ...(Array.isArray(project.missing_evidence) ? project.missing_evidence : []),
+    ...(Array.isArray(project.landing_ideas) ? project.landing_ideas : []),
+  ];
+  return values.some(value => String(value || '').toLowerCase().includes(keyword));
+};
+
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const [resumes, setResumes] = useState<any[]>([]);
@@ -35,9 +56,16 @@ const Dashboard: React.FC = () => {
   const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
   const [queueStats, setQueueStats] = useState<QueueStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [projectKeyword, setProjectKeyword] = useState('');
+  const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (initialLoad = false) => {
+    if (initialLoad) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     try {
       const [resumeRes, summaryRes, projectRes, queueRes] = await Promise.all([
         request.get('/resumes'),
@@ -52,13 +80,31 @@ const Dashboard: React.FC = () => {
     } catch (error) {
       message.error('获取分析仪表盘失败');
     } finally {
-      setLoading(false);
+      if (initialLoad) {
+        setLoading(false);
+      } else {
+        setRefreshing(false);
+      }
     }
-  };
+  }, [message]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(true);
+  }, [fetchData]);
+
+  const projects = projectLibrary?.projects || [];
+  const normalizedKeyword = projectKeyword.trim().toLowerCase();
+  const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
+  const filteredProjects = useMemo(
+    () => projects
+      .filter(project => (projectScope === 'gaps' ? projectHasBusinessGap(project) : true))
+      .filter(project => projectMatchesKeyword(project, normalizedKeyword))
+      .map((project, index) => ({
+        ...project,
+        _rowKey: `${project.resume_id || 'resume'}-${project.name || 'project'}-${project.role || 'role'}-${index}`,
+      })),
+    [normalizedKeyword, projectScope, projects],
+  );
 
   if (loading) {
     return (
@@ -71,7 +117,6 @@ const Dashboard: React.FC = () => {
   const analyzed = resumes.filter(item => item.parse_status === 'success').length;
   const processing = resumes.filter(item => item.parse_status === 'processing').length;
   const failed = resumes.filter(item => item.parse_status === 'failed').length;
-  const projects = projectLibrary?.projects || [];
   const questions = resumes.reduce((sum, item) => {
     const parsed = item.parsed_data || {};
     return sum
@@ -80,10 +125,6 @@ const Dashboard: React.FC = () => {
       + (Array.isArray(parsed.experience_completion_questions) ? parsed.experience_completion_questions.length : 0);
   }, 0);
   const completionRate = resumes.length ? Math.round((analyzed / resumes.length) * 100) : 0;
-  const missingBusinessCount = projects.filter(project => {
-    const missing = Array.isArray(project.missing_evidence) ? project.missing_evidence : [];
-    return missing.length > 0 || !project.business_model;
-  }).length;
   const queueLoad = queueStats?.max_concurrent
     ? Math.round(((queueStats.running_tasks || 0) / queueStats.max_concurrent) * 100)
     : 0;
@@ -209,17 +250,38 @@ const Dashboard: React.FC = () => {
         <Col span={18}>
           <Card
             title="项目经验库"
-            extra={<Text type="secondary">按项目查看人、商业模式、证据缺口和落地方向</Text>}
+            extra={<Text type="secondary">显示 {filteredProjects.length} / {projects.length}</Text>}
           >
-            {projects.length ? (
+            <div className="project-library-toolbar">
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="搜索项目、候选人、商业模式"
+                value={projectKeyword}
+                onChange={(event) => setProjectKeyword(event.target.value)}
+              />
+              <Segmented
+                value={projectScope}
+                onChange={(value) => setProjectScope(value as 'all' | 'gaps')}
+                options={[
+                  { label: `全部 ${projects.length}`, value: 'all' },
+                  { label: `缺口 ${missingBusinessCount}`, value: 'gaps' },
+                ]}
+              />
+              <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>
+                刷新
+              </Button>
+            </div>
+            {filteredProjects.length ? (
               <Table
-                rowKey={(record) => `${record.resume_id}-${record.name || 'project'}-${record.role || ''}`}
-                dataSource={projects}
+                rowKey={(record) => record._rowKey}
+                dataSource={filteredProjects}
                 columns={projectColumns}
                 pagination={{ pageSize: 8, showSizeChanger: false }}
+                scroll={{ x: 1200 }}
               />
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无项目经历" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={projects.length ? '没有匹配的项目' : '暂无项目经历'} />
             )}
           </Card>
         </Col>

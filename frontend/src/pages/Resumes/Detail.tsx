@@ -7,8 +7,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { getMaximizedPdfPreviewUrl } from '../../utils/pdfPreview';
-// @ts-ignore
-import html2pdf from 'html2pdf.js';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -62,11 +60,6 @@ const ResumeDetail: React.FC = () => {
     try {
       const res = await request.get(`/resumes/${id}`) as any;
       setResume(res);
-      form.setFieldsValue({
-        candidate_name: res.candidate_name,
-        email: res.email,
-        contact: res.contact,
-      });
     } catch (error) {
       message.error('获取简历详情失败');
     } finally {
@@ -77,6 +70,15 @@ const ResumeDetail: React.FC = () => {
   useEffect(() => {
     fetchResume();
   }, [id]);
+
+  useEffect(() => {
+    if (!isEditing || !resume) return;
+    form.setFieldsValue({
+      candidate_name: resume.candidate_name,
+      email: resume.email,
+      contact: resume.contact,
+    });
+  }, [form, isEditing, resume]);
 
   const handleUpdate = async () => {
     try {
@@ -125,6 +127,8 @@ const ResumeDetail: React.FC = () => {
       } as any;
 
       try {
+        // @ts-ignore html2pdf does not ship TypeScript declarations.
+        const { default: html2pdf } = await import('html2pdf.js');
         await html2pdf().from(element).set(opt).save();
         message.success('导出 PDF 成功');
       } catch (error) {

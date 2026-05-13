@@ -1720,6 +1720,14 @@ code {
   border-bottom: none;
 }
 
+.project-library-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
 /* Animations */
 .page-container {
   max-width: 1500px;
@@ -1796,5 +1804,9 @@ code {
 
   .chart-panel {
     height: 390px;
+  }
+
+  .project-library-toolbar {
+    grid-template-columns: 1fr;
   }
 }
