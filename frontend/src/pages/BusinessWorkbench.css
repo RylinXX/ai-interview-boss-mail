@@ -324,7 +324,7 @@ textarea.solution-document-editor {
   margin: 0;
   padding: 10px;
   border-radius: 8px;
-  background: rgba(22, 119, 255, 0.08);
+  background: rgba(184, 138, 59, 0.12);
 }
 
 textarea.solution-document-editor {
@@ -342,8 +342,8 @@ textarea.solution-document-editor {
   width: 40px;
   height: 40px;
   border-radius: 8px;
-  background: rgba(22, 119, 255, 0.12);
-  color: #1677ff;
+  background: rgba(184, 138, 59, 0.12);
+  color: #8a5e1d;
   font-size: 20px;
 }
 
@@ -458,6 +458,86 @@ textarea.solution-document-editor {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+html[data-theme='dark'] .consulting-metric-card,
+html[data-theme='dark'] .consulting-table-card,
+html[data-theme='dark'] .dossier-header,
+html[data-theme='dark'] .dossier-progress-card,
+html[data-theme='dark'] .strategy-brief-card,
+html[data-theme='dark'] .solution-document-card,
+html[data-theme='dark'] .execution-lane-card,
+html[data-theme='dark'] .employee-role-card,
+html[data-theme='dark'] .agent-chat-card,
+html[data-theme='dark'] .agent-knowledge-card,
+html[data-theme='dark'] .agent-solution-card {
+  border-color: var(--border-color) !important;
+  background: var(--surface-elevated) !important;
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .consulting-metric-card strong,
+html[data-theme='dark'] .dossier-header h1.ant-typography,
+html[data-theme='dark'] .dossier-progress-card h4.ant-typography,
+html[data-theme='dark'] .evidence-panel h5.ant-typography,
+html[data-theme='dark'] .employee-role-stats strong {
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .consulting-metric-card span:last-child,
+html[data-theme='dark'] .task-expected-output,
+html[data-theme='dark'] .formal-list,
+html[data-theme='dark'] .employee-role-template,
+html[data-theme='dark'] .employee-role-stats span,
+html[data-theme='dark'] .employee-role-footer {
+  color: var(--text-secondary);
+}
+
+html[data-theme='dark'] .consulting-metric-card .metric-icon,
+html[data-theme='dark'] .employee-role-badge,
+html[data-theme='dark'] .ai-employee-icon {
+  border-color: rgba(214, 168, 92, 0.3);
+  background: rgba(214, 168, 92, 0.14);
+  color: #f0ca82;
+}
+
+html[data-theme='dark'] .dossier-code {
+  border-color: rgba(214, 168, 92, 0.42);
+  background: rgba(214, 168, 92, 0.14);
+  color: #f0ca82;
+}
+
+html[data-theme='dark'] .dossier-progress-meta span,
+html[data-theme='dark'] .strategy-brief-grid section,
+html[data-theme='dark'] .workbench-summary-strip,
+html[data-theme='dark'] .project-task-stage,
+html[data-theme='dark'] .project-task-stage-title,
+html[data-theme='dark'] .employee-role-template,
+html[data-theme='dark'] .employee-role-stats span {
+  border-color: var(--border-color);
+  background: var(--surface-muted);
+}
+
+html[data-theme='dark'] .solution-document-card .ant-card-body {
+  background: var(--surface-muted);
+}
+
+html[data-theme='dark'] textarea.solution-document-editor {
+  border-color: var(--border-color);
+  background: var(--surface-inset);
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+html[data-theme='dark'] .evidence-panel {
+  border-color: var(--border-color);
+  background: linear-gradient(135deg, var(--surface-elevated), var(--surface-muted));
+}
+
+html[data-theme='dark'] .task-output-preview {
+  border: 1px solid rgba(214, 168, 92, 0.22);
+  background: rgba(214, 168, 92, 0.12);
+  color: var(--text-primary);
 }
 
 @media (max-width: 980px) {

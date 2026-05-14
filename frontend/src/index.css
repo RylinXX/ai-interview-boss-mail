@@ -2137,6 +2137,35 @@ code {
   margin-top: 4px;
 }
 
+html[data-theme='dark'] .agent-report-content {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .agent-report-content .ant-typography-secondary {
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme='dark'] .agent-report-header,
+html[data-theme='dark'] .agent-report-section,
+html[data-theme='dark'] .agent-solution-item,
+html[data-theme='dark'] .agent-report-metrics span {
+  border-color: var(--border-color);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+html[data-theme='dark'] .agent-report-header p,
+html[data-theme='dark'] .agent-solution-item p,
+html[data-theme='dark'] .agent-step-list {
+  color: var(--text-secondary);
+}
+
+html[data-theme='dark'] .agent-report-section h4,
+html[data-theme='dark'] .agent-solution-item h5 {
+  color: var(--text-primary);
+}
+
 .project-library-card .ant-table-cell {
   vertical-align: top;
 }
