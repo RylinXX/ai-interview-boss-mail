@@ -22,6 +22,7 @@ from app.services.ai_service import (
     generate_solution_agent_response,
 )
 from app.services.task_queue import get_task_queue
+from app.services.knowledge_asset_service import sync_resume_knowledge_assets
 from app.config.resume_industry import (
     DEFAULT_RESUME_INDUSTRY,
     RESUME_INDUSTRY_PROFILES,
@@ -381,6 +382,7 @@ def process_resume_task(payload: Dict[str, Any]):
 
         _apply_resume_intelligence(resume, parsed_data, content, use_user_info)
         resume.raw_text = content
+        sync_resume_knowledge_assets(db, resume)
         db.commit()
 
     except Exception as e:

@@ -208,3 +208,125 @@ def update_asset_review(db: Session, asset_id: UUID, payload: KnowledgeAssetRevi
     db.commit()
     db.refresh(asset)
     return asset
+
+
+def _asset_title_for_work(resume: Resume, work: Dict[str, Any]) -> str:
+    company = work.get("company") or "未命名公司"
+    return f"{resume.candidate_name or '匿名样本'} - {company}工作经验"
+
+
+def _asset_text_for_work(work: Dict[str, Any]) -> str:
+    return _text_blob(
+        work.get("company"),
+        work.get("role"),
+        work.get("period"),
+        work.get("summary"),
+        work.get("capabilities"),
+        work.get("logic_signals"),
+    )
+
+
+def _asset_text_for_project(project: Dict[str, Any]) -> str:
+    return _text_blob(
+        project.get("name"),
+        project.get("role"),
+        project.get("problem"),
+        project.get("solution"),
+        project.get("business_model"),
+        project.get("metrics"),
+        project.get("missing_evidence"),
+        project.get("logic_signals"),
+    )
+
+
+def _create_or_update_resume_asset(
+    db: Session,
+    resume: Resume,
+    source_type: str,
+    title: str,
+    raw_text: str,
+    source_name: str,
+) -> KnowledgeAsset:
+    existing = (
+        db.query(KnowledgeAsset)
+        .filter(
+            KnowledgeAsset.source_resume_id == resume.id,
+            KnowledgeAsset.source_type == source_type,
+            KnowledgeAsset.title == title,
+        )
+        .first()
+    )
+    parsed_data = resume.parsed_data or {}
+    inferred = _infer_tags(_text_blob(title, raw_text, parsed_data))
+    industry_tags = _unique([parsed_data.get("industry_label") or "", *inferred["industry_tags"]])
+    confidence = _confidence_from_asset(raw_text, inferred)
+    fields = {
+        "source_name": source_name,
+        "source_confidentiality": "anonymized",
+        "raw_text": raw_text,
+        "summary": raw_text[:240],
+        "industry_tags": industry_tags,
+        "business_topic_tags": inferred["business_topic_tags"],
+        "evidence_type_tags": _unique(["真实项目经验", *inferred["evidence_type_tags"]]),
+        "value_tags": ["验证可行性", "提供流程参考"],
+        "evidence_strength_score": confidence,
+        "data_verification_score": 45.0,
+        "commercial_value_score": 55.0,
+        "confidence_score": confidence,
+        "confidence_reason": "由简历项目或工作经历拆解生成，默认作为匿名能力证据，需人工复核。",
+    }
+    if existing:
+        for key, value in fields.items():
+            setattr(existing, key, value)
+        db.commit()
+        db.refresh(existing)
+        return existing
+    asset = KnowledgeAsset(
+        title=title,
+        source_type=source_type,
+        source_resume_id=resume.id,
+        **fields,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+def sync_resume_knowledge_assets(db: Session, resume: Resume) -> List[KnowledgeAsset]:
+    parsed = resume.parsed_data or {}
+    assets: List[KnowledgeAsset] = []
+    for work in parsed.get("work_experiences") or []:
+        if not isinstance(work, dict):
+            continue
+        raw_text = _asset_text_for_work(work)
+        if not raw_text.strip():
+            continue
+        assets.append(
+            _create_or_update_resume_asset(
+                db,
+                resume,
+                "resume_work_experience",
+                _asset_title_for_work(resume, work),
+                raw_text,
+                work.get("company") or resume.candidate_name or "简历工作经历",
+            )
+        )
+    for project in parsed.get("project_experiences") or []:
+        if not isinstance(project, dict):
+            continue
+        title = project.get("name") or "未命名项目经验"
+        raw_text = _asset_text_for_project(project)
+        if not raw_text.strip():
+            continue
+        assets.append(
+            _create_or_update_resume_asset(
+                db,
+                resume,
+                "resume_project",
+                title,
+                raw_text,
+                resume.candidate_name or "简历项目经历",
+            )
+        )
+    return assets

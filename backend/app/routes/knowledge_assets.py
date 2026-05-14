@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
-from app.models.models import User
+from app.models.models import Resume, User
 from app.routes.auth import get_current_user
 from app.schemas.knowledge_assets import (
     KnowledgeAssetIntakeRequest,
@@ -41,6 +41,25 @@ def create_knowledge_asset_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.create_manual_asset(db, payload, current_user.id)
+
+
+@router.post("/resumes/{resume_id}/knowledge-assets/sync", response_model=KnowledgeAssetListResponse)
+def sync_resume_assets_route(
+    resume_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    resume = db.query(Resume).filter(Resume.id == resume_id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    assets = service.sync_resume_knowledge_assets(db, resume)
+    return {
+        "items": assets,
+        "total": len(assets),
+        "industry_tags": sorted({tag for asset in assets for tag in (asset.industry_tags or [])}),
+        "business_topic_tags": sorted({tag for asset in assets for tag in (asset.business_topic_tags or [])}),
+        "evidence_type_tags": sorted({tag for asset in assets for tag in (asset.evidence_type_tags or [])}),
+    }
 
 
 @router.get("/knowledge-assets/{asset_id}", response_model=KnowledgeAssetResponse)
