@@ -716,6 +716,49 @@ textarea.solution-document-editor {
   line-height: 1.5;
 }
 
+.knowledge-assets-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.8fr) repeat(5, minmax(138px, 1fr)) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.asset-score-stack {
+  display: grid;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.asset-score-stack .ant-progress-line {
+  margin-bottom: 0;
+}
+
+.knowledge-intake-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: 16px;
+  align-items: start;
+}
+
+.knowledge-source-grid,
+.knowledge-tag-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-source-grid .ant-form-item,
+.knowledge-tag-form-grid .ant-form-item {
+  margin-bottom: 12px;
+}
+
+.knowledge-intake-side-note {
+  margin-top: 16px;
+  border-color: #e5ddcf;
+  background: #fffdf8;
+}
+
 html[data-theme='dark'] .consulting-metric-card,
 html[data-theme='dark'] .consulting-table-card,
 html[data-theme='dark'] .dossier-header,
@@ -799,7 +842,8 @@ html[data-theme='dark'] .ai-worker-list section,
 html[data-theme='dark'] .ai-solution-direction,
 html[data-theme='dark'] .human-decision-list,
 html[data-theme='dark'] .knowledge-asset-value,
-html[data-theme='dark'] .knowledge-sample-list button {
+html[data-theme='dark'] .knowledge-sample-list button,
+html[data-theme='dark'] .knowledge-intake-side-note {
   border-color: var(--border-color);
   background: var(--surface-muted);
 }
@@ -840,11 +884,16 @@ html[data-theme='dark'] .task-output-preview {
   .strategy-brief-grid,
   .task-card-head,
   .employee-registry-grid,
-  .ai-solution-head {
+  .ai-solution-head,
+  .knowledge-intake-grid {
     grid-template-columns: 1fr;
   }
 
   .consulting-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .knowledge-assets-toolbar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -856,6 +905,12 @@ html[data-theme='dark'] .task-output-preview {
 
 @media (max-width: 640px) {
   .consulting-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-assets-toolbar,
+  .knowledge-source-grid,
+  .knowledge-tag-form-grid {
     grid-template-columns: 1fr;
   }
 }

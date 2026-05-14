@@ -251,12 +251,18 @@ const AppLayout: React.FC = () => {
     {
       key: '/knowledge-assets',
       icon: <AppstoreOutlined />,
-      label: '业务样本库',
+      label: '行业知识资产库',
+    },
+    {
+      key: '/knowledge-assets/intake',
+      icon: <UploadOutlined />,
+      label: '资料入库',
+      roles: ['admin', 'hr'],
     },
     {
       key: '/resumes',
       icon: <FileTextOutlined />,
-      label: '高级人才能力样本',
+      label: '简历来源数据',
     },
     {
       key: '/resumes/upload',
