@@ -556,6 +556,51 @@ def generate_diagnosis(db: Session, project_id: UUID) -> CustomerProject | None:
     return get_customer_project(db, project.id)
 
 
+def _project_solution(project: CustomerProject) -> Dict[str, Any]:
+    document = project.solution_document
+    sections = document.sections if document and isinstance(document.sections, dict) else {}
+    solution = sections.get("solution")
+    return solution if isinstance(solution, dict) else {}
+
+
+def _infer_employee_type(worker_name: str, responsibility: str) -> str:
+    text = f"{worker_name} {responsibility}"
+    if any(term in text for term in ["样本", "案例", "行业", "对标"]):
+        return "industry_researcher"
+    if any(term in text for term in ["指标", "校验", "复盘", "数据"]):
+        return "data_analyst"
+    if any(term in text for term in ["实施", "生成", "导出", "映射", "开发", "文档"]):
+        return "implementation_planner"
+    if any(term in text for term in ["资料", "客户", "需求", "抽取"]):
+        return "business_analyst"
+    return "product_manager"
+
+
+def _dynamic_worker_task_templates(project: CustomerProject) -> List[tuple[str, str, str, str, str]]:
+    solution = _project_solution(project)
+    dynamic_workers = solution.get("dynamic_workers") or []
+    if not isinstance(dynamic_workers, list):
+        return []
+
+    templates: List[tuple[str, str, str, str, str]] = []
+    for index, worker in enumerate(dynamic_workers, start=1):
+        if not isinstance(worker, dict):
+            continue
+        name = str(worker.get("name") or f"AI 执行员工 {index}").strip()
+        responsibility = str(worker.get("responsibility") or "根据方案承担具体执行任务").strip()
+        human_review = str(worker.get("human_review") or "关键结论由人工审核确认").strip()
+        templates.append(
+            (
+                f"dynamic_worker_{index}",
+                name,
+                responsibility,
+                f"{name}交付物：{responsibility}；人工审核：{human_review}",
+                _infer_employee_type(name, responsibility),
+            )
+        )
+    return templates
+
+
 def generate_project_tasks(db: Session, project_id: UUID) -> List[ProjectTask]:
     project = get_customer_project(db, project_id)
     if not project:
@@ -570,7 +615,7 @@ def generate_project_tasks(db: Session, project_id: UUID) -> List[ProjectTask]:
     if existing_tasks:
         return existing_tasks
 
-    templates = [
+    templates = _dynamic_worker_task_templates(project) or [
         ("source_collection", "整理客户资料", "汇总客户现状、流程、痛点和目标", "形成客户背景摘要", "business_analyst"),
         ("diagnosis", "业务问题诊断", "分析根因假设和待确认问题", "形成诊断结论", "business_analyst"),
         ("capability_matching", "匹配能力样本", "从高级人才样本中寻找可参考经验", "形成能力背书", "industry_researcher"),
@@ -598,6 +643,140 @@ def generate_project_tasks(db: Session, project_id: UUID) -> List[ProjectTask]:
         .order_by(ProjectTask.created_at.asc())
         .all()
     )
+
+
+def _solution_direction_names(solution: Dict[str, Any]) -> List[str]:
+    directions = []
+    for item in solution.get("recommended_solutions") or []:
+        if isinstance(item, dict) and item.get("name"):
+            directions.append(str(item["name"]))
+    return directions
+
+
+def _extract_human_review(task: ProjectTask) -> str:
+    expected = task.expected_output or ""
+    marker = "人工审核："
+    if marker in expected:
+        return expected.split(marker, 1)[1].strip(" 。；;")
+    return "人工确认客户承诺、事实依据和最终交付口径"
+
+
+def _project_brief(project: CustomerProject) -> str:
+    pain_points = "、".join(project.pain_points or []) or "客户痛点待补充"
+    goals = "、".join(project.goals or []) or "业务目标待补充"
+    return f"客户痛点：{pain_points}；目标：{goals}"
+
+
+def _task_delivery_items(task: ProjectTask, solution: Dict[str, Any]) -> tuple[List[str], str]:
+    text = f"{task.stage} {task.title} {task.description} {task.expected_output}"
+    direction_names = _solution_direction_names(solution)
+    direction_text = "、".join(direction_names[:3]) or "当前方案模块"
+
+    if any(term in text for term in ["模板", "字段", "映射"]):
+        return (
+            [
+                "模板字段清单初稿：字段名称 / 填写口径 / 来源资料 / 人工确认点",
+                f"字段映射建议：把客户资料库字段映射到「{direction_text}」的模板字段",
+                "缺口标记：无法自动确认的官方解释、必填附件、资质有效期和项目口径",
+            ],
+            "模板字段清单初稿",
+        )
+    if any(term in text for term in ["资料", "抽取", "客户资料"]):
+        return (
+            [
+                "客户资料目录：公司资质、人员证书、项目基础信息、历史方案材料",
+                "可自动抽取字段：项目名称、地址、负责人、治理范围、预算、资质编号",
+                "资料缺口清单：缺少原件、过期资质、无法确认适用范围的字段",
+            ],
+            "客户资料目录与缺口清单",
+        )
+    if any(term in text for term in ["样本", "案例", "背书", "行业"]):
+        return (
+            [
+                f"能力背书方向：{direction_text}",
+                "引用方式：只使用匿名能力样本和项目方法，不对外冒充真实客户案例",
+                "可复用方法：模板库、字段字典、资料库治理、人工审核闭环",
+            ],
+            "能力样本匹配摘要",
+        )
+    if any(term in text for term in ["方案", "产品", "设计"]):
+        return (
+            [
+                f"MVP模块：{direction_text}",
+                "核心流程：模板入库、资料抽取、字段映射、初稿生成、人工审核、导出交付",
+                "边界说明：AI负责资料整理和初稿，人负责口径判断、客户承诺和最终验收",
+            ],
+            "MVP方案模块与范围说明",
+        )
+    if any(term in text for term in ["指标", "校验", "验证"]):
+        return (
+            [
+                "效率指标：单份方案制作耗时、重复填报减少比例、缺失字段补齐率",
+                "质量指标：字段准确率、模板格式通过率、人工退回次数",
+                "风险指标：过期资质引用、敏感信息外发、官方模板版本不一致",
+            ],
+            "指标体系与验收口径",
+        )
+    if any(term in text for term in ["路线", "实施", "拆解", "生成", "导出", "文档"]):
+        return (
+            [
+                "第1周：收集模板和客户资料，建立字段字典",
+                "第2周：完成资料抽取、字段映射和缺口标记",
+                "第3周：生成方案初稿、人工审核、导出交付样稿",
+            ],
+            "实施路线图与人工验收节点",
+        )
+    return (
+        [
+            "客户问题拆解：把痛点、目标、资料现状和交付物拆成可执行清单",
+            f"方案承接：围绕 {direction_text} 组织下一步工作",
+            "人工确认：确认客户真实业务边界、预算和交付承诺",
+        ],
+        task.expected_output or task.title,
+    )
+
+
+def _build_ai_employee_output(task: ProjectTask) -> Dict[str, Any]:
+    project = task.project
+    solution = _project_solution(project)
+    delivery_items, document_update = _task_delivery_items(task, solution)
+    diagnosis = project.diagnosis or {}
+    follow_up_questions = _string_list(solution.get("next_questions")) or diagnosis.get("next_questions") or [
+        "客户是否能提供官方模板示例？",
+        "客户现有资质、人员、项目信息的存储格式和完整度如何？",
+    ]
+    human_review = _extract_human_review(task)
+    deliverable_title = f"{task.title}交付草稿"
+
+    draft_lines = [
+        f"{deliverable_title}",
+        "",
+        "任务目标",
+        f"- {task.description or task.expected_output or task.title}",
+        f"- {_project_brief(project)}",
+        "",
+        "已完成的执行内容",
+        *[f"- {item}" for item in delivery_items],
+        "",
+        "写入方案的内容",
+        f"- {document_update}",
+        "",
+        "人工确认点",
+        f"- {human_review}",
+        "- 人工确认本次输出是否可以进入客户承诺和最终交付文档",
+    ]
+
+    return {
+        "deliverable_title": deliverable_title,
+        "draft": "\n".join(draft_lines),
+        "completed_items": delivery_items,
+        "human_review_points": [
+            human_review,
+            "人工确认本次输出是否可以进入客户承诺和最终交付文档",
+        ],
+        "follow_up_questions": follow_up_questions,
+        "suggested_document_updates": [document_update],
+    }
 
 
 def update_project_task(db: Session, task_id: UUID, payload: ProjectTaskUpdate) -> ProjectTask | None:
@@ -732,20 +911,11 @@ def create_ai_employee_run(db: Session, task_id: UUID) -> AIEmployeeRun | None:
         (item["display_name"] for item in AI_EMPLOYEES if item["employee_type"] == task.ai_employee_type),
         "AI 员工",
     )
-    diagnosis = task.project.diagnosis or {}
-    output = {
-        "draft": (
-            f"{employee_name}已基于「{task.project.name}」生成 {task.title} 草稿。\n"
-            f"建议交付物：{task.expected_output or task.title}。\n"
-            f"当前应优先验证：{'、'.join(diagnosis.get('next_questions') or []) or '客户数据、流程负责人和可衡量指标'}。"
-        ),
-        "assumptions": [
-            "当前输出为 AI 员工 MVP 草稿，需要顾问审核后进入正式方案",
-            f"任务阶段为 {task.stage}，需与客户访谈和样本证据交叉验证",
-        ],
-        "follow_up_questions": diagnosis.get("next_questions") or ["是否已有可引用的客户数据？", "是否需要补充行业对标？"],
-        "suggested_document_updates": [task.expected_output or task.title],
-    }
+    output = _build_ai_employee_output(task)
+    output["assumptions"] = [
+        f"{employee_name}输出为方案执行草稿，需要顾问审核后进入正式方案",
+        f"任务阶段为 {task.stage}，需与客户访谈和样本证据交叉验证",
+    ]
     run = AIEmployeeRun(
         task_id=task.id,
         employee_type=task.ai_employee_type or "business_analyst",

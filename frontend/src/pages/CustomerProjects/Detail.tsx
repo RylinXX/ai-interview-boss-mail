@@ -503,7 +503,7 @@ const CustomerProjectDetail: React.FC = () => {
       >
         <Space orientation="vertical" size={12}>
           <Tag icon={<RobotOutlined />}>{employeeLabel[selectedRun?.employee_type || ''] || selectedRun?.employee_type}</Tag>
-          <Paragraph>{selectedRun?.output?.draft}</Paragraph>
+          <Paragraph className="ai-run-draft">{selectedRun?.output?.draft}</Paragraph>
           <Text type="secondary">后续问题</Text>
           <ul>
             {(selectedRun?.output?.follow_up_questions || []).map(item => <li key={item}>{item}</li>)}

@@ -258,6 +258,73 @@ def test_create_customer_project_from_agent_solution_generates_delivery_assets(
         headers=admin_auth_headers,
     ).json()
     assert len(tasks) >= 6
+
+
+def test_agent_solution_creates_dynamic_worker_tasks_with_concrete_outputs(
+    client, admin_auth_headers
+):
+    project = client.post(
+        "/api/customer-projects/from-agent-solution",
+        headers=admin_auth_headers,
+        json={
+            "industry": "政企服务",
+            "business_type": "处置方案模板填报",
+            "current_process": "客户把官方模板、公司资质和项目资料分散保存在不同文件里。",
+            "pain_points": ["官方模板反复填写", "资质资料难复用"],
+            "goals": ["自动填写模板", "沉淀企业资料库"],
+            "solution": {
+                "title": "处置方案治理模板自动填报平台",
+                "summary": "围绕官方模板、企业资料库和字段映射规则生成治理方案初稿。",
+                "recommended_solutions": [
+                    {
+                        "name": "模板采集与字段映射系统",
+                        "scenario": "收集各区官方模板并映射企业资质、项目基础信息",
+                        "value": "减少重复填报和格式错误",
+                        "implementation_steps": ["收集模板", "建立字段字典", "接入资料库", "人工审核导出"],
+                    }
+                ],
+                "dynamic_workers": [
+                    {
+                        "name": "模板解析员工",
+                        "responsibility": "识别官方模板字段、格式和必填规则",
+                        "human_review": "人工确认字段口径和官方解释",
+                    },
+                    {
+                        "name": "资料抽取员工",
+                        "responsibility": "从公司资质、项目资料中抽取可填字段",
+                        "human_review": "人工确认资料真实性和适用范围",
+                    },
+                ],
+                "needed_capabilities": ["模板字段识别", "资料库治理"],
+                "risks": ["官方模板口径需要人工确认"],
+                "next_questions": ["客户是否已有结构化资质资料？"],
+                "knowledge_context": {"project_count": 3, "candidate_count": 2},
+            },
+        },
+    ).json()
+
+    tasks = client.get(
+        f"/api/customer-projects/{project['id']}/tasks",
+        headers=admin_auth_headers,
+    ).json()
+    task_titles = [item["title"] for item in tasks]
+    assert "模板解析员工" in task_titles
+    assert "资料抽取员工" in task_titles
+
+    template_task = next(item for item in tasks if item["title"] == "模板解析员工")
+    run_response = client.post(
+        f"/api/project-tasks/{template_task['id']}/ai-runs",
+        headers=admin_auth_headers,
+    )
+
+    assert run_response.status_code == 200
+    output = run_response.json()["output"]
+    assert "模板字段清单初稿" in output["draft"]
+    assert "字段名称 / 填写口径 / 来源资料 / 人工确认点" in output["draft"]
+    assert "人工确认字段口径和官方解释" in output["draft"]
+    assert "当前应优先验证" not in output["draft"]
+    assert output["deliverable_title"] == "模板解析员工交付草稿"
+    assert "模板字段清单初稿" in output["suggested_document_updates"]
     assert any(item["ai_employee_type"] == "product_manager" for item in tasks)
 
 

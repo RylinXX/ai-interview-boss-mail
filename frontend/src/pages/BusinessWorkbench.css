@@ -325,6 +325,11 @@ textarea.solution-document-editor {
   padding: 10px;
   border-radius: 8px;
   background: rgba(184, 138, 59, 0.12);
+  white-space: pre-line;
+}
+
+.ai-run-draft {
+  white-space: pre-line;
 }
 
 textarea.solution-document-editor {
