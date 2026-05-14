@@ -354,3 +354,62 @@ def test_capability_samples_are_derived_from_resumes(client, admin_auth_headers,
     assert data[0]["resume_id"] == str(resume.id)
     assert data[0]["industry_label"] == "零售电商"
     assert "增长负责人" in data[0]["capabilities"]
+
+
+def test_knowledge_assets_catalog_groups_business_sample_libraries(
+    client, admin_auth_headers, db
+):
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="模板产品专家",
+        file_path="uploads/resumes/template-expert.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "work_experiences": [{"company": "政企数字化公司", "role": "产品负责人"}],
+            "project_experiences": [{"name": "模板自动填报平台"}],
+        },
+    )
+    db.add(resume)
+    db.commit()
+
+    project = client.post(
+        "/api/customer-projects/from-agent-solution",
+        headers=admin_auth_headers,
+        json={
+            "industry": "政企服务",
+            "business_type": "模板填报",
+            "current_process": "客户需要把官方模板和资质资料统一管理。",
+            "pain_points": ["官方模板反复填写"],
+            "goals": ["沉淀模板资料库"],
+            "solution": {
+                "title": "模板自动填报解决方案",
+                "summary": "沉淀模板、方案和执行SOP。",
+                "recommended_solutions": [{"name": "模板资料库"}],
+                "dynamic_workers": [
+                    {"name": "模板解析员工", "responsibility": "识别官方模板字段"}
+                ],
+                "next_questions": ["是否有模板示例？"],
+            },
+        },
+    ).json()
+
+    response = client.get("/api/knowledge-assets", headers=admin_auth_headers)
+
+    assert response.status_code == 200
+    assets = {item["asset_type"]: item for item in response.json()}
+    assert set(assets) >= {
+        "talent_capabilities",
+        "project_cases",
+        "template_materials",
+        "solution_library",
+        "execution_sops",
+    }
+    assert assets["talent_capabilities"]["count"] >= 1
+    assert assets["project_cases"]["count"] >= 1
+    assert assets["solution_library"]["count"] >= 1
+    assert assets["execution_sops"]["count"] >= 1
+    assert assets["template_materials"]["count"] >= 1
+    assert assets["project_cases"]["sample_items"][0]["title"] == project["name"]
+    assert assets["execution_sops"]["sample_items"][0]["title"] == "模板解析员工"

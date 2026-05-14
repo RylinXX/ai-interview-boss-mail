@@ -150,3 +150,15 @@ class CapabilitySampleResponse(BaseModel):
     capabilities: List[str] = []
     project_patterns: List[str] = []
     methodology_tags: List[str] = []
+
+
+class KnowledgeAssetResponse(BaseModel):
+    asset_type: str
+    title: str
+    description: str
+    value: str
+    source: str
+    count: int = 0
+    route: Optional[str] = None
+    maturity: str = "mvp"
+    sample_items: List[Dict[str, Any]] = []

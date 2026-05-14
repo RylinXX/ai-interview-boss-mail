@@ -632,6 +632,90 @@ textarea.solution-document-editor {
   line-height: 1.75;
 }
 
+.knowledge-metric-grid {
+  margin-bottom: 18px;
+}
+
+.knowledge-asset-card {
+  height: 100%;
+  border-color: #e5ddcf;
+  background: #fffdf8;
+}
+
+.knowledge-asset-card .ant-card-body {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+}
+
+.knowledge-asset-head {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+}
+
+.knowledge-asset-head h3.ant-typography {
+  margin: 0;
+  color: #142136;
+  font-size: 20px;
+}
+
+.knowledge-asset-head > strong {
+  color: #142136;
+  font-size: 32px;
+  line-height: 1;
+}
+
+.knowledge-asset-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(190, 143, 61, 0.28);
+  border-radius: 8px;
+  background: rgba(190, 143, 61, 0.12);
+  color: #8a5e1d;
+  font-size: 22px;
+}
+
+.knowledge-asset-value {
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fbf7ef;
+  color: #475467;
+  line-height: 1.65;
+}
+
+.knowledge-sample-list {
+  display: grid;
+  gap: 8px;
+}
+
+.knowledge-sample-list button {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #142136;
+  text-align: left;
+  cursor: pointer;
+}
+
+.knowledge-sample-list button:hover {
+  border-color: rgba(190, 143, 61, 0.55);
+  background: #fbf7ef;
+}
+
+.knowledge-sample-list small {
+  color: #667085;
+  line-height: 1.5;
+}
+
 html[data-theme='dark'] .consulting-metric-card,
 html[data-theme='dark'] .consulting-table-card,
 html[data-theme='dark'] .dossier-header,
@@ -645,7 +729,8 @@ html[data-theme='dark'] .agent-knowledge-card,
 html[data-theme='dark'] .agent-solution-card,
 html[data-theme='dark'] .ai-chat-card,
 html[data-theme='dark'] .ai-side-card,
-html[data-theme='dark'] .ai-solution-panel {
+html[data-theme='dark'] .ai-solution-panel,
+html[data-theme='dark'] .knowledge-asset-card {
   border-color: var(--border-color) !important;
   background: var(--surface-elevated) !important;
   color: var(--text-primary);
@@ -657,7 +742,10 @@ html[data-theme='dark'] .dossier-progress-card h4.ant-typography,
 html[data-theme='dark'] .evidence-panel h5.ant-typography,
 html[data-theme='dark'] .employee-role-stats strong,
 html[data-theme='dark'] .ai-context-counts strong,
-html[data-theme='dark'] .ai-solution-head h3.ant-typography {
+html[data-theme='dark'] .ai-solution-head h3.ant-typography,
+html[data-theme='dark'] .knowledge-asset-head h3.ant-typography,
+html[data-theme='dark'] .knowledge-asset-head > strong,
+html[data-theme='dark'] .knowledge-sample-list button {
   color: var(--text-primary);
 }
 
@@ -674,14 +762,17 @@ html[data-theme='dark'] .ai-solution-direction p.ant-typography,
 html[data-theme='dark'] .ai-solution-head p.ant-typography,
 html[data-theme='dark'] .ai-solution-value,
 html[data-theme='dark'] .ai-solution-direction ol,
-html[data-theme='dark'] .human-decision-list ul {
+html[data-theme='dark'] .human-decision-list ul,
+html[data-theme='dark'] .knowledge-asset-value,
+html[data-theme='dark'] .knowledge-sample-list small {
   color: var(--text-secondary);
 }
 
 html[data-theme='dark'] .consulting-metric-card .metric-icon,
 html[data-theme='dark'] .employee-role-badge,
 html[data-theme='dark'] .ai-employee-icon,
-html[data-theme='dark'] .ai-chat-message > .anticon {
+html[data-theme='dark'] .ai-chat-message > .anticon,
+html[data-theme='dark'] .knowledge-asset-icon {
   border-color: rgba(214, 168, 92, 0.3);
   background: rgba(214, 168, 92, 0.14);
   color: #f0ca82;
@@ -706,7 +797,9 @@ html[data-theme='dark'] .ai-context-counts span,
 html[data-theme='dark'] .ai-evidence-list section,
 html[data-theme='dark'] .ai-worker-list section,
 html[data-theme='dark'] .ai-solution-direction,
-html[data-theme='dark'] .human-decision-list {
+html[data-theme='dark'] .human-decision-list,
+html[data-theme='dark'] .knowledge-asset-value,
+html[data-theme='dark'] .knowledge-sample-list button {
   border-color: var(--border-color);
   background: var(--surface-muted);
 }

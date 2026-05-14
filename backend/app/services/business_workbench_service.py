@@ -897,6 +897,138 @@ def list_capability_samples(db: Session) -> List[Dict[str, Any]]:
     return samples
 
 
+def _asset_item(title: str | None, description: str | None = None, route: str | None = None) -> Dict[str, str]:
+    return {
+        "title": title or "未命名样本",
+        "description": description or "",
+        "route": route or "",
+    }
+
+
+def list_knowledge_assets(db: Session) -> List[Dict[str, Any]]:
+    parsed_resume_count = (
+        db.query(func.count(Resume.id))
+        .filter(Resume.parse_status == "success", Resume.parsed_data.isnot(None))
+        .scalar()
+        or 0
+    )
+    project_count = db.query(func.count(CustomerProject.id)).scalar() or 0
+    solution_count = db.query(func.count(SolutionDocument.id)).scalar() or 0
+    sop_count = db.query(func.count(ProjectTask.id)).scalar() or 0
+    template_count = (
+        db.query(func.count(SolutionDocument.id))
+        .filter(SolutionDocument.content.contains("模板"))
+        .scalar()
+        or 0
+    )
+
+    latest_resumes = (
+        db.query(Resume)
+        .filter(Resume.parse_status == "success", Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc(), Resume.id.desc())
+        .limit(3)
+        .all()
+    )
+    latest_projects = (
+        db.query(CustomerProject)
+        .order_by(CustomerProject.created_at.desc(), CustomerProject.id.desc())
+        .limit(3)
+        .all()
+    )
+    latest_documents = (
+        db.query(SolutionDocument)
+        .order_by(SolutionDocument.created_at.desc(), SolutionDocument.id.desc())
+        .limit(3)
+        .all()
+    )
+    latest_tasks = (
+        db.query(ProjectTask)
+        .order_by(ProjectTask.created_at.desc(), ProjectTask.id.desc())
+        .limit(3)
+        .all()
+    )
+    template_documents = (
+        db.query(SolutionDocument)
+        .filter(SolutionDocument.content.contains("模板"))
+        .order_by(SolutionDocument.created_at.desc(), SolutionDocument.id.desc())
+        .limit(3)
+        .all()
+    )
+
+    return [
+        {
+            "asset_type": "talent_capabilities",
+            "title": "高级人才能力样本库",
+            "description": "从外部候选人、高级白领简历中抽取行业经历、项目打法和能力标签。",
+            "value": "证明有人做过类似事情，为客户方案提供能力背书。",
+            "source": "简历解析与能力样本抽取",
+            "count": parsed_resume_count,
+            "route": "/resumes",
+            "maturity": "available",
+            "sample_items": [
+                _asset_item(resume.candidate_name, resume.parsed_data.get("industry_label") if isinstance(resume.parsed_data, dict) else None, f"/resumes/{resume.id}")
+                for resume in latest_resumes
+            ],
+        },
+        {
+            "asset_type": "project_cases",
+            "title": "项目案例样本库",
+            "description": "沉淀客户背景、原始问题、解决方案、执行过程和结果指标。",
+            "value": "让 AI 从“业务问题如何被解决”出发生成更像顾问的方案。",
+            "source": "客户项目案卷",
+            "count": project_count,
+            "route": "/customer-projects",
+            "maturity": "available",
+            "sample_items": [
+                _asset_item(project.name, "、".join(project.pain_points or []), f"/customer-projects/{project.id}")
+                for project in latest_projects
+            ],
+        },
+        {
+            "asset_type": "template_materials",
+            "title": "行业模板资料库",
+            "description": "官方模板、表单、申报材料、投标文件、合同和验收表等可填报资料。",
+            "value": "支撑自动填报、自动生成文档和合规检查这类可直接落地的 AI 员工任务。",
+            "source": "方案文档与模板型项目",
+            "count": template_count,
+            "route": "/customer-projects",
+            "maturity": "mvp",
+            "sample_items": [
+                _asset_item(document.title, "包含模板/填报相关内容", f"/customer-projects/{document.project_id}")
+                for document in template_documents
+            ],
+        },
+        {
+            "asset_type": "solution_library",
+            "title": "解决方案样本库",
+            "description": "沉淀已生成的客户方案、PRD要点、系统模块、交付计划和风险前提。",
+            "value": "形成你自己的咨询资产，后续新客户方案可以复用、改写、组合。",
+            "source": "客户方案文档",
+            "count": solution_count,
+            "route": "/customer-projects",
+            "maturity": "available",
+            "sample_items": [
+                _asset_item(document.title, "已生成方案文档", f"/customer-projects/{document.project_id}")
+                for document in latest_documents
+            ],
+        },
+        {
+            "asset_type": "execution_sops",
+            "title": "执行SOP样本库",
+            "description": "沉淀 AI 员工执行任务、人工审核点、交付草稿和验收结果。",
+            "value": "让后续 AI 员工不是空聊，而是按可复用步骤执行任务。",
+            "source": "客户任务板与 AI 员工输出",
+            "count": sop_count,
+            "route": "/ai-employees",
+            "maturity": "mvp",
+            "sample_items": [
+                _asset_item(task.title, task.expected_output, f"/customer-projects/{task.project_id}")
+                for task in latest_tasks
+            ],
+        },
+    ]
+
+
 def create_ai_employee_run(db: Session, task_id: UUID) -> AIEmployeeRun | None:
     task = (
         db.query(ProjectTask)

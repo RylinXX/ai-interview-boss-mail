@@ -16,6 +16,7 @@ import {
   RobotOutlined,
   TeamOutlined,
   SolutionOutlined,
+  AppstoreOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -248,9 +249,14 @@ const AppLayout: React.FC = () => {
       label: 'AI 员工',
     },
     {
+      key: '/knowledge-assets',
+      icon: <AppstoreOutlined />,
+      label: '业务样本库',
+    },
+    {
       key: '/resumes',
       icon: <FileTextOutlined />,
-      label: '高级人才能力样本库',
+      label: '高级人才能力样本',
     },
     {
       key: '/resumes/upload',

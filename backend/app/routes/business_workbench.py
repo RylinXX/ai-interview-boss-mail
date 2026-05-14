@@ -18,6 +18,7 @@ from app.schemas.business_workbench import (
     CustomerProjectCreate,
     CustomerProjectResponse,
     CustomerProjectUpdate,
+    KnowledgeAssetResponse,
     ProjectTaskResponse,
     ProjectTaskUpdate,
     SolutionDocumentResponse,
@@ -172,6 +173,14 @@ def list_capability_samples_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.list_capability_samples(db)
+
+
+@router.get("/knowledge-assets", response_model=List[KnowledgeAssetResponse])
+def list_knowledge_assets_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_knowledge_assets(db)
 
 
 @router.get("/ai-employees", response_model=List[AIEmployeeResponse])
