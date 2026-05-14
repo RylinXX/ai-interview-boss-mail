@@ -1,0 +1,89 @@
+.workbench-page .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.workbench-page .page-header h2 {
+  margin-bottom: 4px;
+}
+
+.workbench-summary-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-color);
+  color: var(--text-secondary);
+}
+
+.project-task-board {
+  display: grid;
+  gap: 12px;
+}
+
+.project-task-stage {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.project-task-stage-title {
+  padding: 10px 12px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-color);
+}
+
+.project-task-card {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.project-task-card:last-child {
+  border-bottom: none;
+}
+
+.task-output-preview {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(22, 119, 255, 0.08);
+}
+
+textarea.solution-document-editor {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.65;
+}
+
+.ai-employee-card {
+  min-height: 210px;
+}
+
+.ai-employee-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: rgba(22, 119, 255, 0.12);
+  color: #1677ff;
+  font-size: 20px;
+}
+
+.ai-employee-template {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}

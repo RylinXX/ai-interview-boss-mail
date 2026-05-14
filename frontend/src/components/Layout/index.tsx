@@ -14,6 +14,8 @@ import {
   CheckCircleOutlined,
   UploadOutlined,
   RobotOutlined,
+  TeamOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -88,7 +90,7 @@ const AppLayout: React.FC = () => {
       addNotification(nextItems, {
         key: 'system-api-key',
         title: '模型 API Key 未配置',
-        description: '简历直读、经历抽取和项目评估会不可用',
+        description: '能力样本抽取、方案生成和 AI 员工草稿会不可用',
         count: systemSettings && !systemSettings.llm_api_key_set ? 1 : 0,
         path: '/settings/system',
         tone: 'danger',
@@ -223,22 +225,32 @@ const AppLayout: React.FC = () => {
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
-      label: '分析仪表盘',
+      label: '方案工作台',
+    },
+    {
+      key: '/customer-projects',
+      icon: <SolutionOutlined />,
+      label: '客户项目',
     },
     {
       key: '/industry-agent',
       icon: <RobotOutlined />,
-      label: '行业方案智能体',
+      label: '业务优化方案智能体',
+    },
+    {
+      key: '/ai-employees',
+      icon: <TeamOutlined />,
+      label: 'AI 员工',
     },
     {
       key: '/resumes',
       icon: <FileTextOutlined />,
-      label: '简历智能库',
+      label: '高级人才能力样本库',
     },
     {
       key: '/resumes/upload',
       icon: <UploadOutlined />,
-      label: '上传简历',
+      label: '导入人才样本',
       roles: ['admin', 'hr'],
     },
     {
@@ -263,7 +275,7 @@ const AppLayout: React.FC = () => {
       ? '个人设置'
       : location.pathname.startsWith('/settings/system')
         ? '系统设置'
-        : menuItems.find(item => item.key === selectedKey)?.label || '简历智能分析';
+        : menuItems.find(item => item.key === selectedKey)?.label || 'AI 业务优化工作台';
 
   const userMenuItems: any[] = [
     {
@@ -311,7 +323,7 @@ const AppLayout: React.FC = () => {
           {!collapsed && (
             <div className="brand-copy">
               <div className="brand-name"><span>Qylin</span>Intel</div>
-              <div className="brand-subtitle">Resume Intelligence</div>
+              <div className="brand-subtitle">Business Workbench</div>
             </div>
           )}
         </div>
@@ -328,7 +340,7 @@ const AppLayout: React.FC = () => {
             <span className="status-dot" />
             <div>
               <strong>模型分析中台</strong>
-              <span>简历经历与项目评估</span>
+              <span>能力样本与方案执行</span>
             </div>
           </div>
         )}
@@ -338,9 +350,9 @@ const AppLayout: React.FC = () => {
           <Space size="middle" className="page-title-group">
             <div>
               <h2>{pageTitle}</h2>
-              <span>简历直读、经历抽取、追问生成与项目落地分析</span>
+              <span>客户诊断、能力样本、方案文档与 AI 员工任务拆解</span>
             </div>
-            <Tag color="processing" className="env-tag">重构分支</Tag>
+            <Tag color="processing" className="env-tag">MVP 工作台</Tag>
           </Space>
           <Space size="large">
             <Button

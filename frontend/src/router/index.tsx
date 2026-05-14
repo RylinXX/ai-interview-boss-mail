@@ -7,6 +7,9 @@ import { useAuth } from '../contexts/AuthContext';
 const Login = lazy(() => import('../pages/Login'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
 const IndustryAgent = lazy(() => import('../pages/IndustryAgent'));
+const CustomerProjectsList = lazy(() => import('../pages/CustomerProjects/List'));
+const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detail'));
+const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
 const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
 const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
@@ -69,6 +72,18 @@ const router = createBrowserRouter([
       {
         path: 'industry-agent',
         element: lazyPage(<IndustryAgent />),
+      },
+      {
+        path: 'customer-projects',
+        element: lazyPage(<CustomerProjectsList />),
+      },
+      {
+        path: 'customer-projects/:id',
+        element: lazyPage(<CustomerProjectDetail />),
+      },
+      {
+        path: 'ai-employees',
+        element: lazyPage(<AIEmployeesList />),
       },
       {
         path: 'resumes',
