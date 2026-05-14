@@ -759,6 +759,122 @@ textarea.solution-document-editor {
   background: #fffdf8;
 }
 
+.knowledge-detail-grid,
+.ai-product-manager-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 460px;
+  gap: 16px;
+  align-items: start;
+}
+
+.ai-product-manager-grid {
+  grid-template-columns: 420px minmax(0, 1fr);
+}
+
+.knowledge-detail-main,
+.knowledge-detail-side,
+.ai-product-manager-result {
+  display: grid;
+  gap: 16px;
+}
+
+.knowledge-raw-text {
+  max-height: 420px;
+  padding: 14px;
+  overflow: auto;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+  white-space: pre-wrap;
+}
+
+.knowledge-review-grid,
+.knowledge-score-form-grid,
+.pm-section-grid,
+.pm-hypothesis-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.knowledge-score-form-grid .ant-input-number {
+  width: 100%;
+}
+
+.knowledge-detail-score {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.pm-section-grid section,
+.pm-hypothesis-card {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.pm-section-grid section > .ant-typography-secondary,
+.pm-hypothesis-columns section > .ant-typography-secondary {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pm-hypothesis-card {
+  display: grid;
+  gap: 10px;
+}
+
+.pm-evidence-list {
+  display: grid;
+  gap: 10px;
+}
+
+.pm-evidence-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #142136;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pm-evidence-list button:hover {
+  border-color: rgba(190, 143, 61, 0.55);
+  background: #fbf7ef;
+}
+
+.pm-evidence-tags {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+
+.pm-empty-state {
+  min-height: 320px;
+}
+
+.pm-empty-state .ant-card-body {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  min-height: 280px;
+}
+
+.pm-empty-state .anticon {
+  color: #9b6a20;
+  font-size: 32px;
+}
+
 html[data-theme='dark'] .consulting-metric-card,
 html[data-theme='dark'] .consulting-table-card,
 html[data-theme='dark'] .dossier-header,
@@ -788,7 +904,8 @@ html[data-theme='dark'] .ai-context-counts strong,
 html[data-theme='dark'] .ai-solution-head h3.ant-typography,
 html[data-theme='dark'] .knowledge-asset-head h3.ant-typography,
 html[data-theme='dark'] .knowledge-asset-head > strong,
-html[data-theme='dark'] .knowledge-sample-list button {
+html[data-theme='dark'] .knowledge-sample-list button,
+html[data-theme='dark'] .pm-evidence-list button {
   color: var(--text-primary);
 }
 
@@ -807,7 +924,8 @@ html[data-theme='dark'] .ai-solution-value,
 html[data-theme='dark'] .ai-solution-direction ol,
 html[data-theme='dark'] .human-decision-list ul,
 html[data-theme='dark'] .knowledge-asset-value,
-html[data-theme='dark'] .knowledge-sample-list small {
+html[data-theme='dark'] .knowledge-sample-list small,
+html[data-theme='dark'] .knowledge-raw-text {
   color: var(--text-secondary);
 }
 
@@ -843,7 +961,11 @@ html[data-theme='dark'] .ai-solution-direction,
 html[data-theme='dark'] .human-decision-list,
 html[data-theme='dark'] .knowledge-asset-value,
 html[data-theme='dark'] .knowledge-sample-list button,
-html[data-theme='dark'] .knowledge-intake-side-note {
+html[data-theme='dark'] .knowledge-intake-side-note,
+html[data-theme='dark'] .knowledge-raw-text,
+html[data-theme='dark'] .pm-section-grid section,
+html[data-theme='dark'] .pm-hypothesis-card,
+html[data-theme='dark'] .pm-evidence-list button {
   border-color: var(--border-color);
   background: var(--surface-muted);
 }
@@ -885,7 +1007,9 @@ html[data-theme='dark'] .task-output-preview {
   .task-card-head,
   .employee-registry-grid,
   .ai-solution-head,
-  .knowledge-intake-grid {
+  .knowledge-intake-grid,
+  .knowledge-detail-grid,
+  .ai-product-manager-grid {
     grid-template-columns: 1fr;
   }
 
@@ -910,7 +1034,12 @@ html[data-theme='dark'] .task-output-preview {
 
   .knowledge-assets-toolbar,
   .knowledge-source-grid,
-  .knowledge-tag-form-grid {
+  .knowledge-tag-form-grid,
+  .knowledge-review-grid,
+  .knowledge-score-form-grid,
+  .pm-section-grid,
+  .pm-hypothesis-columns,
+  .pm-evidence-list button {
     grid-template-columns: 1fr;
   }
 }

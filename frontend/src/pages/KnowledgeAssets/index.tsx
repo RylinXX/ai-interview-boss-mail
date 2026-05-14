@@ -3,6 +3,7 @@ import { App, Button, Card, Empty, Input, Progress, Select, Space, Table, Tag, T
 import {
   AuditOutlined,
   DatabaseOutlined,
+  EyeOutlined,
   FileSearchOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -247,6 +248,9 @@ const KnowledgeAssetsPage: React.FC = () => {
           loading={loading}
           dataSource={assets}
           pagination={{ pageSize: 10, showSizeChanger: true }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/knowledge-assets/${record.id}`),
+          })}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无知识资产" /> }}
           columns={[
             {
@@ -326,6 +330,23 @@ const KnowledgeAssetsPage: React.FC = () => {
               dataIndex: 'updated_at',
               width: 110,
               render: (value: string | null, record: KnowledgeAsset) => compactDate(value || record.created_at),
+            },
+            {
+              title: '操作',
+              key: 'action',
+              width: 92,
+              render: (_: unknown, record: KnowledgeAsset) => (
+                <Button
+                  type="link"
+                  icon={<EyeOutlined />}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    navigate(`/knowledge-assets/${record.id}`);
+                  }}
+                >
+                  详情
+                </Button>
+              ),
             },
           ]}
         />

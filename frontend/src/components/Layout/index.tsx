@@ -17,6 +17,7 @@ import {
   TeamOutlined,
   SolutionOutlined,
   AppstoreOutlined,
+  BulbOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -247,6 +248,11 @@ const AppLayout: React.FC = () => {
       key: '/ai-employees',
       icon: <TeamOutlined />,
       label: 'AI 员工',
+    },
+    {
+      key: '/ai-product-manager',
+      icon: <BulbOutlined />,
+      label: 'AI 产品经理',
     },
     {
       key: '/knowledge-assets',

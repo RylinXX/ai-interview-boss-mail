@@ -12,6 +12,8 @@ const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detai
 const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
 const KnowledgeAssets = lazy(() => import('../pages/KnowledgeAssets'));
 const KnowledgeAssetIntake = lazy(() => import('../pages/KnowledgeAssets/Intake'));
+const KnowledgeAssetDetail = lazy(() => import('../pages/KnowledgeAssets/Detail'));
+const AIProductManager = lazy(() => import('../pages/AIProductManager'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
 const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
 const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
@@ -88,12 +90,20 @@ const router = createBrowserRouter([
         element: lazyPage(<AIEmployeesList />),
       },
       {
+        path: 'ai-product-manager',
+        element: lazyPage(<AIProductManager />),
+      },
+      {
         path: 'knowledge-assets',
         element: lazyPage(<KnowledgeAssets />),
       },
       {
         path: 'knowledge-assets/intake',
         element: lazyPage(<KnowledgeAssetIntake />),
+      },
+      {
+        path: 'knowledge-assets/:id',
+        element: lazyPage(<KnowledgeAssetDetail />),
       },
       {
         path: 'resumes',
