@@ -25,6 +25,11 @@ import request, { getApiErrorMessage } from '../../utils/request';
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+const shellProductLine = 'Business Transformation OS';
+const shellModuleLine = '咨询方案与 AI 员工交付';
+const headerSubtitle = '客户诊断、方案文档、能力样本与 AI 员工执行统一推进';
+const headerTag = 'Consulting Workbench';
+
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success';
 
 type NotificationItem = {
@@ -98,7 +103,7 @@ const AppLayout: React.FC = () => {
       });
       addNotification(nextItems, {
         key: 'resume-parse-failed',
-        title: '简历解析失败',
+        title: '能力样本解析失败',
         description: '点击批量重新提交到模型解析队列',
         count: resumes.filter(item => item.parse_status === 'failed').length,
         path: '/resumes',
@@ -108,8 +113,8 @@ const AppLayout: React.FC = () => {
       });
       addNotification(nextItems, {
         key: 'resume-processing',
-        title: '简历分析中',
-        description: '模型正在读取文件并整理经历',
+        title: '能力样本分析中',
+        description: '模型正在读取文件并整理行业、项目和方法论',
         count: resumes.filter(item => item.parse_status === 'processing').length,
         path: '/resumes',
         tone: 'info',
@@ -117,8 +122,8 @@ const AppLayout: React.FC = () => {
       });
       addNotification(nextItems, {
         key: 'resume-analyzed',
-        title: '已完成分析',
-        description: '可以查看追问、商业模式问题和项目评估',
+        title: '能力样本已完成',
+        description: '可以引用到客户诊断、方案设计和能力背书',
         count: resumes.filter(item => item.parse_status === 'success').length,
         path: '/resumes',
         tone: 'success',
@@ -323,7 +328,7 @@ const AppLayout: React.FC = () => {
           {!collapsed && (
             <div className="brand-copy">
               <div className="brand-name"><span>Qylin</span>Intel</div>
-              <div className="brand-subtitle">Business Workbench</div>
+              <div className="brand-subtitle">{shellProductLine}</div>
             </div>
           )}
         </div>
@@ -339,8 +344,8 @@ const AppLayout: React.FC = () => {
           <div className="sidebar-status">
             <span className="status-dot" />
             <div>
-              <strong>模型分析中台</strong>
-              <span>能力样本与方案执行</span>
+              <strong>{shellModuleLine}</strong>
+              <span>客户案卷与交付推进</span>
             </div>
           </div>
         )}
@@ -350,9 +355,9 @@ const AppLayout: React.FC = () => {
           <Space size="middle" className="page-title-group">
             <div>
               <h2>{pageTitle}</h2>
-              <span>客户诊断、能力样本、方案文档与 AI 员工任务拆解</span>
+              <span>{headerSubtitle}</span>
             </div>
-            <Tag color="processing" className="env-tag">MVP 工作台</Tag>
+            <Tag color="processing" className="env-tag">{headerTag}</Tag>
           </Space>
           <Space size="large">
             <Button
