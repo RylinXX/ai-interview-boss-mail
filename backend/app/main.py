@@ -6,7 +6,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from app.routes import auth, resumes, settings, resume_mail_imports
+from app.routes import auth, resumes, settings, resume_mail_imports, business_workbench
 from app.config.database import engine, SessionLocal
 from app.models.models import Base, User, UserRole
 from app.core.security import get_password_hash
@@ -81,6 +81,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(resumes.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
 app.include_router(resume_mail_imports.router, prefix="/api")
+app.include_router(business_workbench.router, prefix="/api")
 
 
 @app.on_event("startup")

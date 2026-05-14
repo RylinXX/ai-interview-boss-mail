@@ -476,3 +476,102 @@ class SystemConfig(Base):
     # 提示词配置（存储所有提示词的 JSON）
     prompt_configs = Column(JSON, default=dict)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CustomerProjectStatus(str, enum.Enum):
+    DRAFT = "draft"
+    DIAGNOSING = "diagnosing"
+    DESIGNING = "designing"
+    READY = "ready"
+    ARCHIVED = "archived"
+
+
+class ProjectTaskStatus(str, enum.Enum):
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    REVIEW = "review"
+    DONE = "done"
+    BLOCKED = "blocked"
+
+
+class AIEmployeeRunStatus(str, enum.Enum):
+    DRAFT = "draft"
+    ACCEPTED = "accepted"
+    DISCARDED = "discarded"
+
+
+class CustomerProject(Base):
+    __tablename__ = "customer_projects"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    industry = Column(String)
+    company_scale = Column(String)
+    business_model = Column(Text)
+    pain_points = Column(JSON, default=list)
+    goals = Column(JSON, default=list)
+    status = Column(Enum(CustomerProjectStatus), default=CustomerProjectStatus.DRAFT)
+    diagnosis = Column(JSON, default=dict)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    creator = relationship("User")
+    tasks = relationship("ProjectTask", back_populates="project", cascade="all, delete-orphan")
+    solution_document = relationship(
+        "SolutionDocument",
+        back_populates="project",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class ProjectTask(Base):
+    __tablename__ = "project_tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("customer_projects.id"), nullable=False)
+    stage = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text)
+    expected_output = Column(Text)
+    status = Column(Enum(ProjectTaskStatus), default=ProjectTaskStatus.TODO)
+    assignee_type = Column(String, default="ai_employee")
+    ai_employee_type = Column(String)
+    linked_capability_sample_ids = Column(JSON, default=list)
+    output = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("CustomerProject", back_populates="tasks")
+    ai_runs = relationship("AIEmployeeRun", back_populates="task", cascade="all, delete-orphan")
+
+
+class SolutionDocument(Base):
+    __tablename__ = "solution_documents"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("customer_projects.id"), nullable=False, unique=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, default="")
+    sections = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    project = relationship("CustomerProject", back_populates="solution_document")
+
+
+class AIEmployeeRun(Base):
+    __tablename__ = "ai_employee_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("project_tasks.id"), nullable=False)
+    employee_type = Column(String, nullable=False)
+    status = Column(Enum(AIEmployeeRunStatus), default=AIEmployeeRunStatus.DRAFT)
+    prompt_context = Column(JSON, default=dict)
+    output = Column(JSON, default=dict)
+    reviewer_decision = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    task = relationship("ProjectTask", back_populates="ai_runs")
