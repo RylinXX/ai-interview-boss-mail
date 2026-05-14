@@ -5,13 +5,15 @@ from app.config.database import get_db
 from app.schemas.resume import (
     ResumeResponse, ResumeCreate, ResumeUpdate,
     DepartmentReviewCreate, DepartmentReviewUpdate, DepartmentReviewResponse,
-    HRDecisionCreate, HRDecisionResponse,
+    HRDecisionCreate, HRDecisionResponse, IndustryAgentSolutionRequest,
+    IndustryAgentSolutionResponse,
     DuplicateCheckRequest, DuplicateCheckResponse, DepartmentReviewSummary
 )
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
     summarize_resume_experiences, summarize_resume_projects, summarize_industry_solution_agent,
+    generate_industry_solution_from_agent,
     check_duplicate_resume, create_department_review, get_department_reviews,
     complete_department_review, aggregate_department_reviews, submit_hr_decision,
     confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position,
@@ -156,6 +158,15 @@ def get_industry_solution_agent_route(
     current_user: User = Depends(get_current_user)
 ):
     return summarize_industry_solution_agent(db, limit=limit)
+
+
+@router.post("/industry-agent/solution", response_model=IndustryAgentSolutionResponse)
+def generate_industry_solution_agent_route(
+    request: IndustryAgentSolutionRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return generate_industry_solution_from_agent(db, request.model_dump())
 
 # ==================== 简历详情与更新 ====================
 

@@ -1,3 +1,4 @@
+import copy
 import os
 from typing import Dict, Any
 from app.config.database import SessionLocal
@@ -208,6 +209,71 @@ DEFAULT_PROMPTS = {
 3. 如果商业模式不清晰，要明确写出缺失证据和需要追问的问题。
 4. 问题要具体到经历或项目，不要泛泛而谈。"""
         },
+        "analyze_resume_positioning": {
+            "system": "你是一个擅长给简历、公司经历和项目经历做行业定位、业务定位和标签标注的人才项目分析智能体。请严格返回 JSON，不要添加额外说明。",
+            "user": """请基于结构化简历数据和简历原文，为这份简历、公司经历和项目经历做行业定位与标签标注。
+
+可选行业标签表:
+{industry_taxonomy}
+
+结构化简历数据:
+{resume_data}
+
+简历原文:
+{resume_text}
+
+判断规则：
+1. industry_key 必须从标签表 key 中选择；证据不足时使用 general。
+2. 优先按真实业务场景、客户行业、项目目标定位，不要只按技术栈粗分。例如银行 AI 风控项目应优先归到 finance；没有垂直业务场景的通用 AI 平台才归到 computer_ai。
+3. 不要编造客户名称、财务数据和简历未提供的事实。
+4. 每段经历/项目必须给出定位依据；不确定的写入 positioning_reason。
+5. work_experiences 和 project_experiences 的 index 使用从 0 开始的原数组下标。
+
+请严格返回以下 JSON:
+{{
+  "industry_key": "从标签表 key 中选择",
+  "industry_label": "标签中文名",
+  "industry_color": "标签颜色",
+  "positioning_summary": "用一句话说明候选人/简历整体定位",
+  "positioning_reason": "说明为什么这样定位，引用简历证据",
+  "business_keywords": ["业务关键词"],
+  "target_customer": "最可能服务的客户/公司类型；证据不足写未知",
+  "business_stage": "0-1验证/规模化增长/流程优化/交付运营/通用业务",
+  "work_experiences": [
+    {{
+      "index": 0,
+      "company": "公司名",
+      "industry_key": "从标签表 key 中选择",
+      "industry_label": "标签中文名",
+      "industry_color": "标签颜色",
+      "positioning_summary": "这段公司经历的业务定位",
+      "positioning_reason": "定位依据",
+      "business_domain": "业务领域",
+      "customer_type": "服务对象"
+    }}
+  ],
+  "project_experiences": [
+    {{
+      "index": 0,
+      "name": "项目名",
+      "industry_key": "从标签表 key 中选择",
+      "industry_label": "标签中文名",
+      "industry_color": "标签颜色",
+      "positioning_summary": "这个项目的业务定位",
+      "positioning_reason": "定位依据",
+      "business_domain": "业务领域",
+      "customer_type": "服务对象"
+    }}
+  ],
+  "logic_analysis": {{
+    "industry_key": "从标签表 key 中选择",
+    "industry_label": "标签中文名",
+    "industry_color": "标签颜色",
+    "positioning_summary": "底层逻辑更偏哪类业务能力",
+    "positioning_reason": "定位依据"
+  }}
+}}"""
+        },
         "generate_resume_markdown": {
             "system": "你是一个专业的简历优化专家。",
             "user": """请将以下简历内容整理为 Markdown 格式，要求美观、易读、结构清晰。
@@ -393,6 +459,15 @@ class PromptManager:
             cls._instance = super(PromptManager, cls).__new__(cls)
         return cls._instance
 
+    def _merge_with_default_prompts(self, prompts: Dict[str, Any] | None) -> Dict[str, Any]:
+        merged = copy.deepcopy(DEFAULT_PROMPTS["prompts"])
+        for key, value in (prompts or {}).items():
+            if isinstance(value, dict):
+                merged[key] = {**merged.get(key, {}), **value}
+            else:
+                merged[key] = value
+        return merged
+
     def _load_from_db(self) -> Dict[str, Any]:
         """从数据库加载提示词配置"""
         db = SessionLocal()
@@ -400,14 +475,16 @@ class PromptManager:
             from app.models.models import SystemConfig
             config = db.query(SystemConfig).first()
             if config and config.prompt_configs:
-                # 如果数据库中有配置，使用数据库的配置
-                self._db_prompts = config.prompt_configs
+                self._db_prompts = self._merge_with_default_prompts(config.prompt_configs)
+                if set(config.prompt_configs.keys()) != set(self._db_prompts.keys()):
+                    config.prompt_configs = self._db_prompts
+                    db.commit()
             else:
                 # 如果数据库中没有配置，将默认配置写入数据库
                 if config:
-                    config.prompt_configs = DEFAULT_PROMPTS["prompts"]
+                    config.prompt_configs = copy.deepcopy(DEFAULT_PROMPTS["prompts"])
                     db.commit()
-                    self._db_prompts = DEFAULT_PROMPTS["prompts"]
+                    self._db_prompts = copy.deepcopy(DEFAULT_PROMPTS["prompts"])
                 else:
                     self._db_prompts = None
         except Exception as e:
@@ -428,7 +505,7 @@ class PromptManager:
             self._load_from_db()
 
         if self._db_prompts:
-            prompt_config = self._db_prompts.get(key)
+            prompt_config = self._merge_with_default_prompts(self._db_prompts).get(key)
             if prompt_config:
                 return {
                     "system": prompt_config.get('system', ""),
@@ -481,7 +558,7 @@ class PromptManager:
             self._load_from_db()
 
         if self._db_prompts:
-            return self._db_prompts
+            return self._merge_with_default_prompts(self._db_prompts)
 
         return DEFAULT_PROMPTS["prompts"]
 

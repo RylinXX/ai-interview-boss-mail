@@ -165,6 +165,31 @@ class DuplicateCheckResponse(BaseModel):
     message: Optional[str] = None
 
 
+class IndustryAgentMessage(BaseModel):
+    role: str
+    content: str
+
+
+class IndustryAgentSolutionRequest(BaseModel):
+    industry: Optional[str] = None
+    business_type: Optional[str] = None
+    current_process: Optional[str] = None
+    pain_points: List[str] = []
+    goals: List[str] = []
+    conversation: List[IndustryAgentMessage] = []
+    limit: int = 500
+
+
+class IndustryAgentSolutionResponse(BaseModel):
+    title: str
+    summary: str
+    recommended_solutions: List[Dict[str, Any]] = []
+    needed_capabilities: List[str] = []
+    risks: List[str] = []
+    next_questions: List[str] = []
+    knowledge_context: Dict[str, Any] = {}
+
+
 # 部门评审聚合报告
 class DepartmentReviewSummary(BaseModel):
     resume_id: UUID

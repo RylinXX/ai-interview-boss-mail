@@ -11,6 +11,11 @@ PROMPT_VARIABLES = {
         {"name": "resume_text", "description": "简历原始文本内容"},
     ],
     "analyze_resume_intelligence_from_document": [],
+    "analyze_resume_positioning": [
+        {"name": "resume_text", "description": "简历原始文本内容"},
+        {"name": "resume_data", "description": "简历解析后的结构化数据（JSON格式）"},
+        {"name": "industry_taxonomy", "description": "可选行业标签表"},
+    ],
     "generate_resume_markdown": [
         {"name": "resume_text", "description": "简历原始文本内容"},
     ],
@@ -55,6 +60,7 @@ ALL_VARIABLES = {
     "resume_text": "简历原始文本内容",
     "other_positions": "其他相近岗位信息（JSON格式，包含岗位ID、名称、描述等）",
     "resume_data": "简历解析后的结构化数据（JSON格式）",
+    "industry_taxonomy": "可选行业标签表",
     "question_bank_content": "参考题库内容",
     "interview_category": "面试类型（HR面试/技术面试/主管面试/CEO面试/综合面试）",
     "count": "需要生成的题目数量",

@@ -5,6 +5,7 @@ import json
 import httpx
 import base64
 from dotenv import load_dotenv
+from app.config.resume_industry import resume_industry_taxonomy_text
 from app.utils.prompt_manager import prompt_manager
 from app.config.database import SessionLocal
 from app.models.models import SystemConfig
@@ -370,6 +371,91 @@ def analyze_resume_intelligence(resume_text: str) -> Dict[str, Any]:
     except Exception as e:
         print(f"Resume intelligence analysis failed: {e}")
         return {}
+
+
+def analyze_resume_positioning(resume_text: str, resume_data: Dict[str, Any]) -> Dict[str, Any]:
+    prompt_data = prompt_manager.get_prompt(
+        "analyze_resume_positioning",
+        resume_text=resume_text,
+        resume_data=json.dumps(resume_data or {}, ensure_ascii=False, indent=2),
+        industry_taxonomy=resume_industry_taxonomy_text(),
+    )
+
+    if not prompt_data.get("user"):
+        print("Failed to load prompt for analyze_resume_positioning")
+        return {}
+
+    try:
+        cfg = _get_llm_config()
+        extra = _completion_options(cfg, json_response=True)
+        completion = _get_client().chat.completions.create(
+            model=cfg["llm_model"],
+            messages=[
+                {"role": "system", "content": prompt_data["system"]},
+                {"role": "user", "content": prompt_data["user"]},
+            ],
+            extra_body=_get_extra_body(),
+            **extra,
+        )
+        parsed = _parse_json_content(completion.choices[0].message.content)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as e:
+        print(f"Resume positioning analysis failed: {e}")
+        return {}
+
+
+def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        cfg = _get_llm_config()
+        payload_text = json.dumps(agent_payload, ensure_ascii=False, indent=2)
+        system = (
+            "你是一个行业解决方案智能体，擅长把人才库、项目库和公司经历转化成可落地的AI/数字化方案。"
+            "请严格返回 JSON，不要添加额外说明。"
+        )
+        user = f"""请根据以下业务输入和知识库上下文，生成一份面向客户的方案草案。
+
+要求：
+1. 方案必须引用已有项目或公司经验作为依据，不要编造真实客户名称或财务数据。
+2. 结合用户的行业、业务流程、痛点和目标，给出 2 到 4 个可落地方向。
+3. 每个方向说明应用场景、业务价值、相关案例和落地步骤。
+4. 如果信息不足，在 next_questions 中给出继续追问用户的问题。
+
+请严格返回以下 JSON：
+{{
+  "title": "方案标题",
+  "summary": "一段方案概述",
+  "recommended_solutions": [
+    {{
+      "name": "方案名称",
+      "scenario": "适用场景",
+      "value": "业务价值",
+      "related_cases": ["引用的项目或公司经验"],
+      "implementation_steps": ["落地步骤"]
+    }}
+  ],
+  "needed_capabilities": ["需要的人才或交付能力"],
+  "risks": ["风险或前提条件"],
+  "next_questions": ["继续追问用户的问题"]
+}}
+
+业务输入和知识库上下文：
+{payload_text}"""
+        extra = _completion_options(cfg, json_response=True)
+        completion = _get_client().chat.completions.create(
+            model=cfg["llm_model"],
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            extra_body=_get_extra_body(),
+            **extra,
+        )
+        parsed = _parse_json_content(completion.choices[0].message.content)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as e:
+        print(f"Solution agent generation failed: {e}")
+        return {}
+
 
 def generate_resume_markdown(resume_text: str) -> str:
     prompt_data = prompt_manager.get_prompt(

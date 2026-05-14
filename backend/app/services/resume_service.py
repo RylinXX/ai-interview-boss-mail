@@ -15,11 +15,18 @@ from app.utils.file_storage import save_upload_file
 from app.services.ai_service import (
     analyze_resume_intelligence,
     analyze_resume_intelligence_from_document,
+    analyze_resume_positioning,
     extract_resume_text_from_document,
     extract_resume_text_from_images,
     generate_resume_markdown,
+    generate_solution_agent_response,
 )
 from app.services.task_queue import get_task_queue
+from app.config.resume_industry import (
+    DEFAULT_RESUME_INDUSTRY,
+    RESUME_INDUSTRY_PROFILES,
+    normalize_resume_industry,
+)
 import base64
 import docx
 import PyPDF2
@@ -30,6 +37,10 @@ from collections import Counter
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, and_, func
+
+
+INDUSTRY_LABEL_PROFILES = RESUME_INDUSTRY_PROFILES
+DEFAULT_INDUSTRY_LABEL = DEFAULT_RESUME_INDUSTRY
 
 
 def _extract_pdf_text(file_path: str) -> str:
@@ -145,8 +156,109 @@ def _raw_text_from_direct_analysis(parsed_data: Dict[str, Any]) -> str:
     return json.dumps(parsed_data, ensure_ascii=False)
 
 
+def _is_meaningful_value(value: Any) -> bool:
+    return value not in (None, "", [], {})
+
+
+def _copy_positioning_fields(target: Dict[str, Any], source: Dict[str, Any]) -> Dict[str, Any]:
+    result = dict(target)
+    profile = normalize_resume_industry(source)
+    if profile:
+        result.update(
+            {
+                "industry_key": profile["key"],
+                "industry_label": profile["label"],
+                "industry_color": profile["color"],
+            }
+        )
+
+    copy_keys = (
+        "positioning_summary",
+        "positioning_reason",
+        "business_domain",
+        "business_keywords",
+        "business_stage",
+        "target_customer",
+        "customer_type",
+    )
+    alias_keys = {
+        "summary": "positioning_summary",
+        "reason": "positioning_reason",
+    }
+    for key in copy_keys:
+        if _is_meaningful_value(source.get(key)):
+            result[key] = source[key]
+    for source_key, target_key in alias_keys.items():
+        if _is_meaningful_value(source.get(source_key)) and not result.get(target_key):
+            result[target_key] = source[source_key]
+    return result
+
+
+def _positioning_item_for_index(items: Any, index: int) -> Dict[str, Any]:
+    candidates = [item for item in _as_list(items) if isinstance(item, dict)]
+    for item in candidates:
+        raw_index = item.get("index")
+        if raw_index is not None and _safe_int(raw_index, -1) in (index, index + 1):
+            return item
+    if index < len(candidates):
+        return candidates[index]
+    return {}
+
+
+def _merge_positioning_items(parsed_data: Dict[str, Any], positioning_data: Dict[str, Any], field: str) -> None:
+    items = _as_list(parsed_data.get(field))
+    if not items:
+        return
+
+    positioned_items = []
+    positioning_items = positioning_data.get(field)
+    for index, item in enumerate(items):
+        if not isinstance(item, dict):
+            positioned_items.append(item)
+            continue
+        positioned_items.append(
+            _copy_positioning_fields(item, _positioning_item_for_index(positioning_items, index))
+        )
+    parsed_data[field] = positioned_items
+
+
+def _merge_resume_positioning(parsed_data: Dict[str, Any], positioning_data: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(positioning_data, dict) or not positioning_data:
+        return parsed_data
+
+    merged = dict(parsed_data)
+    merged["positioning_analysis"] = positioning_data
+    merged = _copy_positioning_fields(merged, positioning_data)
+
+    _merge_positioning_items(merged, positioning_data, "work_experiences")
+    _merge_positioning_items(merged, positioning_data, "project_experiences")
+
+    logic_positioning = positioning_data.get("logic_analysis")
+    if isinstance(logic_positioning, dict):
+        profile = normalize_resume_industry(logic_positioning)
+        if profile:
+            merged["logic_industry_key"] = profile["key"]
+            merged["logic_industry_label"] = profile["label"]
+            merged["logic_industry_color"] = profile["color"]
+        for key in ("positioning_summary", "positioning_reason"):
+            if _is_meaningful_value(logic_positioning.get(key)):
+                merged[f"logic_{key}"] = logic_positioning[key]
+
+    return merged
+
+
 def _build_resume_intelligence_review(parsed_data: Dict[str, Any]) -> str:
     sections = []
+
+    positioning_lines = []
+    if parsed_data.get("industry_label"):
+        positioning_lines.append(f"- 定位标签：{parsed_data['industry_label']}")
+    if parsed_data.get("positioning_summary"):
+        positioning_lines.append(f"- 定位摘要：{parsed_data['positioning_summary']}")
+    if parsed_data.get("positioning_reason"):
+        positioning_lines.append(f"- 定位依据：{parsed_data['positioning_reason']}")
+    if positioning_lines:
+        sections.append("### 定位分析\n" + "\n".join(positioning_lines))
 
     if parsed_data.get("experience_summary"):
         sections.append(f"### 经历概要\n{parsed_data['experience_summary']}")
@@ -263,6 +375,9 @@ def process_resume_task(payload: Dict[str, Any]):
             resume.parse_error = "AI 解析失败"
             db.commit()
             return
+
+        positioning_data = analyze_resume_positioning(content, parsed_data)
+        parsed_data = _merge_resume_positioning(parsed_data, positioning_data)
 
         _apply_resume_intelligence(resume, parsed_data, content, use_user_info)
         resume.raw_text = content
@@ -409,12 +524,116 @@ def _attach_resume_context(item: Any, resume: Resume) -> Optional[Dict[str, Any]
     }
 
 
+def _match_industry_label(text: str) -> Dict[str, str]:
+    lowered = (text or "").lower()
+    scored = []
+    for profile in INDUSTRY_LABEL_PROFILES:
+        score = sum(4 for keyword in profile.get("strong_keywords", []) if keyword.lower() in lowered)
+        score += sum(1 for keyword in profile.get("keywords", []) if keyword.lower() in lowered)
+        if score:
+            scored.append((score, profile))
+
+    if not scored:
+        return DEFAULT_INDUSTRY_LABEL
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    best = scored[0][1]
+    return {
+        "key": best["key"],
+        "label": best["label"],
+        "color": best["color"],
+    }
+
+
+def _structured_industry_for_item(item: Any) -> Optional[Dict[str, str]]:
+    if not isinstance(item, dict):
+        return None
+    return normalize_resume_industry(item)
+
+
+def _industry_context_for_resume(resume: Resume) -> Dict[str, str]:
+    parsed_data = resume.parsed_data or {}
+    structured = (
+        normalize_resume_industry(parsed_data)
+        or normalize_resume_industry(parsed_data.get("positioning_analysis"))
+    )
+    if structured:
+        return structured
+
+    return _match_industry_label(
+        _text_blob(
+            resume.candidate_name,
+            parsed_data.get("recent_company"),
+            parsed_data.get("experience_summary"),
+            parsed_data.get("logic_analysis"),
+            parsed_data.get("company_optimization_ideas"),
+            parsed_data.get("startup_landing_ideas"),
+            parsed_data.get("work_experiences"),
+            parsed_data.get("project_experiences"),
+        )
+    )
+
+
+def _with_industry_fields(item: Dict[str, Any], industry: Dict[str, str]) -> Dict[str, Any]:
+    profile = normalize_resume_industry(industry) or DEFAULT_INDUSTRY_LABEL
+    return {
+        **item,
+        "industry_key": profile["key"],
+        "industry_label": profile["label"],
+        "industry_color": profile["color"],
+    }
+
+
+def _industry_summary_from_items(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    summary: Dict[str, Dict[str, Any]] = {}
+    for item in items:
+        key = item.get("industry_key") or DEFAULT_INDUSTRY_LABEL["key"]
+        if key not in summary:
+            summary[key] = {
+                "industry_key": key,
+                "industry_label": item.get("industry_label") or DEFAULT_INDUSTRY_LABEL["label"],
+                "industry_color": item.get("industry_color") or DEFAULT_INDUSTRY_LABEL["color"],
+                "resume_ids": set(),
+                "company_names": set(),
+                "project_count": 0,
+                "work_count": 0,
+            }
+
+        bucket = summary[key]
+        if item.get("resume_id"):
+            bucket["resume_ids"].add(item["resume_id"])
+        if item.get("_summary_source") == "project":
+            bucket["project_count"] += 1
+        if item.get("_summary_source") == "work":
+            bucket["work_count"] += 1
+            company = str(item.get("company") or "").strip()
+            if company:
+                bucket["company_names"].add(company)
+
+    rows = []
+    for bucket in summary.values():
+        rows.append(
+            {
+                "industry_key": bucket["industry_key"],
+                "industry_label": bucket["industry_label"],
+                "industry_color": bucket["industry_color"],
+                "resume_count": len(bucket["resume_ids"]),
+                "project_count": bucket["project_count"],
+                "work_count": bucket["work_count"],
+                "company_count": len(bucket["company_names"]),
+            }
+        )
+
+    rows.sort(key=lambda item: (item["resume_count"], item["project_count"], item["work_count"]), reverse=True)
+    return rows
+
+
 def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any]:
     safe_limit = max(1, min(int(limit or 500), 1000))
     resumes = (
         db.query(Resume)
         .filter(Resume.parsed_data.isnot(None))
-        .order_by(Resume.created_at.desc())
+        .order_by(Resume.created_at.desc(), Resume.id.desc())
         .limit(safe_limit)
         .all()
     )
@@ -422,26 +641,46 @@ def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any
     work_experiences: List[Dict[str, Any]] = []
     project_experiences: List[Dict[str, Any]] = []
     logic_analyses: List[Dict[str, Any]] = []
+    summary_items: List[Dict[str, Any]] = []
 
     for resume in resumes:
         parsed_data = resume.parsed_data or {}
+        resume_industry = _industry_context_for_resume(resume)
         for item in _as_list(parsed_data.get("work_experiences")):
             with_context = _attach_resume_context(item, resume)
             if with_context:
+                industry = _structured_industry_for_item(with_context) or _match_industry_label(
+                    _text_blob(with_context, parsed_data.get("logic_analysis"), resume_industry["label"])
+                )
+                with_context = _with_industry_fields(with_context, industry)
                 work_experiences.append(with_context)
+                summary_items.append({**with_context, "_summary_source": "work"})
 
         for item in _as_list(parsed_data.get("project_experiences")):
             with_context = _attach_resume_context(item, resume)
             if with_context:
+                industry = _structured_industry_for_item(with_context) or _match_industry_label(
+                    _text_blob(
+                        with_context,
+                        parsed_data.get("logic_analysis"),
+                        parsed_data.get("startup_landing_ideas"),
+                        resume_industry["label"],
+                    )
+                )
+                with_context = _with_industry_fields(with_context, industry)
                 project_experiences.append(with_context)
+                summary_items.append({**with_context, "_summary_source": "project"})
 
         if parsed_data.get("logic_analysis"):
             logic_analyses.append(
-                {
-                    "resume_id": str(resume.id),
-                    "candidate_name": resume.candidate_name,
-                    "analysis": parsed_data["logic_analysis"],
-                }
+                _with_industry_fields(
+                    {
+                        "resume_id": str(resume.id),
+                        "candidate_name": resume.candidate_name,
+                        "analysis": parsed_data["logic_analysis"],
+                    },
+                    resume_industry,
+                )
             )
 
     return {
@@ -449,6 +688,7 @@ def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any
         "work_experiences": work_experiences,
         "project_experiences": project_experiences,
         "logic_analyses": logic_analyses,
+        "industry_summary": _industry_summary_from_items(summary_items),
     }
 
 
@@ -656,6 +896,250 @@ def summarize_industry_solution_agent(db: Session, limit: int = 500) -> Dict[str
     }
 
 
+def _string_list(values: Any) -> List[str]:
+    return [str(item).strip() for item in _as_list(values) if str(item).strip()]
+
+
+def _request_text_blob(request_data: Dict[str, Any]) -> str:
+    conversation = request_data.get("conversation") or []
+    conversation_text = " ".join(
+        str(item.get("content") or "")
+        for item in conversation
+        if isinstance(item, dict)
+    )
+    return _text_blob(
+        request_data.get("industry"),
+        request_data.get("business_type"),
+        request_data.get("current_process"),
+        request_data.get("pain_points"),
+        request_data.get("goals"),
+        conversation_text,
+    )
+
+
+def _industry_profile_from_request(request_data: Dict[str, Any]) -> Dict[str, Any]:
+    explicit_industry = str(request_data.get("industry") or "").strip().lower()
+    if explicit_industry:
+        for profile in INDUSTRY_PROFILES:
+            names = [
+                profile.get("key"),
+                profile.get("name"),
+                *profile.get("strong_keywords", []),
+                *profile.get("keywords", []),
+            ]
+            if any(
+                explicit_industry in str(name or "").lower()
+                or str(name or "").lower() in explicit_industry
+                for name in names
+                if str(name or "").strip()
+            ):
+                return profile
+    return _match_industry(_request_text_blob(request_data))
+
+
+def _build_solution_agent_context(db: Session, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(request_data.get("limit") or 500), 1000))
+    requested_industry = _industry_profile_from_request(request_data)
+
+    resumes = (
+        db.query(Resume)
+        .filter(Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc(), Resume.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    project_cases: List[Dict[str, Any]] = []
+    work_cases: List[Dict[str, Any]] = []
+    candidate_pool: Dict[str, Dict[str, Any]] = {}
+
+    for resume in resumes:
+        parsed_data = resume.parsed_data or {}
+        logic_analysis = parsed_data.get("logic_analysis")
+        landing_ideas = _as_list(parsed_data.get("startup_landing_ideas"))
+
+        for project in _as_list(parsed_data.get("project_experiences")):
+            if not isinstance(project, dict):
+                continue
+            project_profile = _match_industry(_text_blob(project, landing_ideas, logic_analysis, resume.candidate_name))
+            if requested_industry["key"] != "general" and project_profile["key"] != requested_industry["key"]:
+                continue
+            project_cases.append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "project_name": project.get("name") or "未命名项目",
+                    "role": project.get("role"),
+                    "problem": project.get("problem"),
+                    "solution": project.get("solution"),
+                    "business_model": project.get("business_model"),
+                    "metrics": _as_list(project.get("metrics")),
+                    "missing_evidence": _as_list(project.get("missing_evidence")),
+                    "landing_ideas": landing_ideas,
+                }
+            )
+            candidate = candidate_pool.setdefault(
+                str(resume.id),
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "logic_analysis": logic_analysis,
+                    "capabilities": set(),
+                    "case_count": 0,
+                },
+            )
+            candidate["case_count"] += 1
+
+        for work in _as_list(parsed_data.get("work_experiences")):
+            if not isinstance(work, dict):
+                continue
+            work_profile = _match_industry(_text_blob(work, logic_analysis, resume.candidate_name))
+            if requested_industry["key"] != "general" and work_profile["key"] != requested_industry["key"]:
+                continue
+            capabilities = _string_list(work.get("capabilities"))
+            work_cases.append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "company": work.get("company") or "未命名公司",
+                    "role": work.get("role"),
+                    "summary": work.get("summary"),
+                    "capabilities": capabilities,
+                }
+            )
+            candidate = candidate_pool.setdefault(
+                str(resume.id),
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "logic_analysis": logic_analysis,
+                    "capabilities": set(),
+                    "case_count": 0,
+                },
+            )
+            candidate["case_count"] += 1
+            candidate["capabilities"].update(capabilities)
+
+    candidates = []
+    for item in candidate_pool.values():
+        candidates.append(
+            {
+                **item,
+                "capabilities": sorted(item["capabilities"])[:8],
+            }
+        )
+    candidates.sort(key=lambda item: item["case_count"], reverse=True)
+
+    return {
+        "industry": requested_industry["name"],
+        "industry_key": requested_industry["key"],
+        "solution_focus": requested_industry.get("solution_focus", []),
+        "offer_template": requested_industry.get("offer_template", ""),
+        "project_cases": project_cases[:16],
+        "work_cases": work_cases[:16],
+        "candidate_pool": candidates[:12],
+    }
+
+
+def _fallback_solution_response(request_data: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    business_type = str(request_data.get("business_type") or request_data.get("industry") or context.get("industry") or "当前业务").strip()
+    pain_points = _string_list(request_data.get("pain_points"))
+    goals = _string_list(request_data.get("goals"))
+    project_cases = context.get("project_cases") or []
+    work_cases = context.get("work_cases") or []
+    capabilities = []
+    for work in work_cases:
+        capabilities.extend(_string_list(work.get("capabilities")))
+    capabilities = list(dict.fromkeys(capabilities))[:8]
+
+    if not capabilities:
+        capabilities = _string_list(context.get("solution_focus"))[:6]
+
+    seeds = goals or [case.get("solution") or case.get("project_name") for case in project_cases[:3]]
+    if not seeds:
+        seeds = [f"{business_type}流程优化平台"]
+
+    recommended = []
+    for index, seed in enumerate(seeds[:3], start=1):
+        related = [
+            case.get("project_name")
+            for case in project_cases[:4]
+            if case.get("project_name")
+        ][:3]
+        recommended.append(
+            {
+                "name": str(seed).strip() or f"{business_type}方案 {index}",
+                "scenario": request_data.get("current_process") or "围绕现有业务流程做数字化和AI能力增强。",
+                "value": "减少人工整理与重复判断，把已有项目经验沉淀为可复用的系统能力。",
+                "related_cases": related,
+                "implementation_steps": [
+                    "梳理现有流程和关键数据来源",
+                    "选择一个高频痛点做最小可用版本",
+                    "接入人才库中的项目经验和业务规则",
+                    "用试点数据验证效率、准确率和交付成本",
+                ],
+            }
+        )
+
+    return {
+        "title": f"{business_type}智能方案草案",
+        "summary": context.get("offer_template") or "基于当前人才库、项目库和公司经历，形成可落地的业务优化方案。",
+        "recommended_solutions": recommended,
+        "needed_capabilities": capabilities,
+        "risks": [
+            "现有流程和数据口径需要进一步确认",
+            "方案价值需要通过真实项目数据验证",
+        ],
+        "next_questions": [
+            "当前业务流程里最耗人力的一步是什么？",
+            "哪些数据已经结构化沉淀，哪些还在文档或表格里？",
+            "希望先做内部提效工具，还是面向客户销售的产品？",
+        ] if not pain_points else [
+            f"针对“{pain_points[0]}”，现在有没有可量化的成本、时长或错误率？",
+            "第一期希望覆盖哪些角色和使用场景？",
+            "是否已有可接入的历史项目资料或客户案例？",
+        ],
+    }
+
+
+def generate_industry_solution_from_agent(db: Session, request_data: Dict[str, Any]) -> Dict[str, Any]:
+    context = _build_solution_agent_context(db, request_data)
+    payload = {
+        "user_profile": {
+            "industry": request_data.get("industry"),
+            "business_type": request_data.get("business_type"),
+            "current_process": request_data.get("current_process"),
+            "pain_points": _string_list(request_data.get("pain_points")),
+            "goals": _string_list(request_data.get("goals")),
+            "conversation": request_data.get("conversation") or [],
+        },
+        **context,
+    }
+
+    generated = generate_solution_agent_response(payload)
+    if not generated:
+        generated = _fallback_solution_response(request_data, context)
+
+    return {
+        "title": generated.get("title") or "行业智能体方案草案",
+        "summary": generated.get("summary") or "",
+        "recommended_solutions": _as_list(generated.get("recommended_solutions")),
+        "needed_capabilities": _string_list(generated.get("needed_capabilities")),
+        "risks": _string_list(generated.get("risks")),
+        "next_questions": _string_list(generated.get("next_questions")),
+        "knowledge_context": {
+            "industry": context["industry"],
+            "industry_key": context["industry_key"],
+            "project_count": len(context["project_cases"]),
+            "work_count": len(context["work_cases"]),
+            "candidate_count": len(context["candidate_pool"]),
+            "project_cases": context["project_cases"][:6],
+            "work_cases": context["work_cases"][:6],
+            "candidate_pool": context["candidate_pool"][:6],
+        },
+    }
+
+
 def summarize_resume_projects(
     db: Session,
     limit: int = 500,
@@ -666,12 +1150,13 @@ def summarize_resume_projects(
     query = (
         db.query(Resume)
         .filter(Resume.parsed_data.isnot(None))
-        .order_by(Resume.created_at.desc())
+        .order_by(Resume.created_at.desc(), Resume.id.desc())
     )
     if candidate_name:
         query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
 
     projects: List[Dict[str, Any]] = []
+    summary_items: List[Dict[str, Any]] = []
     for resume in query.limit(safe_limit).all():
         parsed_data = resume.parsed_data or {}
         landing_ideas = _as_list(parsed_data.get("startup_landing_ideas"))
@@ -680,7 +1165,15 @@ def summarize_resume_projects(
                 continue
             if missing_only and not _project_has_missing_business_evidence(project):
                 continue
-            projects.append(
+            industry = _structured_industry_for_item(project) or _match_industry_label(
+                _text_blob(
+                    project,
+                    landing_ideas,
+                    parsed_data.get("logic_analysis"),
+                    resume.candidate_name,
+                )
+            )
+            project_item = _with_industry_fields(
                 {
                     **project,
                     "resume_id": str(resume.id),
@@ -689,13 +1182,17 @@ def summarize_resume_projects(
                     "logic_analysis": parsed_data.get("logic_analysis"),
                     "landing_ideas": landing_ideas,
                     "created_at": resume.created_at.isoformat() if resume.created_at else None,
-                }
+                },
+                industry,
             )
+            projects.append(project_item)
+            summary_items.append({**project_item, "_summary_source": "project"})
 
     return {
         "resume_count": len({item["resume_id"] for item in projects}),
         "project_count": len(projects),
         "projects": projects,
+        "industry_summary": _industry_summary_from_items(summary_items),
     }
 
 
