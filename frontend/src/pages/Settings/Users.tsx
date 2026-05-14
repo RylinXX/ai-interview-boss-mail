@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Space, message, Tag, Modal, Form, Input, Select, Card, Typography, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
+import '../BusinessWorkbench.css';
 
 const { Title, Text } = Typography;
 
@@ -137,8 +138,8 @@ const UsersList: React.FC = () => {
   const getRoleTag = (role: string) => {
     const roleConfig: Record<string, { color: string; label: string }> = {
       admin: { color: 'red', label: '管理员' },
-      hr: { color: 'blue', label: 'HR' },
-      interviewer: { color: 'green', label: '面试官' },
+      hr: { color: 'gold', label: '方案成员' },
+      interviewer: { color: 'green', label: '审核成员' },
     };
     const config = roleConfig[role] || { color: 'default', label: role };
     return <Tag color={config.color}>{config.label}</Tag>;
@@ -208,13 +209,14 @@ const UsersList: React.FC = () => {
   ];
 
   return (
-    <div>
-      <div style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div>
-          <Title level={2} style={{ margin: 0 }}>用户管理</Title>
-          <Text type="secondary">管理系统用户及权限分配</Text>
+    <div className="settings-users-page workbench-page">
+      <section className="consulting-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">Access Control</span>
+          <Title level={1}>用户管理</Title>
+          <Text>管理内部顾问、管理员和方案审核成员，控制客户案卷与能力样本访问权限。</Text>
         </div>
-        <Space>
+        <Space className="consulting-hero-actions">
           {selectedRowKeys.length > 0 && (
             <>
               <span style={{ lineHeight: '32px' }}>已选 {selectedRowKeys.length} 项</span>
@@ -225,19 +227,21 @@ const UsersList: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={fetchUsers}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增用户</Button>
         </Space>
-      </div>
+      </section>
 
-      <Table
-        columns={columns}
-        dataSource={data}
-        loading={loading}
-        rowKey="id"
-        pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys),
-        }}
-      />
+      <Card className="consulting-table-card" title="内部成员">
+        <Table
+          columns={columns}
+          dataSource={data}
+          loading={loading}
+          rowKey="id"
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
+        />
+      </Card>
 
       <Modal
         title={isEditModal ? '编辑用户' : '新增用户'}
@@ -264,8 +268,8 @@ const UsersList: React.FC = () => {
           <Form.Item name="role" label="角色" initialValue="interviewer" rules={[{ required: true }]}>
             <Select>
               <Select.Option value="admin">管理员 (Admin)</Select.Option>
-              <Select.Option value="hr">HR</Select.Option>
-              <Select.Option value="interviewer">面试官 (Interviewer)</Select.Option>
+              <Select.Option value="hr">方案成员 (Consultant)</Select.Option>
+              <Select.Option value="interviewer">审核成员 (Reviewer)</Select.Option>
             </Select>
           </Form.Item>
         </Form>

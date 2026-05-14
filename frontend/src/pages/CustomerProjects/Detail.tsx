@@ -412,7 +412,7 @@ const CustomerProjectDetail: React.FC = () => {
             <Row gutter={[14, 14]}>
               <Col xs={24} md={8}>
                 <Text type="secondary">样本来源</Text>
-                <Paragraph>高级白领简历与项目经历库，用于沉淀行业打法、组织经验和可复用业务方法。</Paragraph>
+                <Paragraph>高级白领能力样本与项目经历库，用于沉淀行业打法、组织经验和可复用业务方法。</Paragraph>
               </Col>
               <Col xs={24} md={8}>
                 <Text type="secondary">当前项目行业</Text>

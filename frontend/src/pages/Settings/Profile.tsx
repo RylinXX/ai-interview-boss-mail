@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Card, Divider, Form, Input, Space, Typography, message } from 'antd';
 import request from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
+import '../BusinessWorkbench.css';
 
 const { Title, Text } = Typography;
 
@@ -53,14 +54,17 @@ const ProfileSettings: React.FC = () => {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: 32 }}>
-        <Title level={2} style={{ margin: 0 }}>个人设置</Title>
-        <Text type="secondary">更新你的个人资料与登录密码</Text>
-      </div>
+    <div className="settings-profile-page workbench-page">
+      <section className="consulting-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">Account</span>
+          <Title level={1}>个人设置</Title>
+          <Text>维护你的内部顾问资料、登录凭证和系统访问身份。</Text>
+        </div>
+      </section>
 
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Card title="个人资料" styles={{ body: { paddingTop: 8 } }}>
+      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+        <Card className="consulting-table-card" title="个人资料" styles={{ body: { paddingTop: 8 } }}>
           <Form form={profileForm} layout="vertical">
             <Form.Item label="邮箱" name="email">
               <Input disabled />
@@ -81,7 +85,7 @@ const ProfileSettings: React.FC = () => {
           </Form>
         </Card>
 
-        <Card title="修改密码" styles={{ body: { paddingTop: 8 } }}>
+        <Card className="consulting-table-card" title="修改密码" styles={{ body: { paddingTop: 8 } }}>
           <Form form={passwordForm} layout="vertical">
             <Form.Item
               label="当前密码"

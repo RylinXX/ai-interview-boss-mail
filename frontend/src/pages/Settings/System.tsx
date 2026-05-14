@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Button, Card, Form, Input, Space, Typography, message, Result, Switch, InputNumber, Divider, Tabs, Alert, Tag, Tooltip, Select, Table } from 'antd';
 import request from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
+import '../BusinessWorkbench.css';
 
 const { Title, Text } = Typography;
 
@@ -64,8 +65,10 @@ type PromptVariablesResponse = {
 };
 
 const promptNames: Record<string, string> = {
-  analyze_resume_intelligence: '简历智能分析',
-  generate_resume_markdown: '简历Markdown生成',
+  analyze_resume_intelligence: '能力样本智能分析',
+  analyze_resume_intelligence_from_document: 'PDF直读样本分析',
+  analyze_resume_positioning: '能力样本定位标签分析',
+  generate_resume_markdown: '能力样本Markdown生成',
   analyze_resume: '旧版人岗匹配分析',
 };
 
@@ -134,7 +137,7 @@ const SystemSettingsPage: React.FC = () => {
         smtp_username: res.smtp_username || undefined,
         smtp_password: '',
         mail_from: res.mail_from || undefined,
-        mail_from_name: res.mail_from_name || '招聘系统',
+        mail_from_name: res.mail_from_name || 'Qylin Intelligence',
         mail_enabled: res.mail_enabled || false,
         frontend_url: res.frontend_url || undefined,
       });
@@ -169,7 +172,7 @@ const SystemSettingsPage: React.FC = () => {
         mark_success_read: res.mark_success_read,
       });
     } catch (e) {
-      message.error('获取简历邮箱导入配置失败');
+      message.error('获取能力样本邮箱导入配置失败');
     } finally {
       setResumeMailLoading(false);
     }
@@ -203,9 +206,9 @@ const SystemSettingsPage: React.FC = () => {
       await request.put('/settings/resume-mail-import', payload);
       resumeMailForm.setFieldsValue({ password: '' });
       await fetchResumeMailSettings();
-      message.success('简历邮箱导入配置已保存');
+      message.success('能力样本邮箱导入配置已保存');
     } catch (e) {
-      message.error((e as any)?.response?.data?.detail || '保存简历邮箱导入配置失败');
+      message.error((e as any)?.response?.data?.detail || '保存能力样本邮箱导入配置失败');
     } finally {
       setResumeMailSaving(false);
     }
@@ -339,7 +342,7 @@ const SystemSettingsPage: React.FC = () => {
         smtp_port: values.smtp_port || 465,
         smtp_username: values.smtp_username || null,
         mail_from: values.mail_from || null,
-        mail_from_name: values.mail_from_name || '招聘系统',
+        mail_from_name: values.mail_from_name || 'Qylin Intelligence',
         mail_enabled: values.mail_enabled || false,
         frontend_url: values.frontend_url || null,
       };
@@ -494,8 +497,8 @@ const SystemSettingsPage: React.FC = () => {
     const labels: Record<string, string> = {
       imported: '已导入',
       skipped_duplicate_message: '重复邮件',
-      skipped_duplicate_attachment: '重复简历',
-      skipped_duplicate_candidate: '重复候选人',
+      skipped_duplicate_attachment: '重复样本',
+      skipped_duplicate_candidate: '重复人员',
       skipped_no_attachment: '无附件',
       skipped_unsupported_attachment: '格式不支持',
       failed_connection: '连接失败',
@@ -547,13 +550,17 @@ const SystemSettingsPage: React.FC = () => {
   ];
 
   return (
-    <div>
-      <div style={{ marginBottom: 32 }}>
-        <Title level={2} style={{ margin: 0 }}>系统设置</Title>
-        <Text type="secondary">配置 AI 模型、邮件服务和提示词参数（仅管理员）</Text>
-      </div>
+    <div className="settings-system-page workbench-page">
+      <section className="consulting-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">System Control</span>
+          <Title level={1}>系统设置</Title>
+          <Text>配置 AI 模型、邮件服务、样本导入和提示词参数，保证方案生成与 AI 员工交付可用。</Text>
+        </div>
+      </section>
 
       <Card
+        className="consulting-table-card"
         title="模型配置"
         loading={loading}
         extra={
@@ -621,6 +628,7 @@ const SystemSettingsPage: React.FC = () => {
       <Divider />
 
       <Card
+        className="consulting-table-card"
         title="邮件服务配置"
         loading={mailLoading}
         extra={
@@ -636,7 +644,7 @@ const SystemSettingsPage: React.FC = () => {
             name="mail_enabled"
             label="启用邮件通知"
             valuePropName="checked"
-            extra={<Text type="secondary">保留 SMTP 配置，后续可用于发送简历分析报告或项目评估摘要</Text>}
+            extra={<Text type="secondary">保留 SMTP 配置，后续可用于发送能力样本分析报告或项目评估摘要</Text>}
           >
             <Switch checkedChildren="开启" unCheckedChildren="关闭" />
           </Form.Item>
@@ -716,7 +724,7 @@ const SystemSettingsPage: React.FC = () => {
             name="mail_from_name"
             label="发件人名称"
           >
-            <Input placeholder="例如：招聘系统" autoComplete="off" />
+            <Input placeholder="例如：Qylin Intelligence" autoComplete="off" />
           </Form.Item>
 
           <Form.Item
@@ -732,6 +740,7 @@ const SystemSettingsPage: React.FC = () => {
       <Divider />
 
       <Card
+        className="consulting-table-card"
         title="提示词配置"
         loading={promptLoading}
         extra={
@@ -750,7 +759,8 @@ const SystemSettingsPage: React.FC = () => {
       <Divider />
 
       <Card
-        title="简历邮箱导入"
+        className="consulting-table-card"
+        title="能力样本邮箱导入"
         loading={resumeMailLoading}
         extra={
           <Space wrap>

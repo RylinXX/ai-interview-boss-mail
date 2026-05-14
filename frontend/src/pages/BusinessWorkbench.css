@@ -427,7 +427,6 @@ textarea.solution-document-editor {
 
 @media (max-width: 980px) {
   .consulting-hero,
-  .consulting-metric-grid,
   .dossier-header,
   .strategy-brief-grid,
   .task-card-head,
@@ -435,8 +434,18 @@ textarea.solution-document-editor {
     grid-template-columns: 1fr;
   }
 
+  .consulting-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .consulting-hero-actions,
   .dossier-header-actions {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .consulting-metric-grid {
+    grid-template-columns: 1fr;
   }
 }

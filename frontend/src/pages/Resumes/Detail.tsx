@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { getMaximizedPdfPreviewUrl } from '../../utils/pdfPreview';
+import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -29,7 +30,7 @@ const QuestionList = ({ title, data }: { title: string; data: any[] }) => (
             <List.Item.Meta
               title={item.question || item.title || '问题'}
               description={
-                <Space direction="vertical" size={4}>
+                <Space orientation="vertical" size={4}>
                   {item.target_experience && <Text type="secondary">关联经历：{item.target_experience}</Text>}
                   {item.target_project && <Text type="secondary">关联项目：{item.target_project}</Text>}
                   {item.purpose && <Text>{item.purpose}</Text>}
@@ -61,7 +62,7 @@ const ResumeDetail: React.FC = () => {
       const res = await request.get(`/resumes/${id}`) as any;
       setResume(res);
     } catch (error) {
-      message.error('获取简历详情失败');
+      message.error('获取能力样本详情失败');
     } finally {
       setLoading(false);
     }
@@ -94,8 +95,8 @@ const ResumeDetail: React.FC = () => {
 
   const handleReparse = () => {
     Modal.confirm({
-      title: '重新分析简历',
-      content: '将重新调用模型读取简历，并覆盖现有经历抽取、问题和评估结果。',
+      title: '重新分析能力样本',
+      content: '将重新调用模型读取能力样本，并覆盖现有经历抽取、问题和评估结果。',
       okText: '重新分析',
       cancelText: '取消',
       onOk: async () => {
@@ -119,7 +120,7 @@ const ResumeDetail: React.FC = () => {
 
       const opt = {
         margin: [15, 15, 15, 15],
-        filename: `简历分析报告_${resume.candidate_name || '候选人'}_${resume.id}.pdf`,
+        filename: `能力样本分析报告_${resume.candidate_name || '样本'}_${resume.id}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
@@ -147,7 +148,7 @@ const ResumeDetail: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `简历分析报告_${resume.candidate_name || '候选人'}_${resume.id}.md`;
+      link.download = `能力样本分析报告_${resume.candidate_name || '样本'}_${resume.id}.md`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -193,7 +194,7 @@ const ResumeDetail: React.FC = () => {
   ];
 
   return (
-    <div className="resume-detail-page">
+    <div className="resume-detail-page workbench-page">
       <div className="resume-detail-toolbar">
         <Space style={{ justifyContent: 'space-between', width: '100%' }}>
           <Space>
@@ -225,8 +226,8 @@ const ResumeDetail: React.FC = () => {
         <Card className="resume-preview-pane" styles={{ body: { padding: 0 } }}>
           <div className="resume-preview-head">
             <div>
-              <Text type="secondary">原始简历</Text>
-              <Title level={5}>{resume.candidate_name || '未识别候选人'}</Title>
+              <Text type="secondary">原始能力样本</Text>
+              <Title level={5}>{resume.candidate_name || '未识别样本'}</Title>
             </div>
             <FilePdfOutlined />
           </div>
@@ -247,7 +248,7 @@ const ResumeDetail: React.FC = () => {
             <div className="resume-profile-hero">
               <Space align="start" style={{ justifyContent: 'space-between', width: '100%' }}>
                 <div>
-                  <Text type="secondary">候选人</Text>
+                  <Text type="secondary">能力样本</Text>
                   <Title level={2} style={{ margin: 0 }}>{resume.candidate_name || '未识别'}</Title>
                   <Text type="secondary">{resume.email || resume.contact || '暂无联系方式'}</Text>
                 </div>
@@ -312,7 +313,7 @@ const ResumeDetail: React.FC = () => {
                     <List.Item.Meta
                       title={<Space><span>{item.company || '未命名公司'}</span><Tag>{item.role || '角色未明'}</Tag></Space>}
                       description={
-                        <Space direction="vertical" size={4}>
+                            <Space orientation="vertical" size={4}>
                           {item.period && <Text type="secondary">{item.period}</Text>}
                           <Paragraph>{item.summary}</Paragraph>
                           {asArray(item.capabilities).length > 0 && (
@@ -338,7 +339,7 @@ const ResumeDetail: React.FC = () => {
                     <List.Item.Meta
                       title={item.name || '未命名项目'}
                       description={
-                        <Space direction="vertical" size={6}>
+                        <Space orientation="vertical" size={6}>
                           {item.role && <Text type="secondary">角色：{item.role}</Text>}
                           {item.problem && <Text>问题：{item.problem}</Text>}
                           {item.solution && <Text>方案：{item.solution}</Text>}
@@ -361,7 +362,7 @@ const ResumeDetail: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={24}>
-              <QuestionList title="针对经历的面试追问" data={interviewQuestions} />
+              <QuestionList title="针对经历的业务追问" data={interviewQuestions} />
             </Col>
             <Col span={24}>
               <QuestionList title="商业模式解释问题" data={businessQuestions} />

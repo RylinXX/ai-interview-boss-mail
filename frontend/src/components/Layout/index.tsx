@@ -131,8 +131,8 @@ const AppLayout: React.FC = () => {
       });
       addNotification(nextItems, {
         key: 'mail-disabled',
-        title: '邮箱导入未启用',
-        description: 'BOSS 邮件里的简历附件不会自动进入系统',
+        title: '样本邮箱导入未启用',
+        description: '外部能力样本附件不会自动进入样本库',
         count: mailSettings && !mailSettings.mail_enabled ? 1 : 0,
         path: '/settings/system',
         tone: 'info',
@@ -159,8 +159,8 @@ const AppLayout: React.FC = () => {
     if (item.action === 'reparse-failed-resumes') {
       setNotificationOpen(false);
       Modal.confirm({
-        title: '批量重新解析失败简历',
-        content: `将把当前 ${item.count} 份解析失败的简历重新提交到模型解析队列。`,
+        title: '批量重新解析失败样本',
+        content: `将把当前 ${item.count} 份解析失败的能力样本重新提交到模型解析队列。`,
         okText: '开始重新解析',
         cancelText: '取消',
         onOk: async () => {
@@ -168,7 +168,7 @@ const AppLayout: React.FC = () => {
             const res = await request.post('/resumes/reparse-failed', undefined, {
               params: { limit: item.count },
             }) as any;
-            message.success(`已提交 ${res.queued_count || 0} 份简历重新解析`);
+            message.success(`已提交 ${res.queued_count || 0} 份能力样本重新解析`);
             navigate('/resumes');
             await fetchNotifications();
           } catch (error) {
@@ -188,7 +188,7 @@ const AppLayout: React.FC = () => {
       <div className="notification-panel-head">
         <div>
           <strong>通知中心</strong>
-          <span>{lastNotificationSync ? `更新于 ${lastNotificationSync}` : '简历智能分析状态'}</span>
+          <span>{lastNotificationSync ? `更新于 ${lastNotificationSync}` : '能力样本与交付状态'}</span>
         </div>
         <Button
           type="text"

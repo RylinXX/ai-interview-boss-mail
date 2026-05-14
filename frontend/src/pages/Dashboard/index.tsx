@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Empty, Input, Progress, Row, Segmented, Space, Spin, Table, Tag, Typography } from 'antd';
-import { BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { App, Button, Card, Col, Empty, Input, Row, Segmented, Select, Space, Spin, Table, Tag, Typography } from 'antd';
+import { ApartmentOutlined, BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import request from '../../utils/request';
+import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -10,12 +11,24 @@ type ExperienceSummary = {
   work_experiences: any[];
   project_experiences: any[];
   logic_analyses: any[];
+  industry_summary?: IndustrySummary[];
 };
 
 type ProjectLibrary = {
   resume_count: number;
   project_count: number;
   projects: any[];
+  industry_summary?: IndustrySummary[];
+};
+
+type IndustrySummary = {
+  industry_key: string;
+  industry_label: string;
+  industry_color?: string;
+  resume_count: number;
+  project_count: number;
+  work_count?: number;
+  company_count?: number;
 };
 
 const projectHasBusinessGap = (project: any) => {
@@ -44,6 +57,10 @@ const valuesMatchKeyword = (values: any[], keyword: string) => {
   return values.some(value => String(value || '').toLowerCase().includes(keyword));
 };
 
+const itemMatchesIndustry = (item: any, industryKey: string) => {
+  return industryKey === 'all' || item.industry_key === industryKey;
+};
+
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const [resumes, setResumes] = useState<any[]>([]);
@@ -53,6 +70,7 @@ const Dashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
+  const [industryScope, setIndustryScope] = useState('all');
   const [candidateKeyword, setCandidateKeyword] = useState('');
   const [workKeyword, setWorkKeyword] = useState('');
 
@@ -72,7 +90,7 @@ const Dashboard: React.FC = () => {
       setSummary(summaryRes as ExperienceSummary);
       setProjectLibrary(projectRes as ProjectLibrary);
     } catch (error) {
-      message.error('获取分析仪表盘失败');
+      message.error('获取方案工作台失败');
     } finally {
       if (initialLoad) {
         setLoading(false);
@@ -87,37 +105,50 @@ const Dashboard: React.FC = () => {
   }, [fetchData]);
 
   const projects = projectLibrary?.projects || [];
+  const industrySummary = summary?.industry_summary || projectLibrary?.industry_summary || [];
+  const activeIndustry = industrySummary.find(item => item.industry_key === industryScope);
   const normalizedKeyword = projectKeyword.trim().toLowerCase();
   const normalizedCandidateKeyword = candidateKeyword.trim().toLowerCase();
   const normalizedWorkKeyword = workKeyword.trim().toLowerCase();
   const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
+  const industryOptions = [
+    { label: `全部行业（${industrySummary.length || '不限'}）`, value: 'all' },
+    ...industrySummary.map(item => ({
+      label: `${item.industry_label}（${item.resume_count} 人 / ${item.project_count} 项目）`,
+      value: item.industry_key,
+    })),
+  ];
   const filteredProjects = useMemo(
     () => projects
+      .filter(project => itemMatchesIndustry(project, industryScope))
       .filter(project => (projectScope === 'gaps' ? projectHasBusinessGap(project) : true))
       .filter(project => projectMatchesKeyword(project, normalizedKeyword))
       .map((project, index) => ({
         ...project,
         _rowKey: `${project.resume_id || 'resume'}-${project.name || 'project'}-${project.role || 'role'}-${index}`,
       })),
-    [normalizedKeyword, projectScope, projects],
+    [industryScope, normalizedKeyword, projectScope, projects],
   );
   const candidateRows = useMemo(
     () => (summary?.logic_analyses || [])
+      .filter(item => itemMatchesIndustry(item, industryScope))
       .filter(item => valuesMatchKeyword([item.candidate_name, item.analysis], normalizedCandidateKeyword))
       .map((item, index) => ({ ...item, _rowKey: `${item.resume_id || 'candidate'}-${index}` })),
-    [normalizedCandidateKeyword, summary?.logic_analyses],
+    [industryScope, normalizedCandidateKeyword, summary?.logic_analyses],
   );
   const workRows = useMemo(
     () => (summary?.work_experiences || [])
+      .filter(item => itemMatchesIndustry(item, industryScope))
       .filter(item => valuesMatchKeyword([
         item.candidate_name,
         item.company,
         item.role,
         item.summary,
+        item.industry_label,
         ...(Array.isArray(item.capabilities) ? item.capabilities : []),
       ], normalizedWorkKeyword))
       .map((item, index) => ({ ...item, _rowKey: `${item.resume_id || 'work'}-${item.company || 'company'}-${index}` })),
-    [normalizedWorkKeyword, summary?.work_experiences],
+    [industryScope, normalizedWorkKeyword, summary?.work_experiences],
   );
 
   if (loading) {
@@ -131,13 +162,6 @@ const Dashboard: React.FC = () => {
   const analyzed = resumes.filter(item => item.parse_status === 'success').length;
   const processing = resumes.filter(item => item.parse_status === 'processing').length;
   const failed = resumes.filter(item => item.parse_status === 'failed').length;
-  const questions = resumes.reduce((sum, item) => {
-    const parsed = item.parsed_data || {};
-    return sum
-      + (Array.isArray(parsed.interview_questions) ? parsed.interview_questions.length : 0)
-      + (Array.isArray(parsed.business_model_questions) ? parsed.business_model_questions.length : 0)
-      + (Array.isArray(parsed.experience_completion_questions) ? parsed.experience_completion_questions.length : 0);
-  }, 0);
   const completionRate = resumes.length ? Math.round((analyzed / resumes.length) * 100) : 0;
 
   const renderProjectDetail = (record: any) => (
@@ -177,7 +201,7 @@ const Dashboard: React.FC = () => {
         )}
       </div>
       <div>
-        <Text type="secondary">候选人逻辑</Text>
+        <Text type="secondary">能力样本逻辑</Text>
         <Paragraph>{record.logic_analysis || '暂无逻辑分析'}</Paragraph>
       </div>
     </div>
@@ -188,12 +212,13 @@ const Dashboard: React.FC = () => {
       title: '项目',
       dataIndex: 'name',
       key: 'name',
-      width: '28%',
+      width: '24%',
       render: (text: string, record: any) => (
         <div className="project-title-cell">
           <Text strong>{text || '未命名项目'}</Text>
           <div>
-            <Tag color="blue">{record.candidate_name || '未识别候选人'}</Tag>
+            <Tag color={record.industry_color || 'default'}>{record.industry_label || '通用业务'}</Tag>
+            <Tag>{record.candidate_name || '未识别样本'}</Tag>
             {record.role && <Tag>{record.role}</Tag>}
           </div>
         </div>
@@ -235,11 +260,16 @@ const Dashboard: React.FC = () => {
 
   const candidateColumns = [
     {
-      title: '候选人',
+      title: '样本',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
-      width: 180,
-      render: (value: string) => <Text strong>{value || '未识别候选人'}</Text>,
+      width: 220,
+      render: (value: string, record: any) => (
+        <Space orientation="vertical" size={6}>
+          <Text strong>{value || '未识别样本'}</Text>
+          <Tag color={record.industry_color || 'default'}>{record.industry_label || '通用业务'}</Tag>
+        </Space>
+      ),
     },
     {
       title: '底层逻辑分析',
@@ -255,20 +285,21 @@ const Dashboard: React.FC = () => {
 
   const workColumns = [
     {
-      title: '候选人',
+      title: '样本',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
       width: 160,
-      render: (value: string) => <Text strong>{value || '未识别候选人'}</Text>,
+      render: (value: string) => <Text strong>{value || '未识别样本'}</Text>,
     },
     {
       title: '公司/角色',
       key: 'company_role',
-      width: 260,
+      width: 300,
       render: (_: any, record: any) => (
         <div className="work-title-cell">
           <Text strong>{record.company || '未命名公司'}</Text>
           <Text type="secondary">{record.role || '角色未明'}</Text>
+          <Tag color={record.industry_color || 'default'}>{record.industry_label || '通用业务'}</Tag>
         </div>
       ),
     },
@@ -297,66 +328,93 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <Title level={2}>分析仪表盘</Title>
-          <Text type="secondary">从所有简历中汇总项目经历、商业模式缺口、处理队列和候选人的底层逻辑信号。</Text>
+    <div className="workbench-page dashboard-page">
+      <section className="consulting-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">Command Center</span>
+          <Title level={1}>方案工作台</Title>
+          <Text>从高级人才样本中汇总项目经历、公司经历和能力逻辑，用行业标签支撑客户方案判断。</Text>
         </div>
+        <Space className="consulting-hero-actions">
+          <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新</Button>
+        </Space>
+      </section>
+
+      <div className="consulting-metric-grid">
+        <Card className="consulting-metric-card">
+          <span className="metric-icon"><FileTextOutlined /></span>
+          <Text type="secondary">能力样本</Text>
+          <strong>{resumes.length}</strong>
+          <span>已入库高级人才样本</span>
+        </Card>
+        <Card className="consulting-metric-card">
+          <span className="metric-icon"><ProjectOutlined /></span>
+          <Text type="secondary">项目经历</Text>
+          <strong>{projectLibrary?.project_count || 0}</strong>
+          <span>可复用业务素材</span>
+        </Card>
+        <Card className="consulting-metric-card">
+          <span className="metric-icon"><QuestionCircleOutlined /></span>
+          <Text type="secondary">商业缺口</Text>
+          <strong>{missingBusinessCount}</strong>
+          <span>待补齐方案证据</span>
+        </Card>
+        <Card className="consulting-metric-card">
+          <span className="metric-icon"><BulbOutlined /></span>
+          <Text type="secondary">分析完成率</Text>
+          <strong>{completionRate}%</strong>
+          <span>成功 {analyzed} / 处理中 {processing} / 失败 {failed}</span>
+        </Card>
       </div>
 
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Card>
-            <Space align="start">
-              <FileTextOutlined style={{ fontSize: 22, color: '#2563EB' }} />
-              <div>
-                <Text type="secondary">简历总数</Text>
-                <Title level={2}>{resumes.length}</Title>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Space align="start">
-              <ProjectOutlined style={{ fontSize: 22, color: '#059669' }} />
-              <div>
-                <Text type="secondary">项目经历</Text>
-                <Title level={2}>{projectLibrary?.project_count || 0}</Title>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Space align="start">
-              <QuestionCircleOutlined style={{ fontSize: 22, color: '#D97706' }} />
-              <div>
-                <Text type="secondary">商业缺口</Text>
-                <Title level={2}>{missingBusinessCount}</Title>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Space align="center">
-              <Progress type="circle" percent={completionRate} size={62} />
-              <div>
-                <Text type="secondary">分析完成率</Text>
-                <div><Text>成功 {analyzed} / 处理中 {processing} / 失败 {failed}</Text></div>
-                <Text type="secondary">已生成问题 {questions} 个</Text>
-              </div>
-            </Space>
-          </Card>
-        </Col>
-      </Row>
+      <Card
+        className="industry-overview-card consulting-table-card"
+        title="行业标签总览"
+        extra={
+          <Select
+            value={industryScope}
+            onChange={setIndustryScope}
+            options={industryOptions}
+            popupMatchSelectWidth={false}
+            className="industry-filter-select"
+          />
+        }
+      >
+        {industrySummary.length ? (
+          <div className="industry-overview-grid">
+            {industrySummary.map(item => {
+              const active = industryScope === item.industry_key;
+              return (
+                <button
+                  key={item.industry_key}
+                  type="button"
+                  className={`industry-overview-item${active ? ' active' : ''}`}
+                  onClick={() => setIndustryScope(active ? 'all' : item.industry_key)}
+                >
+                  <span>
+                    <ApartmentOutlined />
+                    <Tag color={item.industry_color || 'default'}>{item.industry_label}</Tag>
+                  </span>
+                  <strong>{item.resume_count} 人</strong>
+                  <em>{item.project_count} 项目 · {item.company_count || 0} 公司</em>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无行业标签" />
+        )}
+        {activeIndustry && (
+          <Text type="secondary" className="industry-active-hint">
+            当前查看：{activeIndustry.industry_label}，下方项目库、能力样本库和工作经验库已同步筛选。
+          </Text>
+        )}
+      </Card>
 
       <Row gutter={[16, 16]}>
         <Col span={24}>
           <Card
-            className="project-library-card"
+            className="project-library-card consulting-table-card"
             title="项目经验库"
             extra={<Text type="secondary">显示 {filteredProjects.length} / {projects.length}</Text>}
           >
@@ -364,9 +422,16 @@ const Dashboard: React.FC = () => {
               <Input
                 allowClear
                 prefix={<SearchOutlined />}
-                placeholder="搜索项目、候选人、商业模式"
+                placeholder="搜索项目、样本、商业模式"
                 value={projectKeyword}
                 onChange={(event) => setProjectKeyword(event.target.value)}
+              />
+              <Select
+                value={industryScope}
+                onChange={setIndustryScope}
+                options={industryOptions}
+                popupMatchSelectWidth={false}
+                className="industry-filter-select"
               />
               <Segmented
                 value={projectScope}
@@ -399,18 +464,19 @@ const Dashboard: React.FC = () => {
         </Col>
         <Col span={24}>
           <Card
-            title="候选人库"
+            className="consulting-table-card"
+            title="能力样本库"
             extra={<Text type="secondary">显示 {candidateRows.length} / {summary?.logic_analyses.length || 0}</Text>}
           >
             <div className="dashboard-library-toolbar">
               <Input
                 allowClear
                 prefix={<SearchOutlined />}
-                placeholder="搜索候选人或底层逻辑"
+                placeholder="搜索样本或底层逻辑"
                 value={candidateKeyword}
                 onChange={(event) => setCandidateKeyword(event.target.value)}
               />
-              <BulbOutlined />
+              <Text type="secondary"><BulbOutlined /> 按行业标签和能力逻辑查找可复用经验</Text>
             </div>
             {candidateRows.length ? (
               <Table
@@ -420,13 +486,14 @@ const Dashboard: React.FC = () => {
                 pagination={{ pageSize: 6, showSizeChanger: false }}
               />
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无候选人逻辑" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无能力样本逻辑" />
             )}
           </Card>
         </Col>
       </Row>
 
       <Card
+        className="consulting-table-card"
         title="工作经验库"
         style={{ marginTop: 16 }}
         extra={<Text type="secondary">显示 {workRows.length} / {summary?.work_experiences.length || 0}</Text>}
@@ -435,7 +502,7 @@ const Dashboard: React.FC = () => {
           <Input
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="搜索候选人、公司、角色或经历"
+            placeholder="搜索样本、公司、角色、行业或经历"
             value={workKeyword}
             onChange={(event) => setWorkKeyword(event.target.value)}
           />

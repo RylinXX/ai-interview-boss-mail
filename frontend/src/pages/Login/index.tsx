@@ -72,10 +72,10 @@ const Login: React.FC = () => {
           <span>Qylin Intelligence</span>
         </div>
         <div className="login-copy">
-          <Text className="eyebrow">Resume Intelligence Console</Text>
-          <Title level={1}>把收集到的简历变成项目经验和商业判断素材库</Title>
+          <Text className="eyebrow">Business Transformation OS</Text>
+          <Title level={1}>AI 产品经理的咨询交付工作台</Title>
           <Text>
-            直读简历文件，抽取工作经历和项目经历，生成追问、商业模式解释问题、项目评估和创业落地方案。
+            从客户诊断、方案文档到 AI 员工执行，把高级人才能力样本转化为企业业务优化方案。
           </Text>
         </div>
 
@@ -87,14 +87,14 @@ const Login: React.FC = () => {
           </div>
           <div className="preview-grid">
             <div className="preview-kpi">
-              <span>已分析简历</span>
+              <span>客户案卷</span>
               <strong>128</strong>
-              <em>持续入库</em>
+              <em>持续交付</em>
             </div>
             <div className="preview-kpi accent">
-              <span>项目经历</span>
+              <span>能力样本</span>
               <strong>346</strong>
-              <em>可追问</em>
+              <em>可背书</em>
             </div>
           </div>
           <div className="preview-chart" aria-hidden="true">
@@ -106,7 +106,7 @@ const Login: React.FC = () => {
             <i style={{ height: '82%' }} />
           </div>
           <div className="preview-pipeline">
-            {['简历直读', '经历抽取', '商业追问', '落地评估'].map((item, index) => (
+            {['客户诊断', '方案设计', 'AI 执行', '交付复盘'].map((item, index) => (
               <div key={item}>
                 <span>{index + 1}</span>
                 <strong>{item}</strong>
@@ -116,9 +116,9 @@ const Login: React.FC = () => {
         </div>
 
         <div className="login-trust-row">
-          <span><SafetyCertificateOutlined /> 权限分级</span>
-          <span><LineChartOutlined /> 项目分析</span>
-          <span><ClusterOutlined /> 经验沉淀</span>
+          <span><SafetyCertificateOutlined /> 能力样本背书</span>
+          <span><LineChartOutlined /> 业务诊断</span>
+          <span><ClusterOutlined /> AI 员工交付</span>
         </div>
       </section>
 
