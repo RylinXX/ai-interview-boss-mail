@@ -85,6 +85,14 @@ const statusColor: Record<string, string> = {
   blocked: 'error',
 };
 
+const taskStatusLabel: Record<string, string> = {
+  todo: '待执行',
+  in_progress: '执行中',
+  review: '待验收',
+  done: '已完成',
+  blocked: '已阻塞',
+};
+
 const projectStatusLabel: Record<string, string> = {
   draft: '草稿',
   diagnosing: '诊断中',
@@ -185,6 +193,9 @@ const CustomerProjectDetail: React.FC = () => {
     try {
       const run = await request.post(`/project-tasks/${taskId}/ai-runs`);
       setSelectedRun(run as AIEmployeeRun);
+      setTasks(prev => prev.map(task => (
+        task.id === taskId ? { ...task, status: 'in_progress' } : task
+      )));
       message.success('AI 员工已生成草稿');
     } catch (error) {
       message.error(getApiErrorMessage(error, 'AI 员工执行失败'));
@@ -452,7 +463,9 @@ const CustomerProjectDetail: React.FC = () => {
                             <Text type="secondary">{task.description}</Text>
                           </div>
                           <Space wrap>
-                            <Tag color={statusColor[task.status] || 'default'}>{task.status}</Tag>
+                            <Tag color={statusColor[task.status] || 'default'}>
+                              {taskStatusLabel[task.status] || task.status}
+                            </Tag>
                             <Tag icon={<RobotOutlined />}>{employeeLabel[task.ai_employee_type || ''] || 'AI 员工'}</Tag>
                           </Space>
                         </div>
@@ -462,9 +475,10 @@ const CustomerProjectDetail: React.FC = () => {
                           size="small"
                           icon={<PlayCircleOutlined />}
                           loading={runningTaskId === task.id}
+                          disabled={task.status === 'done'}
                           onClick={() => runEmployee(task.id)}
                         >
-                          生成交付草稿
+                          {task.status === 'done' ? '已验收写入方案' : task.output?.draft ? '重新生成草稿' : '生成交付草稿'}
                         </Button>
                       </div>
                     ))}

@@ -367,6 +367,10 @@ textarea.solution-document-editor {
   gap: 16px;
 }
 
+.employee-metric-grid {
+  margin-bottom: 18px;
+}
+
 .employee-role-card {
   min-height: 260px;
   border-color: #e5ddcf;
@@ -414,6 +418,29 @@ textarea.solution-document-editor {
   margin-top: 3px;
 }
 
+.employee-role-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.employee-role-stats span {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fbf7ef;
+  color: #667085;
+  font-size: 12px;
+}
+
+.employee-role-stats strong {
+  color: #142136;
+  font-size: 22px;
+  line-height: 1;
+}
+
 .employee-role-footer {
   display: flex;
   align-items: center;
@@ -423,6 +450,14 @@ textarea.solution-document-editor {
   border-top: 1px solid #ece4d7;
   color: #667085;
   font-size: 13px;
+}
+
+.employee-role-footer span {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {

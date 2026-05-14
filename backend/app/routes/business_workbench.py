@@ -9,6 +9,7 @@ from app.config.database import get_db
 from app.models.models import AIEmployeeRun, User
 from app.routes.auth import get_current_user
 from app.schemas.business_workbench import (
+    AgentSolutionProjectCreate,
     AIEmployeeResponse,
     AIEmployeeRunResponse,
     CapabilitySampleResponse,
@@ -41,6 +42,15 @@ def create_project_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.create_customer_project(db, payload, current_user.id)
+
+
+@router.post("/customer-projects/from-agent-solution", response_model=CustomerProjectResponse)
+def create_project_from_agent_solution_route(
+    payload: AgentSolutionProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.create_customer_project_from_agent_solution(db, payload, current_user.id)
 
 
 @router.get("/customer-projects/{project_id}", response_model=CustomerProjectResponse)
@@ -163,8 +173,11 @@ def list_capability_samples_route(
 
 
 @router.get("/ai-employees", response_model=List[AIEmployeeResponse])
-def list_ai_employees_route(current_user: User = Depends(get_current_user)):
-    return service.list_ai_employees()
+def list_ai_employees_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.list_ai_employees(db)
 
 
 @router.post("/project-tasks/{task_id}/ai-runs", response_model=AIEmployeeRunResponse)

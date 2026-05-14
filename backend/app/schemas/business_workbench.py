@@ -28,6 +28,15 @@ class CustomerProjectCreate(BaseModel):
     goals: List[str] = []
 
 
+class AgentSolutionProjectCreate(BaseModel):
+    industry: Optional[str] = None
+    business_type: Optional[str] = None
+    current_process: Optional[str] = None
+    pain_points: List[str] = []
+    goals: List[str] = []
+    solution: Dict[str, Any]
+
+
 class CustomerProjectUpdate(BaseModel):
     name: Optional[str] = None
     industry: Optional[str] = None
@@ -88,6 +97,11 @@ class AIEmployeeResponse(BaseModel):
     responsibility: str
     output_template: str
     status: str = "available"
+    ready_task_count: int = 0
+    accepted_run_count: int = 0
+    next_task_id: Optional[UUID] = None
+    next_project_id: Optional[UUID] = None
+    latest_project_name: Optional[str] = None
 
 
 class AIEmployeeRunResponse(BaseModel):

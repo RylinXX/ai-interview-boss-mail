@@ -10,6 +10,7 @@ import {
   SendOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
 import '../BusinessWorkbench.css';
 
@@ -44,10 +45,12 @@ const safeFileName = (value: string) => value.replace(/[\\/:*?"<>|]/g, '_').slic
 
 const IndustryAgent: React.FC = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [form] = Form.useForm();
   const [data, setData] = useState<IndustryAgentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
   const [solution, setSolution] = useState<AgentSolution | null>(null);
 
   useEffect(() => {
@@ -141,6 +144,28 @@ const IndustryAgent: React.FC = () => {
     }
   };
 
+  const createProjectFromSolution = async () => {
+    if (!solution) return;
+    const values = await form.validateFields();
+    setCreatingProject(true);
+    try {
+      const project = await request.post('/customer-projects/from-agent-solution', {
+        industry: values.industry,
+        business_type: values.business_type,
+        current_process: values.current_process,
+        pain_points: splitLines(values.pain_points),
+        goals: splitLines(values.goals),
+        solution,
+      });
+      message.success('客户项目案卷已生成，诊断与任务板已同步创建');
+      navigate(`/customer-projects/${project.id}`);
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '生成客户项目案卷失败'));
+    } finally {
+      setCreatingProject(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
@@ -158,6 +183,14 @@ const IndustryAgent: React.FC = () => {
           <Text>把高级人才样本中的项目、公司经历和能力标签作为知识库，补充客户业务信息后生成可落地方案。</Text>
         </div>
         <Space className="consulting-hero-actions">
+          <Button
+            icon={<ProjectOutlined />}
+            disabled={!solution}
+            loading={creatingProject}
+            onClick={createProjectFromSolution}
+          >
+            生成客户案卷
+          </Button>
           <Button type="primary" icon={<SendOutlined />} loading={generating} onClick={generateSolution}>
             生成方案
           </Button>
@@ -288,9 +321,19 @@ const IndustryAgent: React.FC = () => {
           </Space>
         }
         extra={
-          <Button icon={<DownloadOutlined />} disabled={!solution} onClick={exportSolutionPdf}>
-            导出 PDF
-          </Button>
+          <Space>
+            <Button
+              icon={<ProjectOutlined />}
+              disabled={!solution}
+              loading={creatingProject}
+              onClick={createProjectFromSolution}
+            >
+              生成客户案卷
+            </Button>
+            <Button icon={<DownloadOutlined />} disabled={!solution} onClick={exportSolutionPdf}>
+              导出 PDF
+            </Button>
+          </Space>
         }
       >
         {solution ? (
