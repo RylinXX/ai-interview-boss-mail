@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Card, Col, Empty, Row, Space, Spin, Tag, Typography } from 'antd';
-import { RobotOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { App, Card, Empty, Space, Spin, Tag, Typography } from 'antd';
+import { FileTextOutlined, RobotOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import request, { getApiErrorMessage } from '../../utils/request';
 import '../BusinessWorkbench.css';
 
@@ -45,36 +45,37 @@ const AIEmployeesList: React.FC = () => {
 
   return (
     <div className="ai-employees-page workbench-page">
-      <div className="page-header">
-        <div>
-          <Title level={2}>AI 员工</Title>
-          <Text type="secondary">一期作为任务板入口使用：每个 AI 员工负责生成可审阅的任务草稿，由顾问验收后写入方案。</Text>
+      <section className="consulting-hero employee-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">Delivery Roles</span>
+          <Title level={1}>AI 员工交付编队</Title>
+          <Text>每个 AI 员工对应一个咨询交付角色，从诊断、研究、方案到实施拆解。</Text>
         </div>
-      </div>
+      </section>
 
       {employees.length ? (
-        <Row gutter={[16, 16]}>
+        <div className="employee-registry-grid">
           {employees.map(employee => (
-            <Col xs={24} md={12} xl={8} key={employee.employee_type}>
-              <Card className="ai-employee-card">
-                <Space orientation="vertical" size={12}>
-                  <Space>
-                    <span className="ai-employee-icon"><RobotOutlined /></span>
-                    <div>
-                      <Text strong>{employee.display_name}</Text>
-                      <div><Tag color="green">{employee.status === 'available' ? '可用' : employee.status}</Tag></div>
-                    </div>
-                  </Space>
-                  <Paragraph>{employee.responsibility}</Paragraph>
-                  <div className="ai-employee-template">
-                    <SafetyCertificateOutlined />
-                    <span>{employee.output_template}</span>
-                  </div>
-                </Space>
-              </Card>
-            </Col>
+            <Card className="employee-role-card" key={employee.employee_type}>
+              <div className="employee-role-head">
+                <span className="employee-role-badge"><RobotOutlined /></span>
+                <div>
+                  <Text strong>{employee.display_name}</Text>
+                  <div><Tag color="green">{employee.status === 'available' ? 'MVP 可用' : employee.status}</Tag></div>
+                </div>
+              </div>
+              <Paragraph>{employee.responsibility}</Paragraph>
+              <div className="employee-role-template">
+                <FileTextOutlined />
+                <span>{employee.output_template}</span>
+              </div>
+              <div className="employee-role-footer">
+                <SafetyCertificateOutlined />
+                <span>可在客户项目任务板中调用</span>
+              </div>
+            </Card>
           ))}
-        </Row>
+        </div>
       ) : (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无 AI 员工" />
       )}
