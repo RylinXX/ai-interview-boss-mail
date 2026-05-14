@@ -10,6 +10,128 @@
   margin-bottom: 4px;
 }
 
+.consulting-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  padding: 26px 28px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border: 1px solid #d9d2c2;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(20, 33, 54, 0.96), rgba(29, 44, 70, 0.92)),
+    radial-gradient(circle at 85% 20%, rgba(205, 164, 91, 0.28), transparent 34%),
+    #142136;
+  color: #f7f2e8;
+}
+
+.consulting-hero::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  bottom: -38px;
+  width: 260px;
+  height: 180px;
+  border: 1px solid rgba(231, 211, 166, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 34px 34px;
+  transform: rotate(-8deg);
+}
+
+.consulting-hero-copy,
+.consulting-hero-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.consulting-hero-copy h1.ant-typography {
+  margin: 8px 0 10px;
+  color: #fffaf1;
+  font-size: 32px;
+  line-height: 1.18;
+}
+
+.consulting-hero-copy .ant-typography {
+  display: block;
+  max-width: 720px;
+  color: rgba(247, 242, 232, 0.78);
+  line-height: 1.75;
+}
+
+.consulting-hero-actions {
+  align-items: center;
+}
+
+.consulting-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.consulting-metric-card {
+  border-color: #e5ddcf;
+  background: #fffdf8;
+}
+
+.consulting-metric-card .ant-card-body {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 18px;
+}
+
+.consulting-metric-card .metric-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(190, 143, 61, 0.14);
+  color: #9b6a20;
+}
+
+.consulting-metric-card strong {
+  color: #142136;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.consulting-metric-card span:last-child {
+  color: #667085;
+  font-size: 12px;
+}
+
+.consulting-table-card {
+  border-color: #e5ddcf;
+}
+
+.consulting-table-card .ant-card-head {
+  border-bottom-color: #e5ddcf;
+}
+
+.dossier-code {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid rgba(190, 143, 61, 0.34);
+  border-radius: 6px;
+  background: rgba(190, 143, 61, 0.12);
+  color: #8a5e1d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .workbench-summary-strip {
   display: flex;
   align-items: center;
@@ -86,4 +208,15 @@ textarea.solution-document-editor {
   border-radius: 8px;
   background: var(--surface-muted);
   color: var(--text-secondary);
+}
+
+@media (max-width: 980px) {
+  .consulting-hero,
+  .consulting-metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .consulting-hero-actions {
+    justify-content: flex-start;
+  }
 }

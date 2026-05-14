@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
-import { PlusOutlined, ProjectOutlined, ReloadOutlined } from '@ant-design/icons';
+import { App, Button, Card, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
+import { ApartmentOutlined, FileDoneOutlined, FileTextOutlined, PlusOutlined, ProjectOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
 import '../BusinessWorkbench.css';
@@ -90,85 +90,126 @@ const CustomerProjectsList: React.FC = () => {
     return `${projects.length} 个项目，${active} 个进行中`;
   }, [projects]);
 
+  const portfolioMetrics = useMemo(() => {
+    const active = projects.filter(item => item.status !== 'archived').length;
+    const ready = projects.filter(item => item.status === 'ready').length;
+    const industries = new Set(projects.map(item => item.industry).filter(Boolean)).size;
+    const documented = projects.filter(item => item.solution_document?.title).length;
+    return { active, ready, industries, documented };
+  }, [projects]);
+
+  const metrics = [
+    { label: '进行中交付', value: portfolioMetrics.active, hint: '待推进客户项目', icon: <ProjectOutlined /> },
+    { label: '可交付方案', value: portfolioMetrics.ready, hint: '已进入交付状态', icon: <FileDoneOutlined /> },
+    { label: '覆盖行业', value: portfolioMetrics.industries, hint: '来自项目样本', icon: <ApartmentOutlined /> },
+    { label: '方案文档', value: portfolioMetrics.documented, hint: '已生成案卷文档', icon: <FileTextOutlined /> },
+  ];
+
+  const formatDossierCode = (createdAt?: string) => {
+    const date = createdAt ? new Date(createdAt) : null;
+    if (!date || Number.isNaN(date.getTime())) return 'DOSSIER';
+    return `DOS-${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+  };
+
   return (
     <div className="customer-projects-page workbench-page">
-      <div className="page-header">
-        <div>
-          <Title level={2}>客户项目</Title>
-          <Text type="secondary">围绕客户现状、业务目标、能力样本和 AI 员工任务生成内部方案文档。</Text>
+      <section className="consulting-hero">
+        <div className="consulting-hero-copy">
+          <span className="dossier-code">Engagement Portfolio</span>
+          <Title level={1}>客户项目案卷</Title>
+          <Text>
+            每个项目都是一次业务优化交付：客户背景、诊断、方案、执行任务和 AI 员工产出统一沉淀。
+          </Text>
         </div>
-        <Space>
+        <Space className="consulting-hero-actions">
           <Button icon={<ReloadOutlined />} onClick={fetchProjects} loading={loading}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>新建项目</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>启动新交付</Button>
         </Space>
-      </div>
+      </section>
 
       <div className="workbench-summary-strip">
         <ProjectOutlined />
         <span>{summary}</span>
       </div>
 
-      <Table
-        rowKey="id"
-        loading={loading}
-        dataSource={projects}
-        pagination={{ pageSize: 10 }}
-        onRow={(record) => ({
-          onClick: () => navigate(`/customer-projects/${record.id}`),
-        })}
-        columns={[
-          {
-            title: '客户项目',
-            dataIndex: 'name',
-            render: (value: string, record) => (
-              <Space orientation="vertical" size={2}>
-                <Text strong>{value}</Text>
-                <Text type="secondary">{record.solution_document?.title || '待生成方案文档'}</Text>
-              </Space>
-            ),
-          },
-          {
-            title: '行业',
-            dataIndex: 'industry',
-            render: (value: string) => value || '待补充',
-          },
-          {
-            title: '规模',
-            dataIndex: 'company_scale',
-            render: (value: string) => value || '待补充',
-          },
-          {
-            title: '痛点',
-            dataIndex: 'pain_points',
-            render: (values: string[]) => (
-              <Space wrap>
-                {(values || []).slice(0, 3).map(item => <Tag key={item}>{item}</Tag>)}
-              </Space>
-            ),
-          },
-          {
-            title: '目标',
-            dataIndex: 'goals',
-            render: (values: string[]) => (
-              <Space wrap>
-                {(values || []).slice(0, 3).map(item => <Tag color="blue" key={item}>{item}</Tag>)}
-              </Space>
-            ),
-          },
-          {
-            title: '状态',
-            dataIndex: 'status',
-            render: (value: string) => <Tag color="processing">{statusLabel[value] || value}</Tag>,
-          },
-        ]}
-      />
+      <div className="consulting-metric-grid">
+        {metrics.map(metric => (
+          <Card className="consulting-metric-card" key={metric.label}>
+            <span className="metric-icon">{metric.icon}</span>
+            <Text type="secondary">{metric.label}</Text>
+            <strong>{metric.value}</strong>
+            <span>{metric.hint}</span>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="consulting-table-card" title="交付案卷列表">
+        <Table
+          rowKey="id"
+          loading={loading}
+          dataSource={projects}
+          pagination={{ pageSize: 10 }}
+          onRow={(record) => ({
+            onClick: () => navigate(`/customer-projects/${record.id}`),
+          })}
+          columns={[
+            {
+              title: '项目案卷',
+              dataIndex: 'name',
+              width: 280,
+              render: (value: string, record) => (
+                <Space orientation="vertical" size={4}>
+                  <span className="dossier-code">{formatDossierCode(record.created_at)}</span>
+                  <Text strong>{value}</Text>
+                  <Text type="secondary">{record.solution_document?.title || '待生成方案文档'}</Text>
+                </Space>
+              ),
+            },
+            {
+              title: '客户背景',
+              key: 'background',
+              width: 220,
+              render: (_: unknown, record) => (
+                <Space orientation="vertical" size={4}>
+                  <Text>{record.industry || '行业待补充'}</Text>
+                  <Text type="secondary">{record.company_scale || '规模待补充'}</Text>
+                </Space>
+              ),
+            },
+            {
+              title: '核心问题',
+              dataIndex: 'pain_points',
+              render: (values: string[]) => (
+                <Space wrap>
+                  {(values || []).slice(0, 3).map(item => <Tag key={item}>{item}</Tag>)}
+                </Space>
+              ),
+            },
+            {
+              title: '交付目标',
+              dataIndex: 'goals',
+              render: (values: string[]) => (
+                <Space wrap>
+                  {(values || []).slice(0, 3).map(item => <Tag color="gold" key={item}>{item}</Tag>)}
+                </Space>
+              ),
+            },
+            {
+              title: '交付状态',
+              dataIndex: 'status',
+              width: 120,
+              render: (value: string) => <Tag color="processing">{statusLabel[value] || value}</Tag>,
+            },
+          ]}
+        />
+      </Card>
 
       <Modal
-        title="新建客户项目"
+        title="启动新交付"
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={createProject}
-        okText="创建并进入"
+        okText="创建案卷并进入"
         confirmLoading={creating}
         destroyOnHidden
       >
