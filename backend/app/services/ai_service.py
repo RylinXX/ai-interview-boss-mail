@@ -483,6 +483,32 @@ def generate_knowledge_asset_tags(asset_payload: Dict[str, Any]) -> Dict[str, An
         return {}
 
 
+def generate_ai_product_manager_draft(draft_payload: Dict[str, Any]) -> Dict[str, Any]:
+    prompt_data = prompt_manager.get_prompt(
+        "generate_ai_product_manager_draft",
+        draft_payload=json.dumps(draft_payload, ensure_ascii=False, indent=2),
+    )
+    if not prompt_data.get("user"):
+        return {}
+    try:
+        cfg = _get_llm_config()
+        extra = _completion_options(cfg, json_response=True)
+        completion = _get_client().chat.completions.create(
+            model=cfg["llm_model"],
+            messages=[
+                {"role": "system", "content": prompt_data["system"]},
+                {"role": "user", "content": prompt_data["user"]},
+            ],
+            extra_body=_get_extra_body(),
+            **extra,
+        )
+        parsed = _parse_json_content(completion.choices[0].message.content)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception as e:
+        print(f"AI product manager draft failed: {e}")
+        return {}
+
+
 def generate_resume_markdown(resume_text: str) -> str:
     prompt_data = prompt_manager.get_prompt(
         "generate_resume_markdown", 

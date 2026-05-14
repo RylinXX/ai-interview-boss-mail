@@ -13,7 +13,7 @@ from app.schemas.knowledge_assets import (
     KnowledgeAssetReviewUpdate,
     KnowledgeAssetSearchRequest,
 )
-from app.services.ai_service import generate_knowledge_asset_tags
+from app.services.ai_service import generate_ai_product_manager_draft, generate_knowledge_asset_tags
 
 
 def _as_list(value: Any) -> List[str]:
@@ -194,6 +194,261 @@ def list_assets(
         "industry_tags": _unique(tag for item in filtered for tag in (item.industry_tags or [])),
         "business_topic_tags": _unique(tag for item in filtered for tag in (item.business_topic_tags or [])),
         "evidence_type_tags": _unique(tag for item in filtered for tag in (item.evidence_type_tags or [])),
+    }
+
+
+def _terms_for_query(query: str) -> List[str]:
+    inferred = _infer_tags(query or "")
+    token_text = query or ""
+    for separator in ("，", "。", "、", ",", ".", "；", ";", "：", ":", "\n", "\t"):
+        token_text = token_text.replace(separator, " ")
+    tokens = [token for token in token_text.split() if len(token) >= 2]
+    return _unique(
+        [
+            query,
+            *tokens,
+            *inferred["industry_tags"],
+            *inferred["business_topic_tags"],
+            *inferred["evidence_type_tags"],
+        ]
+    )
+
+
+def _overlaps(requested: List[str], existing: Any) -> bool:
+    if not requested:
+        return True
+    existing_values = set(_as_list(existing))
+    return any(value in existing_values for value in requested)
+
+
+def _asset_search_blob(asset: KnowledgeAsset) -> str:
+    return _text_blob(
+        asset.title,
+        asset.summary,
+        asset.raw_text,
+        asset.industry_tags,
+        asset.business_topic_tags,
+        asset.scenario_tags,
+        asset.evidence_type_tags,
+        asset.capability_tags,
+        asset.methodology_tags,
+        asset.customer_type_tags,
+        asset.value_tags,
+        asset.proves,
+        asset.applicable_conditions,
+    )
+
+
+def _score_asset_for_terms(asset: KnowledgeAsset, terms: List[str], inferred: Dict[str, List[str]]) -> tuple[float, str]:
+    haystack = _asset_search_blob(asset).lower()
+    title = (asset.title or "").lower()
+    matched_terms: List[str] = []
+    score = 0.0
+
+    for term in terms:
+        normalized = term.lower().strip()
+        if not normalized or normalized not in haystack:
+            continue
+        matched_terms.append(term)
+        score += 12.0
+        if normalized in title:
+            score += 8.0
+
+    industry_hits = [tag for tag in inferred["industry_tags"] if tag in (asset.industry_tags or [])]
+    topic_hits = [tag for tag in inferred["business_topic_tags"] if tag in (asset.business_topic_tags or [])]
+    evidence_hits = [tag for tag in inferred["evidence_type_tags"] if tag in (asset.evidence_type_tags or [])]
+    matched_terms = _unique([*matched_terms, *industry_hits, *topic_hits, *evidence_hits])
+
+    score += len(industry_hits) * 15.0
+    score += len(topic_hits) * 18.0
+    score += len(evidence_hits) * 8.0
+    if score > 0:
+        score += min(float(asset.evidence_strength_score or 0.0), 100.0) * 0.12
+        score += min(float(asset.data_verification_score or 0.0), 100.0) * 0.08
+        score += min(float(asset.commercial_value_score or 0.0), 100.0) * 0.06
+
+    reason = "匹配关键词：" + "、".join(matched_terms[:6]) if matched_terms else "与需求文本存在弱相关"
+    return min(score, 100.0), reason
+
+
+def search_assets(db: Session, payload: KnowledgeAssetSearchRequest) -> Dict[str, Any]:
+    query = (payload.query or "").strip()
+    inferred = _infer_tags(query)
+    terms = _terms_for_query(query)
+    safe_limit = max(1, min(int(payload.limit or 8), 30))
+    rows = (
+        db.query(KnowledgeAsset)
+        .order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc())
+        .limit(500)
+        .all()
+    )
+
+    items: List[Dict[str, Any]] = []
+    for asset in rows:
+        if not _overlaps(payload.industry_tags, asset.industry_tags):
+            continue
+        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
+            continue
+        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
+            continue
+        match_score, match_reason = _score_asset_for_terms(asset, terms, inferred)
+        if match_score <= 0:
+            continue
+        items.append(
+            {
+                "asset": asset,
+                "match_score": match_score,
+                "match_reason": match_reason,
+            }
+        )
+
+    items.sort(key=lambda item: item["match_score"], reverse=True)
+    return {"query": payload.query, "items": items[:safe_limit]}
+
+
+def _asset_evidence_payload(item: Dict[str, Any]) -> Dict[str, Any]:
+    asset = item["asset"]
+    return {
+        "id": str(asset.id),
+        "title": asset.title,
+        "source_type": asset.source_type,
+        "source_name": asset.source_name,
+        "summary": asset.summary,
+        "industry_tags": asset.industry_tags or [],
+        "business_topic_tags": asset.business_topic_tags or [],
+        "evidence_type_tags": asset.evidence_type_tags or [],
+        "value_tags": asset.value_tags or [],
+        "proves": asset.proves or [],
+        "does_not_prove": asset.does_not_prove or [],
+        "applicable_conditions": asset.applicable_conditions or [],
+        "migration_risks": asset.migration_risks or [],
+        "scores": {
+            "match_score": item["match_score"],
+            "evidence_strength_score": asset.evidence_strength_score or 0.0,
+            "data_verification_score": asset.data_verification_score or 0.0,
+            "commercial_value_score": asset.commercial_value_score or 0.0,
+            "confidence_score": asset.confidence_score or 0.0,
+        },
+        "match_reason": item["match_reason"],
+    }
+
+
+def _normalize_dict_list(value: Any, fallback: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not isinstance(value, list):
+        return fallback
+    rows = [item for item in value if isinstance(item, dict)]
+    return rows or fallback
+
+
+def _fallback_product_manager_draft(
+    payload: AIProductManagerDraftRequest,
+    retrieved: Dict[str, Any],
+) -> Dict[str, Any]:
+    cited_items = retrieved["items"]
+    cited_ids = [str(item["asset"].id) for item in cited_items]
+    primary_topics = _unique(
+        tag
+        for item in cited_items
+        for tag in (item["asset"].business_topic_tags or [])
+    )
+    primary_topic = primary_topics[0] if primary_topics else "当前需求"
+    evidence_summary = [
+        f"{item['asset'].title}：{item['asset'].summary or item['asset'].raw_text or '该资产缺少摘要，需要人工补充。'}"
+        for item in cited_items[:5]
+    ]
+
+    if cited_items:
+        solution_hypotheses = [
+            {
+                "name": f"{primary_topic}资料与流程优化方案",
+                "why_it_may_work": "系统已检索到相近行业或主题的项目经验、资料或方法论，可作为可行性讨论的初始证据。",
+                "required_data": [
+                    "客户现有资料清单",
+                    "当前流程节点和人工耗时",
+                    "已有系统或表格数据结构",
+                    "可验证的效率、收入或成本指标",
+                ],
+                "suggested_workflow": [
+                    "确认客户真实场景和优化目标",
+                    "补充同类案例、官方资料或第三方数据",
+                    "把可复用模块拆成SOP或PRD草案",
+                    "让人工复核证据强度后再进入开发或交付流程",
+                ],
+                "cited_asset_ids": cited_ids,
+            }
+        ]
+    else:
+        solution_hypotheses = [
+            {
+                "name": "先建立需求证据包",
+                "why_it_may_work": "当前知识库没有足够匹配的证据，先补数据可以降低AI直接产出泛化方案的风险。",
+                "required_data": ["行业资料", "真实案例", "竞品或开源项目", "客户现有流程"],
+                "suggested_workflow": ["补充资料", "重新检索", "人工复核", "再生成方案草稿"],
+                "cited_asset_ids": [],
+            }
+        ]
+
+    return {
+        "demand_understanding": f"用户希望围绕“{payload.demand}”形成有证据支撑、可继续追问和拆解的方案方向。",
+        "evidence_summary": evidence_summary or ["当前知识库缺少可直接支撑该需求的资产，需要先补充资料。"],
+        "solution_hypotheses": solution_hypotheses,
+        "missing_questions": [
+            "客户所属行业、公司规模和当前业务流程是什么？",
+            "这个需求优先解决效率、收入、风控还是交付标准化问题？",
+            "现有数据来源、数据质量和可授权使用范围是什么？",
+            "是否已有对标公司、商业化产品、开源项目或官方资料？",
+        ],
+        "human_confirmation_points": [
+            "检索到的资产是否真的适用于当前客户场景",
+            "证据是否足以支持进入SOP、PRD或开发方案",
+            "哪些数据可以对客户展示，哪些只能内部参考",
+        ],
+        "next_workflow": [
+            "补全客户需求上下文",
+            "扩充并复核行业知识资产",
+            "输出SOP或PRD草案",
+            "由AI员工执行资料整理、竞品对比或开发拆解任务",
+        ],
+        "cited_assets": cited_items,
+        "model_used": False,
+        "fallback_used": True,
+    }
+
+
+def generate_controlled_product_manager_draft(db: Session, payload: AIProductManagerDraftRequest) -> Dict[str, Any]:
+    search_query = _text_blob(payload.demand, payload.company_profile, payload.constraints)
+    retrieved = search_assets(
+        db,
+        KnowledgeAssetSearchRequest(
+            query=search_query,
+            limit=payload.limit,
+        ),
+    )
+    fallback = _fallback_product_manager_draft(payload, retrieved)
+    draft_payload = {
+        "demand": payload.demand,
+        "company_profile": payload.company_profile,
+        "constraints": payload.constraints,
+        "confirmed_context": payload.confirmed_context,
+        "evidence_assets": [_asset_evidence_payload(item) for item in retrieved["items"]],
+    }
+    generated = generate_ai_product_manager_draft(draft_payload)
+    if not generated:
+        return fallback
+
+    return {
+        "demand_understanding": generated.get("demand_understanding") or fallback["demand_understanding"],
+        "evidence_summary": _as_list(generated.get("evidence_summary")) or fallback["evidence_summary"],
+        "solution_hypotheses": _normalize_dict_list(
+            generated.get("solution_hypotheses"),
+            fallback["solution_hypotheses"],
+        ),
+        "missing_questions": _as_list(generated.get("missing_questions")) or fallback["missing_questions"],
+        "human_confirmation_points": _as_list(generated.get("human_confirmation_points")) or fallback["human_confirmation_points"],
+        "next_workflow": _as_list(generated.get("next_workflow")) or fallback["next_workflow"],
+        "cited_assets": retrieved["items"],
+        "model_used": True,
+        "fallback_used": False,
     }
 
 

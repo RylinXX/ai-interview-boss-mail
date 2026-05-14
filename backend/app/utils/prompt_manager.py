@@ -311,6 +311,38 @@ DEFAULT_PROMPTS = {
   "confidence_reason": "评分原因"
 }}"""
         },
+        "generate_ai_product_manager_draft": {
+            "system": "你是一个受控的AI产品经理，只能基于系统给出的知识资产证据提出方案方向。请严格返回JSON，不要添加额外说明。",
+            "user": """请根据以下用户需求、约束和已检索出的知识资产，生成一份需要继续与用户确认的方案草稿。
+
+硬性规则：
+1. 不要把方案写成最终结论，只能输出可讨论、待确认的方向。
+2. 每个方案假设必须引用 evidence_assets 中已经存在的资产标题或ID，不能编造案例、客户名称、指标或市场数据。
+3. 如果证据不足，必须在 missing_questions 和 human_confirmation_points 中说明。
+4. 优先给出可以被拆成SOP、PRD、数据源清单或开发流程的下一步。
+5. 不要承诺完全自动化落地，必须保留人工确认、人工补充资料和人工复核节点。
+
+输入：
+{draft_payload}
+
+请严格返回以下JSON：
+{{
+  "demand_understanding": "你对用户需求的理解",
+  "evidence_summary": ["可引用证据摘要"],
+  "solution_hypotheses": [
+    {{
+      "name": "方案假设名称",
+      "why_it_may_work": "为什么这些证据支持它可能能跑通",
+      "required_data": ["还需要补充的数据或资料"],
+      "suggested_workflow": ["下一步工作流"],
+      "cited_asset_ids": ["引用的资产ID"]
+    }}
+  ],
+  "missing_questions": ["必须继续追问用户的问题"],
+  "human_confirmation_points": ["需要人工确认或复核的点"],
+  "next_workflow": ["建议的下一步动作"]
+}}"""
+        },
         "generate_resume_markdown": {
             "system": "你是一个专业的简历优化专家。",
             "user": """请将以下简历内容整理为 Markdown 格式，要求美观、易读、结构清晰。

@@ -8,10 +8,14 @@ from app.config.database import get_db
 from app.models.models import Resume, User
 from app.routes.auth import get_current_user
 from app.schemas.knowledge_assets import (
+    AIProductManagerDraftRequest,
+    AIProductManagerDraftResponse,
     KnowledgeAssetIntakeRequest,
     KnowledgeAssetListResponse,
     KnowledgeAssetResponse,
     KnowledgeAssetReviewUpdate,
+    KnowledgeAssetSearchRequest,
+    KnowledgeAssetSearchResponse,
 )
 from app.services import knowledge_asset_service as service
 
@@ -60,6 +64,24 @@ def sync_resume_assets_route(
         "business_topic_tags": sorted({tag for asset in assets for tag in (asset.business_topic_tags or [])}),
         "evidence_type_tags": sorted({tag for asset in assets for tag in (asset.evidence_type_tags or [])}),
     }
+
+
+@router.post("/knowledge-assets/search", response_model=KnowledgeAssetSearchResponse)
+def search_knowledge_assets_route(
+    payload: KnowledgeAssetSearchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.search_assets(db, payload)
+
+
+@router.post("/ai-product-manager/draft", response_model=AIProductManagerDraftResponse)
+def generate_ai_product_manager_draft_route(
+    payload: AIProductManagerDraftRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.generate_controlled_product_manager_draft(db, payload)
 
 
 @router.get("/knowledge-assets/{asset_id}", response_model=KnowledgeAssetResponse)

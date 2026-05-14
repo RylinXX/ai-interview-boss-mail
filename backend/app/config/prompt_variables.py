@@ -19,6 +19,9 @@ PROMPT_VARIABLES = {
     "tag_knowledge_asset": [
         {"name": "asset_payload", "description": "待归档资料的标题、来源、原文和用户初始标签"},
     ],
+    "generate_ai_product_manager_draft": [
+        {"name": "draft_payload", "description": "用户需求、约束、已确认上下文和系统检索出的知识资产证据"},
+    ],
     "generate_resume_markdown": [
         {"name": "resume_text", "description": "简历原始文本内容"},
     ],
@@ -65,6 +68,7 @@ ALL_VARIABLES = {
     "resume_data": "简历解析后的结构化数据（JSON格式）",
     "industry_taxonomy": "可选行业标签表",
     "asset_payload": "待归档资料的标题、来源、原文和用户初始标签",
+    "draft_payload": "用户需求、约束、已确认上下文和系统检索出的知识资产证据",
     "question_bank_content": "参考题库内容",
     "interview_category": "面试类型（HR面试/技术面试/主管面试/CEO面试/综合面试）",
     "count": "需要生成的题目数量",

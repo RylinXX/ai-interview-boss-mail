@@ -204,3 +204,67 @@ def test_manual_intake_falls_back_when_ai_tagging_returns_empty(client, admin_au
     assert "旅游文娱" in data["industry_tags"]
     assert data["manual_review_status"] == "unreviewed"
     assert data["confidence_reason"]
+
+
+def test_asset_search_matches_demand_terms(client, admin_auth_headers):
+    created = client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "招投标资料自动化",
+            "source_type": "company_case",
+            "raw_text": "工程咨询公司把投标模板、人员资质和审批流程做成招投标资料平台。",
+            "industry_tags": ["工程建设"],
+            "business_topic_tags": ["招投标"],
+            "evidence_type_tags": ["真实项目经验"],
+            "value_tags": ["验证可行性"],
+        },
+    ).json()
+
+    response = client.post(
+        "/api/knowledge-assets/search",
+        headers=admin_auth_headers,
+        json={"query": "我们想做招投标相关优化", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"][0]["asset"]["id"] == created["id"]
+    assert data["items"][0]["match_score"] > 0
+    assert "招投标" in data["items"][0]["match_reason"]
+
+
+def test_ai_product_manager_draft_uses_cited_assets(client, admin_auth_headers, monkeypatch):
+    monkeypatch.setattr(knowledge_asset_service, "generate_ai_product_manager_draft", lambda payload: {})
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "工程招投标资料平台",
+            "source_type": "company_case",
+            "raw_text": "已有工程咨询公司通过投标模板库和人员资质库提升投标资料制作效率。",
+            "industry_tags": ["工程建设"],
+            "business_topic_tags": ["招投标", "人员资质库"],
+            "evidence_type_tags": ["真实项目经验"],
+            "value_tags": ["验证可行性", "提供系统模块参考"],
+        },
+    )
+
+    response = client.post(
+        "/api/ai-product-manager/draft",
+        headers=admin_auth_headers,
+        json={
+            "demand": "我们公司需要招投标相关优化",
+            "company_profile": "工程咨询公司，已有投标资料和人员资质数据。",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "招投标" in data["demand_understanding"]
+    assert data["cited_assets"]
+    assert data["solution_hypotheses"]
+    assert data["missing_questions"]
+    assert data["human_confirmation_points"]
+    assert data["fallback_used"] is True
