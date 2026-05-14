@@ -132,6 +132,132 @@
   text-transform: uppercase;
 }
 
+.dossier-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  padding: 22px 24px;
+  margin-bottom: 18px;
+  border: 1px solid #d9d2c2;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.dossier-header-main {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.dossier-back {
+  color: #142136;
+}
+
+.dossier-header h1.ant-typography {
+  margin: 8px 0 10px;
+  color: #142136;
+  font-size: 30px;
+  line-height: 1.18;
+}
+
+.dossier-header-actions {
+  justify-content: flex-end;
+}
+
+.dossier-progress-card,
+.strategy-brief-card,
+.solution-document-card,
+.evidence-panel,
+.execution-lane-card {
+  border-color: #e5ddcf;
+}
+
+.dossier-progress-card .ant-card-body {
+  padding: 18px 22px;
+}
+
+.dossier-progress-card h4.ant-typography {
+  margin: 6px 0 0;
+  color: #142136;
+}
+
+.dossier-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dossier-progress-meta span {
+  padding: 5px 8px;
+  border: 1px solid #e5ddcf;
+  border-radius: 6px;
+  background: #fbf7ef;
+  color: #5b6472;
+  font-size: 12px;
+}
+
+.strategy-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.strategy-brief-grid section {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.strategy-brief-grid section > .ant-typography-secondary,
+.evidence-panel .ant-typography-secondary {
+  display: block;
+  margin-bottom: 8px;
+  color: #7a6a52 !important;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.strategy-brief-wide {
+  grid-column: 1 / -1;
+}
+
+.formal-tag-row {
+  display: flex;
+  min-width: 0;
+}
+
+.formal-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.75;
+}
+
+.solution-document-card .ant-card-body {
+  background: #f8f5ee;
+}
+
+textarea.solution-document-editor {
+  border-color: #e3d8c7;
+  background: #fffaf2;
+  color: #172033;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+}
+
+.evidence-panel {
+  background: linear-gradient(135deg, #fffdf8, #f7f1e6);
+}
+
+.evidence-panel h5.ant-typography {
+  margin: 4px 0 0;
+  color: #142136;
+}
+
 .workbench-summary-strip {
   display: flex;
   align-items: center;
@@ -158,6 +284,9 @@
 }
 
 .project-task-stage-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 10px 12px;
   font-weight: 700;
   border-bottom: 1px solid var(--border-color);
@@ -167,6 +296,24 @@
 .project-task-card {
   padding: 12px;
   border-bottom: 1px solid var(--border-color);
+}
+
+.task-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 8px;
+}
+
+.task-card-head > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.task-expected-output {
+  margin-bottom: 10px;
+  color: #475467;
 }
 
 .project-task-card:last-child {
@@ -212,11 +359,15 @@ textarea.solution-document-editor {
 
 @media (max-width: 980px) {
   .consulting-hero,
-  .consulting-metric-grid {
+  .consulting-metric-grid,
+  .dossier-header,
+  .strategy-brief-grid,
+  .task-card-head {
     grid-template-columns: 1fr;
   }
 
-  .consulting-hero-actions {
+  .consulting-hero-actions,
+  .dossier-header-actions {
     justify-content: flex-start;
   }
 }
