@@ -10,6 +10,8 @@ from app.models.models import AIEmployeeRun, User
 from app.routes.auth import get_current_user
 from app.schemas.business_workbench import (
     AgentSolutionProjectCreate,
+    AIEmployeeChatRequest,
+    AIEmployeeChatResponse,
     AIEmployeeResponse,
     AIEmployeeRunResponse,
     CapabilitySampleResponse,
@@ -178,6 +180,15 @@ def list_ai_employees_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.list_ai_employees(db)
+
+
+@router.post("/ai-employees/chat", response_model=AIEmployeeChatResponse)
+def chat_with_ai_employee_route(
+    payload: AIEmployeeChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.chat_with_ai_employee(db, payload)
 
 
 @router.post("/project-tasks/{task_id}/ai-runs", response_model=AIEmployeeRunResponse)

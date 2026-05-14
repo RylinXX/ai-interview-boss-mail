@@ -104,6 +104,29 @@ class AIEmployeeResponse(BaseModel):
     latest_project_name: Optional[str] = None
 
 
+class AIEmployeeChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class AIEmployeeChatRequest(BaseModel):
+    requirement: str
+    company_profile: Optional[str] = None
+    project_materials: Optional[str] = None
+    messages: List[AIEmployeeChatMessage] = []
+    limit: int = 300
+
+
+class AIEmployeeChatResponse(BaseModel):
+    assistant_message: str
+    solution: Dict[str, Any]
+    retrieved_evidence: List[Dict[str, Any]] = []
+    dynamic_workers: List[Dict[str, Any]] = []
+    human_decision_points: List[str] = []
+    model_used: bool = False
+    fallback_used: bool = False
+
+
 class AIEmployeeRunResponse(BaseModel):
     id: UUID
     task_id: UUID

@@ -1,6 +1,7 @@
 from uuid import uuid4
 
 from app.models.models import Resume, ResumeStatus, ScreeningResult
+from app.services import business_workbench_service as workbench_service
 
 
 def test_create_customer_project_generates_solution_document(client, admin_auth_headers):
@@ -112,6 +113,101 @@ def test_ai_employee_registry_includes_actionable_task_counts(client, admin_auth
     assert analyst["next_task_id"] == business_task["id"]
     assert analyst["next_project_id"] == project["id"]
     assert analyst["latest_project_name"] == "AI员工客户"
+
+
+def test_ai_employee_chat_generates_solution_from_uploaded_context(
+    client, admin_auth_headers, db, monkeypatch
+):
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="政企产品负责人",
+        file_path="uploads/resumes/template-platform.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "industry_label": "政企服务",
+            "work_experiences": [
+                {
+                    "company": "政务数字化公司",
+                    "role": "产品负责人",
+                    "summary": "负责政企材料模板、资质资料库和自动填报平台。",
+                    "capabilities": ["模板字段识别", "资料库治理", "文档自动生成"],
+                }
+            ],
+            "project_experiences": [
+                {
+                    "name": "政企材料模板自动填报平台",
+                    "role": "产品负责人",
+                    "problem": "客户需要按官方模板重复填写公司资质和项目信息。",
+                    "solution": "沉淀模板库、字段映射和企业资料库，自动生成初稿后人工审核。",
+                    "business_model": "项目交付费+年度维护费",
+                }
+            ],
+            "logic_analysis": "先标准化模板字段，再做资料抽取、映射和人工审核闭环。",
+        },
+    )
+    db.add(resume)
+    db.commit()
+
+    captured = {}
+
+    def fake_generate_solution_agent_response(payload):
+        captured["payload"] = payload
+        return {
+            "title": "处置方案治理模板自动填报平台",
+            "summary": "基于官方模板、企业资料库和字段映射规则生成治理方案初稿。",
+            "recommended_solutions": [
+                {
+                    "name": "模板采集与字段映射系统",
+                    "scenario": "收集各区官方模板并映射企业资质、项目基础信息",
+                    "value": "减少重复填报和格式错误",
+                    "related_cases": ["政企材料模板自动填报平台"],
+                    "implementation_steps": ["收集模板", "建立字段字典", "接入资料库", "人工审核导出"],
+                }
+            ],
+            "needed_capabilities": ["模板字段识别", "资料库治理", "文档自动生成"],
+            "dynamic_workers": [
+                {
+                    "name": "模板解析员工",
+                    "responsibility": "识别官方模板字段、格式和必填规则",
+                    "human_review": "人工确认字段口径和官方解释",
+                }
+            ],
+            "risks": ["官方模板口径需要人工确认"],
+            "next_questions": ["客户现有公司资质资料是否结构化？"],
+        }
+
+    monkeypatch.setattr(
+        workbench_service,
+        "generate_solution_agent_response",
+        fake_generate_solution_agent_response,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/ai-employees/chat",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "客户要做处置方案治理方案，官方有模板，需要自动填写公司资质和项目基础信息。",
+            "company_profile": "公司具备多项施工和治理资质。",
+            "project_materials": "已有项目名称、地址、负责人、治理范围和预算信息。",
+            "messages": [
+                {"role": "user", "content": "帮我基于历史人才经验设计一个可交付系统。"}
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_used"] is True
+    assert data["fallback_used"] is False
+    assert data["solution"]["title"] == "处置方案治理模板自动填报平台"
+    assert "处置方案治理模板自动填报平台" in data["assistant_message"]
+    assert data["retrieved_evidence"][0]["project_name"] == "政企材料模板自动填报平台"
+    assert data["dynamic_workers"][0]["name"] == "模板解析员工"
+    assert "人工确认字段口径和官方解释" in data["human_decision_points"]
+    assert captured["payload"]["knowledge_context"]["project_cases"][0]["project_name"] == "政企材料模板自动填报平台"
 
 
 def test_create_customer_project_from_agent_solution_generates_delivery_assets(

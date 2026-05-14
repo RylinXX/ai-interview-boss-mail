@@ -460,6 +460,173 @@ textarea.solution-document-editor {
   white-space: nowrap;
 }
 
+.ai-employee-workbench {
+  margin-bottom: 18px;
+}
+
+.ai-side-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.ai-chat-card,
+.ai-side-card,
+.ai-solution-panel {
+  border-color: #e5ddcf;
+  background: #fffdf8;
+}
+
+.ai-chat-card .ant-card-body {
+  display: grid;
+  gap: 18px;
+}
+
+.ai-chat-thread {
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #ece4d7;
+}
+
+.ai-chat-message {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fbf7ef;
+}
+
+.ai-chat-message > .anticon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(190, 143, 61, 0.14);
+  color: #8a5e1d;
+}
+
+.ai-chat-message-user {
+  background: #f7f9fc;
+}
+
+.ai-chat-message p.ant-typography {
+  margin: 4px 0 0;
+  color: #475467;
+  line-height: 1.7;
+}
+
+.ai-context-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ai-context-counts span {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  padding: 10px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fbf7ef;
+  color: #667085;
+  font-size: 12px;
+}
+
+.ai-context-counts strong {
+  color: #142136;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ai-evidence-list,
+.ai-worker-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-evidence-list section,
+.ai-worker-list section,
+.ai-solution-direction {
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fbf7ef;
+}
+
+.ai-evidence-list p.ant-typography,
+.ai-worker-list p.ant-typography,
+.ai-solution-direction p.ant-typography {
+  margin: 6px 0 10px;
+  color: #475467;
+  line-height: 1.65;
+}
+
+.ai-worker-list section {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ai-solution-panel {
+  margin-top: 18px;
+}
+
+.ai-solution-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.ai-solution-head h3.ant-typography {
+  margin: 8px 0;
+  color: #142136;
+}
+
+.ai-solution-head p.ant-typography {
+  max-width: 920px;
+  color: #475467;
+  line-height: 1.75;
+}
+
+.ai-solution-value {
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: rgba(190, 143, 61, 0.12);
+  color: #5b6472;
+  line-height: 1.65;
+}
+
+.ai-solution-direction ol {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.7;
+}
+
+.human-decision-list {
+  padding: 14px;
+  margin-top: 16px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #f8f5ee;
+}
+
+.human-decision-list ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.75;
+}
+
 html[data-theme='dark'] .consulting-metric-card,
 html[data-theme='dark'] .consulting-table-card,
 html[data-theme='dark'] .dossier-header,
@@ -470,7 +637,10 @@ html[data-theme='dark'] .execution-lane-card,
 html[data-theme='dark'] .employee-role-card,
 html[data-theme='dark'] .agent-chat-card,
 html[data-theme='dark'] .agent-knowledge-card,
-html[data-theme='dark'] .agent-solution-card {
+html[data-theme='dark'] .agent-solution-card,
+html[data-theme='dark'] .ai-chat-card,
+html[data-theme='dark'] .ai-side-card,
+html[data-theme='dark'] .ai-solution-panel {
   border-color: var(--border-color) !important;
   background: var(--surface-elevated) !important;
   color: var(--text-primary);
@@ -480,7 +650,9 @@ html[data-theme='dark'] .consulting-metric-card strong,
 html[data-theme='dark'] .dossier-header h1.ant-typography,
 html[data-theme='dark'] .dossier-progress-card h4.ant-typography,
 html[data-theme='dark'] .evidence-panel h5.ant-typography,
-html[data-theme='dark'] .employee-role-stats strong {
+html[data-theme='dark'] .employee-role-stats strong,
+html[data-theme='dark'] .ai-context-counts strong,
+html[data-theme='dark'] .ai-solution-head h3.ant-typography {
   color: var(--text-primary);
 }
 
@@ -489,13 +661,22 @@ html[data-theme='dark'] .task-expected-output,
 html[data-theme='dark'] .formal-list,
 html[data-theme='dark'] .employee-role-template,
 html[data-theme='dark'] .employee-role-stats span,
-html[data-theme='dark'] .employee-role-footer {
+html[data-theme='dark'] .employee-role-footer,
+html[data-theme='dark'] .ai-chat-message p.ant-typography,
+html[data-theme='dark'] .ai-evidence-list p.ant-typography,
+html[data-theme='dark'] .ai-worker-list p.ant-typography,
+html[data-theme='dark'] .ai-solution-direction p.ant-typography,
+html[data-theme='dark'] .ai-solution-head p.ant-typography,
+html[data-theme='dark'] .ai-solution-value,
+html[data-theme='dark'] .ai-solution-direction ol,
+html[data-theme='dark'] .human-decision-list ul {
   color: var(--text-secondary);
 }
 
 html[data-theme='dark'] .consulting-metric-card .metric-icon,
 html[data-theme='dark'] .employee-role-badge,
-html[data-theme='dark'] .ai-employee-icon {
+html[data-theme='dark'] .ai-employee-icon,
+html[data-theme='dark'] .ai-chat-message > .anticon {
   border-color: rgba(214, 168, 92, 0.3);
   background: rgba(214, 168, 92, 0.14);
   color: #f0ca82;
@@ -513,9 +694,24 @@ html[data-theme='dark'] .workbench-summary-strip,
 html[data-theme='dark'] .project-task-stage,
 html[data-theme='dark'] .project-task-stage-title,
 html[data-theme='dark'] .employee-role-template,
-html[data-theme='dark'] .employee-role-stats span {
+html[data-theme='dark'] .employee-role-stats span,
+html[data-theme='dark'] .ai-chat-thread,
+html[data-theme='dark'] .ai-chat-message,
+html[data-theme='dark'] .ai-context-counts span,
+html[data-theme='dark'] .ai-evidence-list section,
+html[data-theme='dark'] .ai-worker-list section,
+html[data-theme='dark'] .ai-solution-direction,
+html[data-theme='dark'] .human-decision-list {
   border-color: var(--border-color);
   background: var(--surface-muted);
+}
+
+html[data-theme='dark'] .ai-chat-message-user {
+  background: var(--surface-inset);
+}
+
+html[data-theme='dark'] .ai-solution-value {
+  background: rgba(214, 168, 92, 0.12);
 }
 
 html[data-theme='dark'] .solution-document-card .ant-card-body {
@@ -545,7 +741,8 @@ html[data-theme='dark'] .task-output-preview {
   .dossier-header,
   .strategy-brief-grid,
   .task-card-head,
-  .employee-registry-grid {
+  .employee-registry-grid,
+  .ai-solution-head {
     grid-template-columns: 1fr;
   }
 

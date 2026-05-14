@@ -1,6 +1,8 @@
 from typing import Any, Dict, List
 from uuid import UUID
 
+import re
+
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
@@ -16,10 +18,12 @@ from app.models.models import (
 )
 from app.schemas.business_workbench import (
     AgentSolutionProjectCreate,
+    AIEmployeeChatRequest,
     CustomerProjectCreate,
     CustomerProjectUpdate,
     ProjectTaskUpdate,
 )
+from app.services.ai_service import generate_solution_agent_response
 
 
 AI_EMPLOYEES = [
@@ -86,6 +90,270 @@ def _string_list(value: Any) -> List[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return [str(value).strip()]
+
+
+def _text_blob(*parts: Any) -> str:
+    chunks: List[str] = []
+    for part in parts:
+        if part is None:
+            continue
+        if isinstance(part, dict):
+            chunks.extend(str(value) for value in part.values() if value)
+        elif isinstance(part, list):
+            chunks.extend(str(value) for value in part if value)
+        else:
+            chunks.append(str(part))
+    return " ".join(chunks)
+
+
+def _search_terms(text: str) -> List[str]:
+    normalized = str(text or "").lower()
+    domain_terms = [
+        "模板", "填报", "文档", "资质", "字段", "映射", "治理", "处置方案",
+        "直播", "短视频", "电商", "销售", "增长", "投流", "私域",
+        "审批", "流程", "知识库", "自动生成", "平台", "系统", "项目",
+    ]
+    terms = [term for term in domain_terms if term.lower() in normalized]
+    terms.extend(
+        token
+        for token in re.split(r"[\s,，。；;、/|]+", normalized)
+        if len(token) >= 2
+    )
+    return list(dict.fromkeys(terms))
+
+
+def _score_text(text: str, terms: List[str]) -> int:
+    return sum(1 for term in terms if term and term in text)
+
+
+def _build_ai_employee_evidence_context(
+    db: Session,
+    payload: AIEmployeeChatRequest,
+) -> Dict[str, Any]:
+    query_text = _text_blob(
+        payload.requirement,
+        payload.company_profile,
+        payload.project_materials,
+        [message.content for message in payload.messages],
+    ).lower()
+    terms = _search_terms(query_text)
+    safe_limit = max(1, min(int(payload.limit or 300), 1000))
+
+    resumes = (
+        db.query(Resume)
+        .filter(Resume.parse_status == "success", Resume.parsed_data.isnot(None))
+        .order_by(Resume.created_at.desc(), Resume.id.desc())
+        .limit(safe_limit)
+        .all()
+    )
+
+    project_cases: List[Dict[str, Any]] = []
+    work_cases: List[Dict[str, Any]] = []
+    for resume in resumes:
+        parsed = resume.parsed_data or {}
+        logic_analysis = parsed.get("logic_analysis")
+        for project in parsed.get("project_experiences") or []:
+            if not isinstance(project, dict):
+                continue
+            case_text = _text_blob(project, logic_analysis, resume.candidate_name).lower()
+            score = _score_text(case_text, terms)
+            if score <= 0:
+                continue
+            project_cases.append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "project_name": project.get("name") or "未命名项目",
+                    "role": project.get("role"),
+                    "problem": project.get("problem"),
+                    "solution": project.get("solution"),
+                    "business_model": project.get("business_model"),
+                    "score": score,
+                }
+            )
+        for work in parsed.get("work_experiences") or []:
+            if not isinstance(work, dict):
+                continue
+            case_text = _text_blob(work, logic_analysis, resume.candidate_name).lower()
+            score = _score_text(case_text, terms)
+            if score <= 0:
+                continue
+            work_cases.append(
+                {
+                    "resume_id": str(resume.id),
+                    "candidate_name": resume.candidate_name,
+                    "company": work.get("company") or "未命名公司",
+                    "role": work.get("role"),
+                    "summary": work.get("summary"),
+                    "capabilities": _string_list(work.get("capabilities")),
+                    "score": score,
+                }
+            )
+
+    project_cases.sort(key=lambda item: item["score"], reverse=True)
+    work_cases.sort(key=lambda item: item["score"], reverse=True)
+    return {
+        "terms": terms,
+        "project_cases": project_cases[:8],
+        "work_cases": work_cases[:8],
+        "candidate_count": len({item["resume_id"] for item in project_cases + work_cases}),
+    }
+
+
+def _fallback_chat_solution(payload: AIEmployeeChatRequest, context: Dict[str, Any]) -> Dict[str, Any]:
+    requirement = payload.requirement.strip()
+    is_template = any(term in requirement for term in ["模板", "填报", "文档", "资质"])
+    is_growth = any(term in requirement for term in ["直播", "短视频", "电商", "销售", "增长"])
+    if is_template:
+        return {
+            "title": "模板型资料自动填报平台",
+            "summary": "围绕官方模板、企业资料库、字段映射和人工审核形成自动填报系统。",
+            "recommended_solutions": [
+                {
+                    "name": "模板采集与字段映射系统",
+                    "scenario": "把不同区域或部门的官方模板统一入库并识别字段",
+                    "value": "减少重复填写、格式错误和资料遗漏",
+                    "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                    "implementation_steps": ["模板入库", "字段字典", "资料库接入", "自动填报", "人工审核", "导出交付"],
+                }
+            ],
+            "needed_capabilities": ["模板字段识别", "资料库治理", "文档自动生成"],
+            "risks": ["官方模板口径需要人工确认", "企业资料真实性和使用范围需要人工审核"],
+            "next_questions": ["客户是否已有结构化资质资料？", "模板是否存在多个区域版本？"],
+        }
+    if is_growth:
+        return {
+            "title": "内容销售增长方案",
+            "summary": "结合过往电商、直播和增长经验，形成短视频直播销售策略与执行系统。",
+            "recommended_solutions": [
+                {
+                    "name": "短视频直播增长工作台",
+                    "scenario": "脚本生成、选品卖点、直播节奏、投流复盘和私域承接",
+                    "value": "提升内容生产效率和销售转化复盘能力",
+                    "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                    "implementation_steps": ["定位人群", "生成脚本", "设计直播策略", "沉淀复盘看板"],
+                }
+            ],
+            "needed_capabilities": ["直播运营", "内容策略", "数据复盘"],
+            "risks": ["转化效果需要真实投放和直播数据验证"],
+            "next_questions": ["当前产品客单价和目标人群是什么？", "是否已有历史直播数据？"],
+        }
+    return {
+        "title": "客户需求 AI 解决方案",
+        "summary": "基于已上传能力样本和客户资料，形成需求分析、系统方案和人工审核闭环。",
+        "recommended_solutions": [
+            {
+                "name": "需求分析与执行工作台",
+                "scenario": "客户需求整理、案例检索、方案生成和执行拆解",
+                "value": "把过往人才经验转化为可交付方案",
+                "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                "implementation_steps": ["需求录入", "经验检索", "方案生成", "人工确认", "执行拆解"],
+            }
+        ],
+        "needed_capabilities": ["需求分析", "方案设计", "执行拆解"],
+        "risks": ["需要人工确认客户真实业务边界"],
+        "next_questions": ["客户最希望先交付的成果是什么？"],
+    }
+
+
+def _build_dynamic_workers(solution: Dict[str, Any], requirement: str) -> List[Dict[str, str]]:
+    generated_workers = solution.get("dynamic_workers")
+    if isinstance(generated_workers, list) and generated_workers:
+        return [
+            {
+                "name": str(item.get("name") or "AI 执行员工"),
+                "responsibility": str(item.get("responsibility") or "根据方案承担具体执行任务"),
+                "human_review": str(item.get("human_review") or "关键结论由人工审核确认"),
+            }
+            for item in generated_workers
+            if isinstance(item, dict)
+        ]
+
+    if any(term in requirement for term in ["模板", "填报", "文档", "资质"]):
+        return [
+            {"name": "模板解析员工", "responsibility": "识别官方模板字段、格式和必填规则", "human_review": "人工确认字段口径和官方解释"},
+            {"name": "资料抽取员工", "responsibility": "从公司资质、项目资料中抽取可填字段", "human_review": "人工确认资料真实性和适用范围"},
+            {"name": "字段映射员工", "responsibility": "把资料字段匹配到模板字段并标记缺口", "human_review": "人工处理歧义字段和缺失资料"},
+            {"name": "文档生成员工", "responsibility": "生成模板初稿、检查格式并导出", "human_review": "人工验收最终交付文档"},
+        ]
+    if any(term in requirement for term in ["直播", "短视频", "电商", "销售", "增长"]):
+        return [
+            {"name": "增长策略员工", "responsibility": "提炼人群、卖点、转化路径和直播节奏", "human_review": "人工确认品牌定位和预算边界"},
+            {"name": "短视频脚本员工", "responsibility": "生成脚本、标题、分镜和素材清单", "human_review": "人工审核合规和品牌语气"},
+            {"name": "投流复盘员工", "responsibility": "整理投放指标和复盘建议", "human_review": "人工决定预算调整"},
+        ]
+    return [
+        {"name": "需求分析员工", "responsibility": "整理客户需求、约束和目标交付物", "human_review": "人工确认需求优先级"},
+        {"name": "方案设计员工", "responsibility": "生成系统模块、实施路径和MVP边界", "human_review": "人工确认商业价值和范围"},
+        {"name": "执行拆解员工", "responsibility": "拆分AI可做任务与人工决策任务", "human_review": "人工负责最终决策"},
+    ]
+
+
+def _human_decision_points(solution: Dict[str, Any], workers: List[Dict[str, str]]) -> List[str]:
+    points = [
+        "人工确认客户需求优先级、预算边界和交付范围",
+        "人工审核AI引用的能力样本是否适合对外作为背书",
+    ]
+    points.extend(_string_list(solution.get("risks"))[:3])
+    points.extend(worker["human_review"] for worker in workers if worker.get("human_review"))
+    return list(dict.fromkeys(points))
+
+
+def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[str, Any]:
+    context = _build_ai_employee_evidence_context(db, payload)
+    llm_payload = {
+        "user_profile": {
+            "requirement": payload.requirement,
+            "company_profile": payload.company_profile,
+            "project_materials": payload.project_materials,
+            "conversation": [message.model_dump() for message in payload.messages],
+        },
+        "knowledge_context": {
+            "project_cases": context["project_cases"],
+            "work_cases": context["work_cases"],
+            "candidate_count": context["candidate_count"],
+        },
+        "instruction": (
+            "你是一个可检索私有能力样本的AI员工。请先基于客户需求和已上传人才/项目经验给出解决方案，"
+            "再动态定义本方案需要的AI执行员工。强调AI完成50%-70%的整理、生成和初稿，人工负责关键判断。"
+        ),
+    }
+    generated = generate_solution_agent_response(llm_payload)
+    fallback_used = not bool(generated)
+    solution = generated or _fallback_chat_solution(payload, context)
+    workers = _build_dynamic_workers(solution, payload.requirement)
+    human_points = _human_decision_points(solution, workers)
+    solution = {
+        "title": solution.get("title") or "AI 员工解决方案",
+        "summary": solution.get("summary") or "",
+        "recommended_solutions": solution.get("recommended_solutions") or [],
+        "needed_capabilities": _string_list(solution.get("needed_capabilities")),
+        "risks": _string_list(solution.get("risks")),
+        "next_questions": _string_list(solution.get("next_questions")),
+        "knowledge_context": {
+            "project_count": len(context["project_cases"]),
+            "work_count": len(context["work_cases"]),
+            "candidate_count": context["candidate_count"],
+            "project_cases": context["project_cases"][:6],
+            "work_cases": context["work_cases"][:6],
+        },
+        "dynamic_workers": workers,
+    }
+    assistant_message = (
+        f"我根据已上传的数据检索到 {len(context['project_cases'])} 个相关项目经验、"
+        f"{len(context['work_cases'])} 段公司经历。建议方案是「{solution['title']}」。"
+        "第一阶段先输出解决方案和PDF，第二阶段由动态AI员工完成初稿、拆解和检查，"
+        "关键范围、字段口径、客户承诺和最终交付仍由人工确认。"
+    )
+    return {
+        "assistant_message": assistant_message,
+        "solution": solution,
+        "retrieved_evidence": context["project_cases"][:6] + context["work_cases"][:4],
+        "dynamic_workers": workers,
+        "human_decision_points": human_points,
+        "model_used": not fallback_used,
+        "fallback_used": fallback_used,
+    }
 
 
 def _solution_to_document_content(payload: AgentSolutionProjectCreate) -> str:
