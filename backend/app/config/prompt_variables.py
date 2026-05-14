@@ -16,6 +16,9 @@ PROMPT_VARIABLES = {
         {"name": "resume_data", "description": "简历解析后的结构化数据（JSON格式）"},
         {"name": "industry_taxonomy", "description": "可选行业标签表"},
     ],
+    "tag_knowledge_asset": [
+        {"name": "asset_payload", "description": "待归档资料的标题、来源、原文和用户初始标签"},
+    ],
     "generate_resume_markdown": [
         {"name": "resume_text", "description": "简历原始文本内容"},
     ],
@@ -61,6 +64,7 @@ ALL_VARIABLES = {
     "other_positions": "其他相近岗位信息（JSON格式，包含岗位ID、名称、描述等）",
     "resume_data": "简历解析后的结构化数据（JSON格式）",
     "industry_taxonomy": "可选行业标签表",
+    "asset_payload": "待归档资料的标题、来源、原文和用户初始标签",
     "question_bank_content": "参考题库内容",
     "interview_category": "面试类型（HR面试/技术面试/主管面试/CEO面试/综合面试）",
     "count": "需要生成的题目数量",

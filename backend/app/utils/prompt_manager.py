@@ -271,7 +271,44 @@ DEFAULT_PROMPTS = {
     "industry_color": "标签颜色",
     "positioning_summary": "底层逻辑更偏哪类业务能力",
     "positioning_reason": "定位依据"
-  }}
+}}
+}}"""
+        },
+        "tag_knowledge_asset": {
+            "system": "你是一个严谨的数据资产标注员，负责把业务资料清洗成可检索、可审计、可被AI产品经理引用的知识资产。请严格返回JSON，不要添加额外说明。",
+            "user": """请根据以下资料生成知识资产标签和证据说明。
+
+要求：
+1. 不要把资料说成已验证事实，除非原文有明确项目、官方资料、第三方数据或指标支撑。
+2. 必须说明这条资产能证明什么，以及不能证明什么。
+3. 标签要服务于后续检索，例如行业、业务主题、证据类型、可用价值。
+4. 信息不足时，把缺口写入 does_not_prove 或 migration_risks。
+
+资料：
+{asset_payload}
+
+请严格返回以下JSON：
+{{
+  "summary": "资料摘要",
+  "industry_tags": ["行业标签"],
+  "business_topic_tags": ["业务主题标签"],
+  "scenario_tags": ["场景标签"],
+  "evidence_type_tags": ["证据类型标签"],
+  "capability_tags": ["能力标签"],
+  "methodology_tags": ["方法论标签"],
+  "customer_type_tags": ["客户类型标签"],
+  "value_tags": ["可用价值标签"],
+  "proves": ["这条资料能支撑的判断"],
+  "does_not_prove": ["这条资料不能直接证明的判断"],
+  "applicable_conditions": ["可迁移或复用的条件"],
+  "migration_risks": ["迁移风险"],
+  "score_dimensions": {{
+    "evidence_strength_score": 0到100,
+    "data_verification_score": 0到100,
+    "commercial_value_score": 0到100,
+    "confidence_score": 0到100
+  }},
+  "confidence_reason": "评分原因"
 }}"""
         },
         "generate_resume_markdown": {

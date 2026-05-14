@@ -13,6 +13,7 @@ from app.schemas.knowledge_assets import (
     KnowledgeAssetReviewUpdate,
     KnowledgeAssetSearchRequest,
 )
+from app.services.ai_service import generate_knowledge_asset_tags
 
 
 def _as_list(value: Any) -> List[str]:
@@ -108,18 +109,20 @@ def create_manual_asset(
     payload: KnowledgeAssetIntakeRequest,
     user_id: Optional[UUID],
 ) -> KnowledgeAsset:
+    ai_tags = generate_knowledge_asset_tags(payload.model_dump())
     inferred = _infer_tags(_text_blob(payload.title, payload.raw_text))
-    industry_tags = _unique([*payload.industry_tags, *inferred["industry_tags"]])
-    business_topic_tags = _unique([*payload.business_topic_tags, *inferred["business_topic_tags"]])
-    evidence_type_tags = _unique([*payload.evidence_type_tags, *inferred["evidence_type_tags"]])
-    confidence = _confidence_from_asset(
+    industry_tags = _unique([*payload.industry_tags, *inferred["industry_tags"], *_as_list(ai_tags.get("industry_tags"))])
+    business_topic_tags = _unique([*payload.business_topic_tags, *inferred["business_topic_tags"], *_as_list(ai_tags.get("business_topic_tags"))])
+    evidence_type_tags = _unique([*payload.evidence_type_tags, *inferred["evidence_type_tags"], *_as_list(ai_tags.get("evidence_type_tags"))])
+    score_dimensions = ai_tags.get("score_dimensions") if isinstance(ai_tags.get("score_dimensions"), dict) else {}
+    confidence = float(score_dimensions.get("confidence_score") or _confidence_from_asset(
         payload.raw_text,
         {
             "industry_tags": industry_tags,
             "business_topic_tags": business_topic_tags,
             "evidence_type_tags": evidence_type_tags,
         },
-    )
+    ))
     asset = KnowledgeAsset(
         title=payload.title,
         source_type=payload.source_type,
@@ -128,25 +131,25 @@ def create_manual_asset(
         source_file_path=payload.source_file_path,
         source_confidentiality=payload.source_confidentiality,
         raw_text=payload.raw_text,
-        summary=payload.raw_text[:240],
+        summary=ai_tags.get("summary") or payload.raw_text[:240],
         industry_tags=industry_tags,
         business_topic_tags=business_topic_tags,
-        scenario_tags=_as_list(payload.scenario_tags),
+        scenario_tags=_unique([*payload.scenario_tags, *_as_list(ai_tags.get("scenario_tags"))]),
         evidence_type_tags=evidence_type_tags,
-        capability_tags=_as_list(payload.capability_tags),
-        methodology_tags=_as_list(payload.methodology_tags),
-        customer_type_tags=_as_list(payload.customer_type_tags),
-        value_tags=_as_list(payload.value_tags),
-        proves=[],
-        does_not_prove=[],
-        applicable_conditions=[],
-        migration_risks=[],
-        evidence_strength_score=confidence,
-        data_verification_score=confidence if "待验证线索" not in evidence_type_tags else 35.0,
-        commercial_value_score=50.0,
+        capability_tags=_unique([*payload.capability_tags, *_as_list(ai_tags.get("capability_tags"))]),
+        methodology_tags=_unique([*payload.methodology_tags, *_as_list(ai_tags.get("methodology_tags"))]),
+        customer_type_tags=_unique([*payload.customer_type_tags, *_as_list(ai_tags.get("customer_type_tags"))]),
+        value_tags=_unique([*payload.value_tags, *_as_list(ai_tags.get("value_tags"))]),
+        proves=_as_list(ai_tags.get("proves")),
+        does_not_prove=_as_list(ai_tags.get("does_not_prove")),
+        applicable_conditions=_as_list(ai_tags.get("applicable_conditions")),
+        migration_risks=_as_list(ai_tags.get("migration_risks")),
+        evidence_strength_score=float(score_dimensions.get("evidence_strength_score") or confidence),
+        data_verification_score=float(score_dimensions.get("data_verification_score") or (confidence if "待验证线索" not in evidence_type_tags else 35.0)),
+        commercial_value_score=float(score_dimensions.get("commercial_value_score") or 50.0),
         relevance_score=0.0,
         confidence_score=confidence,
-        confidence_reason="由入库文本和标签完整度计算，等待人工复核。",
+        confidence_reason=ai_tags.get("confidence_reason") or "由入库文本和标签完整度计算，等待人工复核。",
         manual_review_status=KnowledgeAssetReviewStatus.UNREVIEWED,
         created_by=user_id,
     )
