@@ -500,6 +500,12 @@ class AIEmployeeRunStatus(str, enum.Enum):
     DISCARDED = "discarded"
 
 
+class KnowledgeAssetReviewStatus(str, enum.Enum):
+    UNREVIEWED = "unreviewed"
+    REVIEWED = "reviewed"
+    NEEDS_REVISION = "needs_revision"
+
+
 class CustomerProject(Base):
     __tablename__ = "customer_projects"
 
@@ -575,3 +581,46 @@ class AIEmployeeRun(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     task = relationship("ProjectTask", back_populates="ai_runs")
+
+
+class KnowledgeAsset(Base):
+    __tablename__ = "knowledge_assets"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=False)
+    source_type = Column(String, nullable=False, index=True)
+    source_name = Column(String, nullable=True)
+    source_url = Column(String, nullable=True)
+    source_file_path = Column(String, nullable=True)
+    source_resume_id = Column(UUID(as_uuid=True), ForeignKey("resumes.id"), nullable=True, index=True)
+    source_confidentiality = Column(String, default="internal")
+    raw_text = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    industry_tags = Column(JSON, default=list)
+    business_topic_tags = Column(JSON, default=list)
+    scenario_tags = Column(JSON, default=list)
+    evidence_type_tags = Column(JSON, default=list)
+    capability_tags = Column(JSON, default=list)
+    methodology_tags = Column(JSON, default=list)
+    customer_type_tags = Column(JSON, default=list)
+    value_tags = Column(JSON, default=list)
+    proves = Column(JSON, default=list)
+    does_not_prove = Column(JSON, default=list)
+    applicable_conditions = Column(JSON, default=list)
+    migration_risks = Column(JSON, default=list)
+    evidence_strength_score = Column(Float, default=0.0)
+    data_verification_score = Column(Float, default=0.0)
+    commercial_value_score = Column(Float, default=0.0)
+    relevance_score = Column(Float, default=0.0)
+    confidence_score = Column(Float, default=0.0)
+    confidence_reason = Column(Text, nullable=True)
+    manual_review_status = Column(
+        Enum(KnowledgeAssetReviewStatus),
+        default=KnowledgeAssetReviewStatus.UNREVIEWED,
+    )
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    source_resume = relationship("Resume")
+    creator = relationship("User")

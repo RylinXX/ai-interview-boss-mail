@@ -25,7 +25,8 @@ from app.models.models import (
     Base, User, UserRole, Position, PositionStatus, PositionUrgency, PositionType,
     Resume, ResumeStatus, ScreeningResult, Interview, InterviewStatus, InterviewResult,
     InterviewPanel, DepartmentReview, SystemConfig, CodingTest, CodingSubmission,
-    ResumeMailImport, CustomerProject, ProjectTask, SolutionDocument, AIEmployeeRun
+    ResumeMailImport, CustomerProject, ProjectTask, SolutionDocument, AIEmployeeRun,
+    KnowledgeAsset,
 )
 from app.config.database import get_db
 from app.core.security import get_password_hash, create_access_token
@@ -69,6 +70,7 @@ def db() -> Generator[Session, None, None]:
         ProjectTask.__table__,
         SolutionDocument.__table__,
         AIEmployeeRun.__table__,
+        KnowledgeAsset.__table__,
     ]
 
     for table in tables_to_create:
@@ -91,7 +93,7 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     覆盖 get_db 依赖，使用测试数据库
     """
     from fastapi import FastAPI
-    from app.routes import auth, positions, resumes, interviews, coding_tests, settings, resume_mail_imports, business_workbench
+    from app.routes import auth, positions, resumes, interviews, coding_tests, settings, resume_mail_imports, knowledge_assets, business_workbench
 
     # 创建测试应用（不导入 question_banks 路由，因为它使用了 ARRAY 类型）
     test_app = FastAPI()
@@ -104,6 +106,7 @@ def client(db: Session) -> Generator[TestClient, None, None]:
     test_app.include_router(coding_tests.router, prefix="/api")
     test_app.include_router(settings.router, prefix="/api")
     test_app.include_router(resume_mail_imports.router, prefix="/api")
+    test_app.include_router(knowledge_assets.router, prefix="/api")
     test_app.include_router(business_workbench.router, prefix="/api")
 
     # 正确覆盖 get_db 依赖
