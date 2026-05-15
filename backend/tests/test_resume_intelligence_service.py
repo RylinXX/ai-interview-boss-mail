@@ -531,6 +531,88 @@ def test_generate_industry_agent_solution_falls_back_without_llm(
     assert data["next_questions"]
 
 
+def test_industry_agent_solution_draft_persists_latest_result(
+    client, admin_auth_headers, db, monkeypatch
+):
+    resume = Resume(
+        id=uuid4(),
+        candidate_name="刘产品",
+        position_id=None,
+        file_path="uploads/resumes/software.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+        parsed_data={
+            "project_experiences": [
+                {
+                    "name": "投标文件制作平台",
+                    "problem": "投标文件靠人工复制模板。",
+                    "solution": "沉淀模板、人员资质和项目业绩，自动生成初稿。",
+                    "business_model": "软件项目交付",
+                }
+            ],
+            "work_experiences": [
+                {
+                    "company": "软件交付公司",
+                    "role": "产品经理",
+                    "summary": "负责系统平台、AI Agent和数据运营。",
+                    "capabilities": ["PRD", "项目交付", "数据运营"],
+                }
+            ],
+        },
+    )
+    db.add(resume)
+    db.commit()
+
+    monkeypatch.setattr(
+        resume_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "招投标文件制作平台方案",
+            "summary": "把模板、资质和项目业绩沉淀成可复用资料库。",
+            "recommended_solutions": [
+                {
+                    "name": "投标文件制作平台",
+                    "scenario": "招投标文件初稿生成",
+                    "value": "减少人工复制模板",
+                    "related_cases": ["投标文件制作平台"],
+                }
+            ],
+            "needed_capabilities": ["PRD", "项目交付"],
+            "risks": ["资料口径需要人工复核"],
+            "next_questions": ["现有模板是否结构化？"],
+        },
+    )
+
+    created = client.post(
+        "/api/resumes/industry-agent/solution-drafts",
+        headers=admin_auth_headers,
+        json={
+            "industry": "软件/AI/系统交付",
+            "business_type": "工程管理",
+            "current_process": "投标文件靠人工复制模板。",
+            "pain_points": ["招投标文件制作慢"],
+            "goals": ["投标文件制作平台"],
+        },
+    )
+
+    assert created.status_code == 200
+    draft_id = created.json()["id"]
+
+    latest = client.get(
+        "/api/resumes/industry-agent/solution-drafts/latest",
+        headers=admin_auth_headers,
+    )
+
+    assert latest.status_code == 200
+    data = latest.json()
+    assert data["id"] == draft_id
+    assert data["status"] == "completed"
+    assert data["request_payload"]["business_type"] == "工程管理"
+    assert data["result"]["title"] == "招投标文件制作平台方案"
+    assert data["result"]["knowledge_context"]["project_count"] == 1
+
+
 def test_process_resume_task_analyzes_resume_without_position(db, monkeypatch):
     resume = Resume(
         id=uuid4(),

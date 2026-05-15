@@ -2,7 +2,13 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
-from app.models.models import ResumeStatus, ScreeningResult, RejectReasonCategory, ReviewRecommendation
+from app.models.models import (
+    IndustryAgentSolutionDraftStatus,
+    ResumeStatus,
+    ScreeningResult,
+    RejectReasonCategory,
+    ReviewRecommendation,
+)
 from app.schemas.position import PositionResponse
 import re
 
@@ -188,6 +194,19 @@ class IndustryAgentSolutionResponse(BaseModel):
     risks: List[str] = []
     next_questions: List[str] = []
     knowledge_context: Dict[str, Any] = {}
+
+
+class IndustryAgentSolutionDraftResponse(BaseModel):
+    id: UUID
+    status: IndustryAgentSolutionDraftStatus
+    request_payload: Dict[str, Any] = {}
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 # 部门评审聚合报告

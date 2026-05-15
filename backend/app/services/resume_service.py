@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.models import (
     CodingSubmission, CodingTest, Resume, Position, Interview, InterviewPanel,
     DepartmentReview, User, Offer, ResumeMailImport,
+    IndustryAgentSolutionDraft, IndustryAgentSolutionDraftStatus,
     ResumeStatus, ScreeningResult, RejectReasonCategory, ReviewRecommendation
 )
 from app.schemas.resume import (
@@ -23,6 +24,7 @@ from app.services.ai_service import (
 )
 from app.services.task_queue import get_task_queue
 from app.services.knowledge_asset_service import sync_resume_knowledge_assets
+from app.config.database import SessionLocal
 from app.config.resume_industry import (
     DEFAULT_RESUME_INDUSTRY,
     RESUME_INDUSTRY_PROFILES,
@@ -1140,6 +1142,73 @@ def generate_industry_solution_from_agent(db: Session, request_data: Dict[str, A
             "candidate_pool": context["candidate_pool"][:6],
         },
     }
+
+
+def create_industry_solution_draft(
+    db: Session,
+    request_data: Dict[str, Any],
+    user_id: Optional[UUID],
+) -> IndustryAgentSolutionDraft:
+    draft = IndustryAgentSolutionDraft(
+        status=IndustryAgentSolutionDraftStatus.PROCESSING,
+        request_payload=request_data,
+        created_by=user_id,
+    )
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return draft
+
+
+def run_industry_solution_draft(draft_id: UUID) -> None:
+    db = SessionLocal()
+    try:
+        draft = db.query(IndustryAgentSolutionDraft).filter(IndustryAgentSolutionDraft.id == draft_id).first()
+        if not draft:
+            return
+        draft.status = IndustryAgentSolutionDraftStatus.PROCESSING
+        draft.error = None
+        db.commit()
+
+        result = generate_industry_solution_from_agent(db, draft.request_payload or {})
+        draft.result = result
+        draft.status = IndustryAgentSolutionDraftStatus.COMPLETED
+        draft.completed_at = datetime.utcnow()
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        draft = db.query(IndustryAgentSolutionDraft).filter(IndustryAgentSolutionDraft.id == draft_id).first()
+        if draft:
+            draft.status = IndustryAgentSolutionDraftStatus.FAILED
+            draft.error = str(exc)
+            draft.completed_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
+
+
+def get_industry_solution_draft(
+    db: Session,
+    draft_id: UUID,
+    user_id: Optional[UUID],
+) -> Optional[IndustryAgentSolutionDraft]:
+    query = db.query(IndustryAgentSolutionDraft).filter(IndustryAgentSolutionDraft.id == draft_id)
+    if user_id:
+        query = query.filter(IndustryAgentSolutionDraft.created_by == user_id)
+    return query.first()
+
+
+def get_latest_industry_solution_draft(
+    db: Session,
+    user_id: Optional[UUID],
+) -> Optional[IndustryAgentSolutionDraft]:
+    query = db.query(IndustryAgentSolutionDraft)
+    if user_id:
+        query = query.filter(IndustryAgentSolutionDraft.created_by == user_id)
+    return query.order_by(
+        IndustryAgentSolutionDraft.created_at.desc(),
+        IndustryAgentSolutionDraft.id.desc(),
+    ).first()
 
 
 def summarize_resume_projects(

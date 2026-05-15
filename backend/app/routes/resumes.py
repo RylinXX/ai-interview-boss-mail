@@ -6,14 +6,16 @@ from app.schemas.resume import (
     ResumeResponse, ResumeCreate, ResumeUpdate,
     DepartmentReviewCreate, DepartmentReviewUpdate, DepartmentReviewResponse,
     HRDecisionCreate, HRDecisionResponse, IndustryAgentSolutionRequest,
-    IndustryAgentSolutionResponse,
+    IndustryAgentSolutionDraftResponse, IndustryAgentSolutionResponse,
     DuplicateCheckRequest, DuplicateCheckResponse, DepartmentReviewSummary
 )
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
     summarize_resume_experiences, summarize_resume_projects, summarize_industry_solution_agent,
-    generate_industry_solution_from_agent,
+    create_industry_solution_draft, generate_industry_solution_from_agent,
+    get_industry_solution_draft, get_latest_industry_solution_draft,
+    run_industry_solution_draft,
     check_duplicate_resume, create_department_review, get_department_reviews,
     complete_department_review, aggregate_department_reviews, submit_hr_decision,
     confirm_rejection, override_rejection, get_resume_with_reviews, transfer_resume_position,
@@ -167,6 +169,38 @@ def generate_industry_solution_agent_route(
     current_user: User = Depends(get_current_user)
 ):
     return generate_industry_solution_from_agent(db, request.model_dump())
+
+
+@router.post("/industry-agent/solution-drafts", response_model=IndustryAgentSolutionDraftResponse)
+def create_industry_solution_draft_route(
+    request: IndustryAgentSolutionRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    draft = create_industry_solution_draft(db, request.model_dump(), current_user.id)
+    background_tasks.add_task(run_industry_solution_draft, draft.id)
+    return draft
+
+
+@router.get("/industry-agent/solution-drafts/latest", response_model=Optional[IndustryAgentSolutionDraftResponse])
+def get_latest_industry_solution_draft_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return get_latest_industry_solution_draft(db, current_user.id)
+
+
+@router.get("/industry-agent/solution-drafts/{draft_id}", response_model=IndustryAgentSolutionDraftResponse)
+def get_industry_solution_draft_route(
+    draft_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    draft = get_industry_solution_draft(db, draft_id, current_user.id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Solution draft not found")
+    return draft
 
 # ==================== 简历详情与更新 ====================
 

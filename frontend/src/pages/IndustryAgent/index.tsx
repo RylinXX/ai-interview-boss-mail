@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Empty, Form, Input, Row, Select, Space, Spin, Tag, Typography } from 'antd';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, App, Button, Card, Col, Empty, Form, Input, Row, Select, Space, Spin, Tag, Typography } from 'antd';
 import {
   ApartmentOutlined,
   BulbOutlined,
@@ -32,6 +32,25 @@ type AgentSolution = {
   knowledge_context: any;
 };
 
+type IndustryAgentFormValues = {
+  industry?: string;
+  business_type?: string;
+  current_process?: string;
+  pain_points?: string;
+  goals?: string;
+};
+
+type AgentSolutionDraft = {
+  id: string;
+  status: 'processing' | 'completed' | 'failed';
+  request_payload: Record<string, any>;
+  result?: AgentSolution | null;
+  error?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+  completed_at?: string | null;
+};
+
 const SOLUTION_GENERATION_TIMEOUT_MS = 120000;
 
 const splitLines = (value?: string) => {
@@ -43,15 +62,36 @@ const splitLines = (value?: string) => {
 
 const safeFileName = (value: string) => value.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
 
+const draftPayloadToFormValues = (payload: Record<string, any> = {}): IndustryAgentFormValues => ({
+  industry: payload.industry,
+  business_type: payload.business_type,
+  current_process: payload.current_process,
+  pain_points: Array.isArray(payload.pain_points) ? payload.pain_points.join('\n') : payload.pain_points,
+  goals: Array.isArray(payload.goals) ? payload.goals.join('\n') : payload.goals,
+});
+
 const IndustryAgent: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<IndustryAgentFormValues>();
   const [data, setData] = useState<IndustryAgentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
+  const [restoringDraft, setRestoringDraft] = useState(false);
+  const [draft, setDraft] = useState<AgentSolutionDraft | null>(null);
   const [solution, setSolution] = useState<AgentSolution | null>(null);
+
+  const applyDraft = useCallback((nextDraft: AgentSolutionDraft | null, restoreForm = false) => {
+    setDraft(nextDraft);
+    if (!nextDraft) return;
+    if (restoreForm) {
+      form.setFieldsValue(draftPayloadToFormValues(nextDraft.request_payload));
+    }
+    if (nextDraft.result) {
+      setSolution(nextDraft.result);
+    }
+  }, [form]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -67,6 +107,35 @@ const IndustryAgent: React.FC = () => {
     };
     fetchData();
   }, [message]);
+
+  useEffect(() => {
+    const fetchLatestDraft = async () => {
+      setRestoringDraft(true);
+      try {
+        const latest = await request.get('/resumes/industry-agent/solution-drafts/latest') as AgentSolutionDraft | null;
+        applyDraft(latest, true);
+      } catch (error) {
+        message.error(getApiErrorMessage(error, '恢复最近方案草稿失败'));
+      } finally {
+        setRestoringDraft(false);
+      }
+    };
+    fetchLatestDraft();
+  }, [applyDraft, message]);
+
+  useEffect(() => {
+    if (!draft || draft.status !== 'processing') return;
+    const timer = window.setInterval(async () => {
+      try {
+        const nextDraft = await request.get(`/resumes/industry-agent/solution-drafts/${draft.id}`) as AgentSolutionDraft;
+        applyDraft(nextDraft);
+      } catch (error) {
+        window.clearInterval(timer);
+        message.error(getApiErrorMessage(error, '同步方案草稿状态失败'));
+      }
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [applyDraft, draft, message]);
 
   const industries = data?.industries || [];
   const selectedIndustry = Form.useWatch('industry', form);
@@ -91,7 +160,8 @@ const IndustryAgent: React.FC = () => {
     const values = await form.validateFields();
     setGenerating(true);
     try {
-      const response = await request.post('/resumes/industry-agent/solution', {
+      setSolution(null);
+      const response = await request.post('/resumes/industry-agent/solution-drafts', {
         industry: values.industry,
         business_type: values.business_type,
         current_process: values.current_process,
@@ -110,9 +180,13 @@ const IndustryAgent: React.FC = () => {
         ],
       }, {
         timeout: SOLUTION_GENERATION_TIMEOUT_MS,
-      });
-      setSolution(response as AgentSolution);
-      message.success('方案已生成');
+      }) as AgentSolutionDraft;
+      applyDraft(response);
+      if (response.result) {
+        message.success('方案已生成并保存');
+      } else {
+        message.success('已开始后台生成，切换页面后会自动恢复');
+      }
     } catch (error) {
       message.error(getApiErrorMessage(error, '生成方案失败'));
     } finally {
@@ -166,6 +240,9 @@ const IndustryAgent: React.FC = () => {
     }
   };
 
+  const isDraftProcessing = draft?.status === 'processing';
+  const isGeneratingSolution = generating || isDraftProcessing;
+
   if (loading) {
     return (
       <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
@@ -183,8 +260,8 @@ const IndustryAgent: React.FC = () => {
           <Text>把高级人才样本中的项目、公司经历和能力标签作为知识库，补充客户业务信息后生成可落地方案。</Text>
         </div>
         <Space className="consulting-hero-actions">
-          <Button type="primary" icon={<SendOutlined />} loading={generating} onClick={generateSolution}>
-            生成方案
+          <Button type="primary" icon={<SendOutlined />} loading={isGeneratingSolution} onClick={generateSolution}>
+            {isDraftProcessing ? '后台生成中' : '生成方案'}
           </Button>
         </Space>
       </section>
@@ -239,8 +316,8 @@ const IndustryAgent: React.FC = () => {
                     <Tag icon={<MessageOutlined />} key={item}>{item}</Tag>
                   ))}
                 </div>
-                <Button icon={<SendOutlined />} loading={generating} onClick={generateSolution}>
-                  生成方案
+                <Button icon={<SendOutlined />} loading={isGeneratingSolution} onClick={generateSolution}>
+                  {isDraftProcessing ? '后台生成中' : '生成方案'}
                 </Button>
               </div>
             </Form>
@@ -396,7 +473,27 @@ const IndustryAgent: React.FC = () => {
           </div>
         ) : (
           <div className="agent-solution-empty">
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="补充业务信息后生成可导出的方案报告" />
+            {restoringDraft ? (
+              <Space orientation="vertical" align="center" size={12}>
+                <Spin />
+                <Text type="secondary">正在恢复最近一次方案草稿</Text>
+              </Space>
+            ) : draft?.status === 'processing' ? (
+              <Space orientation="vertical" align="center" size={12}>
+                <Spin />
+                <Text strong>方案正在后台生成</Text>
+                <Text type="secondary">可以切换到其他入口，回来后会自动读取这条草稿。</Text>
+              </Space>
+            ) : draft?.status === 'failed' ? (
+              <Alert
+                type="error"
+                showIcon
+                message="方案生成失败"
+                description={draft.error || '请检查模型配置或稍后重新生成。'}
+              />
+            ) : (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="补充业务信息后生成可导出的方案报告" />
+            )}
           </div>
         )}
       </Card>

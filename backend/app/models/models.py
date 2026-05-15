@@ -506,6 +506,12 @@ class KnowledgeAssetReviewStatus(str, enum.Enum):
     NEEDS_REVISION = "needs_revision"
 
 
+class IndustryAgentSolutionDraftStatus(str, enum.Enum):
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 class CustomerProject(Base):
     __tablename__ = "customer_projects"
 
@@ -623,4 +629,25 @@ class KnowledgeAsset(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     source_resume = relationship("Resume")
+    creator = relationship("User")
+
+
+class IndustryAgentSolutionDraft(Base):
+    __tablename__ = "industry_agent_solution_drafts"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    status = Column(
+        Enum(IndustryAgentSolutionDraftStatus),
+        default=IndustryAgentSolutionDraftStatus.PROCESSING,
+        nullable=False,
+        index=True,
+    )
+    request_payload = Column(JSON, default=dict)
+    result = Column(JSON, nullable=True)
+    error = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
     creator = relationship("User")
