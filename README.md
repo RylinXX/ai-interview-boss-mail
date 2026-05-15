@@ -212,6 +212,7 @@ make docker-prod     # 构建并启动生产 Compose
 | `OPENAI_BASE_URL` | 模型服务 Base URL |
 | `LLM_PROVIDER` | 模型提供方标识，默认 `dashscope` |
 | `LLM_MODEL` | 默认模型名 |
+| `RESUME_PARSE_MAX_CONCURRENT` | 简历解析队列并发数，生产环境建议先设为 `6` 到 `8` |
 | `VITE_API_URL` | 前端 API 地址，默认 `/api` |
 
 ## 测试与质量

@@ -30,6 +30,7 @@ services:
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-System Admin}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      RESUME_PARSE_MAX_CONCURRENT: ${RESUME_PARSE_MAX_CONCURRENT:-8}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
       APP_ENV: production
     volumes:

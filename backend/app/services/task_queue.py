@@ -1,4 +1,5 @@
 import threading
+import os
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -7,6 +8,22 @@ from uuid import UUID
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor
 import time
+
+
+RESUME_PARSE_MAX_CONCURRENT_ENV = "RESUME_PARSE_MAX_CONCURRENT"
+
+
+def get_configured_max_concurrent(default: int = 3) -> int:
+    raw_value = os.getenv(RESUME_PARSE_MAX_CONCURRENT_ENV)
+    if raw_value is None:
+        return default
+
+    try:
+        configured_value = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+
+    return configured_value if configured_value > 0 else default
 
 
 class TaskStatus(str, Enum):
@@ -249,7 +266,7 @@ class TaskQueue:
                         del self.completed_tasks[oldest_key]
 
 
-task_queue = TaskQueue(max_concurrent=3)
+task_queue = TaskQueue(max_concurrent=get_configured_max_concurrent())
 
 
 def get_task_queue() -> TaskQueue:
