@@ -183,14 +183,6 @@ const IndustryAgent: React.FC = () => {
           <Text>把高级人才样本中的项目、公司经历和能力标签作为知识库，补充客户业务信息后生成可落地方案。</Text>
         </div>
         <Space className="consulting-hero-actions">
-          <Button
-            icon={<ProjectOutlined />}
-            disabled={!solution}
-            loading={creatingProject}
-            onClick={createProjectFromSolution}
-          >
-            生成客户案卷
-          </Button>
           <Button type="primary" icon={<SendOutlined />} loading={generating} onClick={generateSolution}>
             生成方案
           </Button>
@@ -321,19 +313,20 @@ const IndustryAgent: React.FC = () => {
           </Space>
         }
         extra={
-          <Space>
-            <Button
-              icon={<ProjectOutlined />}
-              disabled={!solution}
-              loading={creatingProject}
-              onClick={createProjectFromSolution}
-            >
-              生成客户案卷
-            </Button>
-            <Button icon={<DownloadOutlined />} disabled={!solution} onClick={exportSolutionPdf}>
-              导出 PDF
-            </Button>
-          </Space>
+          solution ? (
+            <Space>
+              <Button
+                icon={<ProjectOutlined />}
+                loading={creatingProject}
+                onClick={createProjectFromSolution}
+              >
+                生成客户案卷
+              </Button>
+              <Button icon={<DownloadOutlined />} onClick={exportSolutionPdf}>
+                导出 PDF
+              </Button>
+            </Space>
+          ) : null
         }
       >
         {solution ? (
