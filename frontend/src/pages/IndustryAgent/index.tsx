@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, App, Button, Card, Col, Empty, Form, Input, Row, Select, Space, Spin, Tag, Typography } from 'antd';
+import { Alert, App, Button, Card, Col, Empty, Form, Input, Progress, Row, Select, Space, Spin, Tag, Typography } from 'antd';
 import {
   ApartmentOutlined,
   BulbOutlined,
@@ -43,6 +43,9 @@ type IndustryAgentFormValues = {
 type AgentSolutionDraft = {
   id: string;
   status: 'processing' | 'completed' | 'failed';
+  stage: string;
+  current_step: string;
+  progress: number;
   request_payload: Record<string, any>;
   result?: AgentSolution | null;
   error?: string | null;
@@ -69,6 +72,24 @@ const draftPayloadToFormValues = (payload: Record<string, any> = {}): IndustryAg
   pain_points: Array.isArray(payload.pain_points) ? payload.pain_points.join('\n') : payload.pain_points,
   goals: Array.isArray(payload.goals) ? payload.goals.join('\n') : payload.goals,
 });
+
+const draftStatusMeta: Record<AgentSolutionDraft['status'], { label: string; color: string }> = {
+  processing: { label: '生成中', color: 'processing' },
+  completed: { label: '已完成', color: 'success' },
+  failed: { label: '失败', color: 'error' },
+};
+
+const formatDraftTime = (value?: string | null) => {
+  if (!value) return '刚刚更新';
+  const time = new Date(value);
+  if (Number.isNaN(time.getTime())) return '刚刚更新';
+  return time.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
 
 const IndustryAgent: React.FC = () => {
   const { message } = App.useApp();
@@ -242,6 +263,42 @@ const IndustryAgent: React.FC = () => {
 
   const isDraftProcessing = draft?.status === 'processing';
   const isGeneratingSolution = generating || isDraftProcessing;
+  const renderDraftTaskCard = () => {
+    if (!draft) return null;
+    const meta = draftStatusMeta[draft.status];
+    const progress = Math.max(0, Math.min(Math.round(draft.progress || 0), 100));
+    const progressStatus = draft.status === 'failed' ? 'exception' : draft.status === 'completed' ? 'success' : 'active';
+    const taskName = draft.request_payload?.business_type || draft.request_payload?.industry || '方案生成任务';
+
+    return (
+      <div className="agent-draft-task-card">
+        <div className="agent-draft-task-head">
+          <Space wrap>
+            <Tag color={meta.color}>{meta.label}</Tag>
+            <Text strong>{taskName}</Text>
+          </Space>
+          <Text type="secondary">{formatDraftTime(draft.updated_at || draft.created_at)}</Text>
+        </div>
+        <Text type="secondary">{draft.current_step || '等待处理'}</Text>
+        <Progress
+          percent={progress}
+          status={progressStatus}
+          size={['100%', 10]}
+        />
+        {draft.status === 'processing' ? (
+          <Text type="secondary">这条生成事项已保存到数据库，切换页面后回来会继续显示当前进度。</Text>
+        ) : null}
+        {draft.status === 'failed' && draft.error ? (
+          <Alert
+            type="error"
+            showIcon
+            message="生成失败"
+            description={draft.error}
+          />
+        ) : null}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -265,6 +322,15 @@ const IndustryAgent: React.FC = () => {
           </Button>
         </Space>
       </section>
+
+      {draft ? (
+        <Card
+          className="agent-draft-task-shell consulting-table-card"
+          title="方案生成事项"
+        >
+          {renderDraftTaskCard()}
+        </Card>
+      ) : null}
 
       <Row gutter={[16, 16]} className="agent-builder-row">
         <Col span={15}>
@@ -479,18 +545,9 @@ const IndustryAgent: React.FC = () => {
                 <Text type="secondary">正在恢复最近一次方案草稿</Text>
               </Space>
             ) : draft?.status === 'processing' ? (
-              <Space orientation="vertical" align="center" size={12}>
-                <Spin />
-                <Text strong>方案正在后台生成</Text>
-                <Text type="secondary">可以切换到其他入口，回来后会自动读取这条草稿。</Text>
-              </Space>
+              renderDraftTaskCard()
             ) : draft?.status === 'failed' ? (
-              <Alert
-                type="error"
-                showIcon
-                message="方案生成失败"
-                description={draft.error || '请检查模型配置或稍后重新生成。'}
-              />
+              renderDraftTaskCard()
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="补充业务信息后生成可导出的方案报告" />
             )}

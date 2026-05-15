@@ -1151,6 +1151,9 @@ def create_industry_solution_draft(
 ) -> IndustryAgentSolutionDraft:
     draft = IndustryAgentSolutionDraft(
         status=IndustryAgentSolutionDraftStatus.PROCESSING,
+        stage="queued",
+        current_step="已创建生成任务",
+        progress=5,
         request_payload=request_data,
         created_by=user_id,
     )
@@ -1158,6 +1161,19 @@ def create_industry_solution_draft(
     db.commit()
     db.refresh(draft)
     return draft
+
+
+def _set_industry_solution_draft_progress(
+    db: Session,
+    draft: IndustryAgentSolutionDraft,
+    stage: str,
+    current_step: str,
+    progress: int,
+) -> None:
+    draft.stage = stage
+    draft.current_step = current_step
+    draft.progress = max(0, min(progress, 100))
+    db.commit()
 
 
 def run_industry_solution_draft(draft_id: UUID) -> None:
@@ -1168,11 +1184,16 @@ def run_industry_solution_draft(draft_id: UUID) -> None:
             return
         draft.status = IndustryAgentSolutionDraftStatus.PROCESSING
         draft.error = None
-        db.commit()
+        _set_industry_solution_draft_progress(db, draft, "loading_context", "正在检索知识库上下文", 20)
 
+        _set_industry_solution_draft_progress(db, draft, "generating", "正在调用模型生成方案草稿", 55)
         result = generate_industry_solution_from_agent(db, draft.request_payload or {})
+        _set_industry_solution_draft_progress(db, draft, "saving_result", "正在保存方案结果", 90)
         draft.result = result
         draft.status = IndustryAgentSolutionDraftStatus.COMPLETED
+        draft.stage = "completed"
+        draft.current_step = "方案已生成并保存"
+        draft.progress = 100
         draft.completed_at = datetime.utcnow()
         db.commit()
     except Exception as exc:
@@ -1180,6 +1201,9 @@ def run_industry_solution_draft(draft_id: UUID) -> None:
         draft = db.query(IndustryAgentSolutionDraft).filter(IndustryAgentSolutionDraft.id == draft_id).first()
         if draft:
             draft.status = IndustryAgentSolutionDraftStatus.FAILED
+            draft.stage = "failed"
+            draft.current_step = "方案生成失败"
+            draft.progress = min(max(int(draft.progress or 0), 5), 95)
             draft.error = str(exc)
             draft.completed_at = datetime.utcnow()
             db.commit()

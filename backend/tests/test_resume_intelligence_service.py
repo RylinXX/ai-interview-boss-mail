@@ -608,6 +608,9 @@ def test_industry_agent_solution_draft_persists_latest_result(
     data = latest.json()
     assert data["id"] == draft_id
     assert data["status"] == "completed"
+    assert data["stage"] == "completed"
+    assert data["current_step"] == "方案已生成并保存"
+    assert data["progress"] == 100
     assert data["request_payload"]["business_type"] == "工程管理"
     assert data["result"]["title"] == "招投标文件制作平台方案"
     assert data["result"]["knowledge_context"]["project_count"] == 1

@@ -642,6 +642,9 @@ class IndustryAgentSolutionDraft(Base):
         nullable=False,
         index=True,
     )
+    stage = Column(String, default="queued", nullable=False)
+    current_step = Column(String, default="已创建生成任务", nullable=False)
+    progress = Column(Integer, default=5, nullable=False)
     request_payload = Column(JSON, default=dict)
     result = Column(JSON, nullable=True)
     error = Column(Text, nullable=True)

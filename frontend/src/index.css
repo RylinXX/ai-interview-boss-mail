@@ -2004,6 +2004,28 @@ code {
   align-items: center;
 }
 
+.agent-draft-task-shell {
+  margin-bottom: 16px;
+}
+
+.agent-draft-task-card {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.agent-draft-task-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
 .agent-solution-card .ant-card-head {
   min-height: 52px;
 }
@@ -2149,7 +2171,8 @@ html[data-theme='dark'] .agent-report-content .ant-typography-secondary {
 html[data-theme='dark'] .agent-report-header,
 html[data-theme='dark'] .agent-report-section,
 html[data-theme='dark'] .agent-solution-item,
-html[data-theme='dark'] .agent-report-metrics span {
+html[data-theme='dark'] .agent-report-metrics span,
+html[data-theme='dark'] .agent-draft-task-card {
   border-color: var(--border-color);
   background: var(--surface-muted);
   color: var(--text-primary);
@@ -2427,6 +2450,10 @@ html[data-theme='dark'] .agent-solution-item h5 {
 
   .agent-form-actions {
     grid-template-columns: 1fr;
+  }
+
+  .agent-draft-task-head {
+    flex-direction: column;
   }
 
   .agent-workspace-page .ant-col {

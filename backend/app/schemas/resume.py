@@ -199,6 +199,9 @@ class IndustryAgentSolutionResponse(BaseModel):
 class IndustryAgentSolutionDraftResponse(BaseModel):
     id: UUID
     status: IndustryAgentSolutionDraftStatus
+    stage: str = "queued"
+    current_step: str = "已创建生成任务"
+    progress: int = 5
     request_payload: Dict[str, Any] = {}
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
