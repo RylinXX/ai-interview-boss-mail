@@ -395,7 +395,7 @@ def test_knowledge_assets_catalog_groups_business_sample_libraries(
         },
     ).json()
 
-    response = client.get("/api/knowledge-assets", headers=admin_auth_headers)
+    response = client.get("/api/business-workbench/knowledge-assets", headers=admin_auth_headers)
 
     assert response.status_code == 200
     assets = {item["asset_type"]: item for item in response.json()}

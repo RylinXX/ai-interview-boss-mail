@@ -175,7 +175,7 @@ def list_capability_samples_route(
     return service.list_capability_samples(db)
 
 
-@router.get("/knowledge-assets", response_model=List[KnowledgeAssetResponse])
+@router.get("/business-workbench/knowledge-assets", response_model=List[KnowledgeAssetResponse])
 def list_knowledge_assets_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
