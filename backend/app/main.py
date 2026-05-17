@@ -11,6 +11,7 @@ from app.config.database import engine, SessionLocal
 from app.models.models import Base, User, UserRole
 from app.core.security import get_password_hash
 from app.services.resume_mail_import_scheduler import resume_mail_import_scheduler
+from app.services.resume_service import requeue_processing_resumes
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -87,6 +88,15 @@ app.include_router(business_workbench.router, prefix="/api")
 
 @app.on_event("startup")
 def start_resume_mail_import_scheduler():
+    try:
+        result = requeue_processing_resumes()
+        if result["queued_count"] or result["skipped_count"]:
+            print(
+                "[ResumeRecovery] processing resumes checked: "
+                f"queued={result['queued_count']}, skipped={result['skipped_count']}"
+            )
+    except Exception as e:
+        print(f"[ResumeRecovery] Failed to requeue processing resumes: {e}")
     resume_mail_import_scheduler.start()
 
 

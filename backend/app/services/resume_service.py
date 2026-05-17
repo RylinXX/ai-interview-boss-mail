@@ -113,14 +113,16 @@ def read_file_content(file_path: str) -> str:
             doc = docx.Document(file_path)
             content = '\n'.join([para.text for para in doc.paragraphs])
         elif ext == '.pdf':
-            try:
-                content = extract_resume_text_from_document(file_path)
-            except Exception as e:
-                print(f"Model document extraction unavailable: {e}")
-                content = ""
-            if not content:
-                content = _extract_pdf_text(file_path)
-                if _looks_like_unreadable_pdf_text(content):
+            content = _extract_pdf_text(file_path)
+            if _looks_like_unreadable_pdf_text(content):
+                try:
+                    model_content = extract_resume_text_from_document(file_path)
+                except Exception as e:
+                    print(f"Model document extraction unavailable: {e}")
+                    model_content = ""
+                if model_content and not _looks_like_unreadable_pdf_text(model_content):
+                    content = model_content
+                else:
                     vision_content = _extract_pdf_text_with_vision(file_path)
                     if vision_content:
                         content = vision_content
@@ -357,21 +359,27 @@ def process_resume_task(payload: Dict[str, Any]):
         resume.parse_error = None
         db.commit()
 
+        content = read_file_content(resume.file_path)
+        if not content and not _is_pdf_file(resume.file_path):
+            resume.parse_status = "failed"
+            resume.parse_error = "读取简历内容失败"
+            db.commit()
+            return
+
         parsed_data = {}
-        content = ""
-        if _is_pdf_file(resume.file_path):
+        if content:
+            parsed_data = analyze_resume_intelligence(content)
+
+        if not parsed_data and _is_pdf_file(resume.file_path):
             parsed_data = analyze_resume_intelligence_from_document(resume.file_path)
-            if parsed_data:
+            if parsed_data and not content:
                 content = _raw_text_from_direct_analysis(parsed_data)
 
-        if not parsed_data:
-            content = read_file_content(resume.file_path)
-            if not content:
-                resume.parse_status = "failed"
-                resume.parse_error = "读取简历内容失败"
-                db.commit()
-                return
-            parsed_data = analyze_resume_intelligence(content)
+        if not content:
+            resume.parse_status = "failed"
+            resume.parse_error = "读取简历内容失败"
+            db.commit()
+            return
 
         if not parsed_data:
             resume.parse_status = "failed"
@@ -430,6 +438,41 @@ def process_resume_background(resume_id: UUID, position_id: Optional[UUID] = Non
         callback=process_resume_task,
         on_failure=on_resume_parse_failure,
     )
+
+
+def requeue_processing_resumes(limit: int = 200) -> Dict[str, int]:
+    safe_limit = max(1, min(int(limit or 200), 1000))
+    queue = get_task_queue()
+    queued_count = 0
+    skipped_count = 0
+    db = SessionLocal()
+    try:
+        resumes = (
+            db.query(Resume)
+            .filter(Resume.parse_status == "processing")
+            .order_by(Resume.created_at.asc())
+            .limit(safe_limit)
+            .all()
+        )
+        for resume in resumes:
+            if queue.get_status(str(resume.id)) is not None:
+                skipped_count += 1
+                continue
+            queue.submit(
+                task_id=str(resume.id),
+                task_type="resume_parse",
+                payload={
+                    "resume_id": resume.id,
+                    "position_id": resume.position_id,
+                    "use_user_info": False,
+                },
+                callback=process_resume_task,
+                on_failure=on_resume_parse_failure,
+            )
+            queued_count += 1
+        return {"queued_count": queued_count, "skipped_count": skipped_count}
+    finally:
+        db.close()
 
 def upload_resume(db: Session, file: UploadFile, position_id: Optional[UUID], background_tasks: BackgroundTasks,
                   candidate_name: str = None, email: str = None, contact: str = None):

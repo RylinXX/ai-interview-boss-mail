@@ -774,7 +774,7 @@ def test_process_resume_task_merges_llm_positioning_into_parsed_data(db, monkeyp
     assert "定位分析" in resume.ai_review
 
 
-def test_process_resume_task_prefers_direct_pdf_intelligence(db, monkeypatch, tmp_path):
+def test_process_resume_task_uses_extracted_pdf_text_before_direct_document_analysis(db, monkeypatch, tmp_path):
     pdf_path = tmp_path / "candidate.pdf"
     pdf_path.write_bytes(b"%PDF-1.4")
     resume = Resume(
@@ -791,11 +791,10 @@ def test_process_resume_task_prefers_direct_pdf_intelligence(db, monkeypatch, tm
     resume_id = resume.id
 
     parsed = {
-        "raw_text": "模型直读出的简历正文",
         "candidate_name": "林青",
         "email": "linqing@example.com",
         "evaluation_score": 88,
-        "experience_summary": "直传 PDF 完成结构化分析。",
+        "experience_summary": "基于完整 PDF 文本完成结构化分析。",
         "project_experiences": [{"name": "AI 质检平台"}],
     }
 
@@ -803,18 +802,10 @@ def test_process_resume_task_prefers_direct_pdf_intelligence(db, monkeypatch, tm
     monkeypatch.setattr(
         resume_service,
         "analyze_resume_intelligence_from_document",
-        lambda file_path: parsed,
+        lambda file_path: (_ for _ in ()).throw(AssertionError("direct document analysis should not run")),
     )
-    monkeypatch.setattr(
-        resume_service,
-        "read_file_content",
-        lambda file_path: (_ for _ in ()).throw(AssertionError("local PDF extraction should not run")),
-    )
-    monkeypatch.setattr(
-        resume_service,
-        "analyze_resume_intelligence",
-        lambda content: (_ for _ in ()).throw(AssertionError("text analysis fallback should not run")),
-    )
+    monkeypatch.setattr(resume_service, "read_file_content", lambda file_path: "完整 PDF 简历正文")
+    monkeypatch.setattr(resume_service, "analyze_resume_intelligence", lambda content: parsed if content == "完整 PDF 简历正文" else {})
     monkeypatch.setattr(resume_service, "analyze_resume_positioning", lambda content, parsed_data: {}, raising=False)
     monkeypatch.setattr(resume_service, "generate_resume_markdown", lambda content: "## 林青")
 
@@ -822,10 +813,60 @@ def test_process_resume_task_prefers_direct_pdf_intelligence(db, monkeypatch, tm
 
     resume = db.query(Resume).filter(Resume.id == resume_id).one()
     assert resume.parse_status == "success"
-    assert resume.raw_text == "模型直读出的简历正文"
+    assert resume.raw_text == "完整 PDF 简历正文"
     assert resume.candidate_name == "林青"
     assert resume.match_score == 88
     assert resume.resume_markdown == "## 林青"
+
+
+def test_requeue_processing_resumes_submits_only_missing_queue_tasks(db, monkeypatch):
+    processing_resume = Resume(
+        id=uuid4(),
+        candidate_name="解析中...",
+        position_id=None,
+        file_path="uploads/resumes/processing.pdf",
+        parse_status="processing",
+        status=ResumeStatus.PENDING_SCREENING,
+        screening_result=ScreeningResult.PENDING,
+    )
+    success_resume = Resume(
+        id=uuid4(),
+        candidate_name="林青",
+        position_id=None,
+        file_path="uploads/resumes/success.pdf",
+        parse_status="success",
+        status=ResumeStatus.COMPLETED,
+        screening_result=ScreeningResult.PASSED,
+    )
+    db.add_all([processing_resume, success_resume])
+    db.commit()
+
+    submitted = []
+
+    class FakeQueue:
+        def get_status(self, task_id):
+            return None
+
+        def submit(self, task_id, task_type, payload, callback, on_failure=None):
+            submitted.append((task_id, task_type, payload))
+
+    monkeypatch.setattr(resume_service, "SessionLocal", lambda: db)
+    monkeypatch.setattr(resume_service, "get_task_queue", lambda: FakeQueue())
+
+    result = resume_service.requeue_processing_resumes()
+
+    assert result == {"queued_count": 1, "skipped_count": 0}
+    assert submitted == [
+        (
+            str(processing_resume.id),
+            "resume_parse",
+            {
+                "resume_id": processing_resume.id,
+                "position_id": None,
+                "use_user_info": False,
+            },
+        )
+    ]
 
 
 def test_summarize_resume_experiences_collects_work_and_project_items(db):
