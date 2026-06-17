@@ -24,7 +24,7 @@ type CustomerProject = {
 
 const splitLines = (value?: string) => (
   String(value || '')
-    .split(/\n|,|，|;|；/)
+    .split(/\\r\\n|\\n|\\r|\r\n|\n|\r|,|，|;|；/)
     .map(item => item.trim())
     .filter(Boolean)
 );

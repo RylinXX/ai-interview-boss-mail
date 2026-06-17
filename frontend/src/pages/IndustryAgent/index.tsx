@@ -58,10 +58,12 @@ const SOLUTION_GENERATION_TIMEOUT_MS = 120000;
 
 const splitLines = (value?: string) => {
   return String(value || '')
-    .split(/\n|,|，|;|；/)
+    .split(/\\r\\n|\\n|\\r|\r\n|\n|\r|,|，|;|；/)
     .map(item => item.trim())
     .filter(Boolean);
 };
+
+const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
 
 const safeFileName = (value: string) => value.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
 
@@ -502,7 +504,9 @@ const IndustryAgent: React.FC = () => {
                       )}
                       {Array.isArray(item.implementation_steps) && item.implementation_steps.length > 0 && (
                         <ol className="agent-step-list">
-                          {item.implementation_steps.map((step: string) => <li key={step}>{step}</li>)}
+                          {item.implementation_steps.map((step: string, stepIndex: number) => (
+                            <li key={`${step}-${stepIndex}`}>{cleanNumberedText(step)}</li>
+                          ))}
                         </ol>
                       )}
                     </div>

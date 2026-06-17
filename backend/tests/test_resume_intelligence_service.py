@@ -437,9 +437,10 @@ def test_generate_industry_agent_solution_uses_resume_context(
                     "scenario": "施工现场车辆进出、材料运输和维保记录管理",
                     "value": "降低人工登记成本并形成项目过程数据",
                     "related_cases": ["工程结算审计平台"],
+                    "implementation_steps": ["1. 梳理车辆出入流程", "2. 接入识别设备"],
                 }
             ],
-            "needed_capabilities": ["工程审计", "流程治理"],
+            "needed_capabilities": "工程审计\\n流程治理",
             "next_questions": ["现有车辆和材料数据在哪里沉淀？"],
         }
 
@@ -468,6 +469,8 @@ def test_generate_industry_agent_solution_uses_resume_context(
     data = response.json()
     assert data["title"] == "工程管理智能识别与投标文件平台"
     assert data["recommended_solutions"][0]["name"] == "工程车辆识别管理平台"
+    assert data["recommended_solutions"][0]["implementation_steps"] == ["梳理车辆出入流程", "接入识别设备"]
+    assert data["needed_capabilities"] == ["工程审计", "流程治理"]
     assert data["knowledge_context"]["project_count"] == 1
     assert data["knowledge_context"]["work_count"] == 1
     assert data["knowledge_context"]["candidate_count"] == 1

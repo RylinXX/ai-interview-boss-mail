@@ -386,6 +386,14 @@ code {
   border-right: 0 !important;
 }
 
+.sidebar-menu .workflow-nav-item-first.ant-menu-item {
+  margin-top: 10px !important;
+}
+
+.sidebar-menu .workflow-nav-item-last.ant-menu-item {
+  margin-bottom: 10px !important;
+}
+
 .sidebar-status {
   position: absolute;
   left: 14px;

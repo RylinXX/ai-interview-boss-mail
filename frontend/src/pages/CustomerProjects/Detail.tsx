@@ -71,7 +71,7 @@ const stageLabel: Record<string, string> = {
 const employeeLabel: Record<string, string> = {
   business_analyst: '业务分析师',
   industry_researcher: '行业研究员',
-  product_manager: 'AI 产品经理',
+  product_manager: '方案设计员工',
   operations_consultant: '运营顾问',
   data_analyst: '数据分析师',
   implementation_planner: '实施规划师',

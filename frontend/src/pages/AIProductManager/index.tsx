@@ -59,7 +59,7 @@ type ProductManagerForm = {
 
 const splitLines = (value?: string) => (
   String(value || '')
-    .split(/\n|,|，|;|；/)
+    .split(/\\r\\n|\\n|\\r|\r\n|\n|\r|,|，|;|；/)
     .map(item => item.trim())
     .filter(Boolean)
 );
@@ -111,17 +111,24 @@ const AIProductManagerPage: React.FC = () => {
 
   return (
     <div className="ai-product-manager-page workbench-page">
-      <section className="page-header">
-        <div>
+      <section className="workbench-module-hero">
+        <div className="workbench-module-copy">
+          <span className="module-eyebrow"><BulbOutlined /> AI 产品经理工作流</span>
           <Title level={2}>AI 产品经理</Title>
-          <Text type="secondary">需求、证据、假设、追问与下一步工作流</Text>
+          <Text type="secondary">从客户自然需求出发，检索受控资产，生成可复核的证据化方案草稿。</Text>
         </div>
-        <Space wrap>
+        <Space wrap className="workbench-module-actions">
           <Button icon={<DatabaseOutlined />} onClick={() => navigate('/knowledge-assets')}>知识资产库</Button>
           <Button type="primary" icon={<SendOutlined />} loading={generating} onClick={generateDraft}>
             生成草稿
           </Button>
         </Space>
+        <div className="workbench-module-steps" aria-label="AI 产品经理工作步骤">
+          <span><strong>01</strong> 需求澄清</span>
+          <span><strong>02</strong> 证据检索</span>
+          <span><strong>03</strong> 方案假设</span>
+          <span><strong>04</strong> 人工复核</span>
+        </div>
       </section>
 
       <div className="ai-product-manager-grid">

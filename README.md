@@ -6,13 +6,6 @@
 ![Database](https://img.shields.io/badge/database-PostgreSQL-336791.svg)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20SDK%20compatible-7C3AED.svg)
 
-## Production Deployment
-
-- Production URL: https://ai.etgq.com/ai-employees
-- Matched deployment branch: `codex/industry-knowledge-product-manager`
-- Server stack: Nginx -> Docker Compose (`frontend`, `backend`, `postgres`)
-- Verified against server source and running containers on 2026-06-16.
-
 AI Interview 是一个面向招聘团队的开源智能招聘管理系统。它把岗位发布、简历 AI 解析、候选人匹配评分、部门评审、AI 面试助手、在线笔试、Offer 管理、招聘漏斗和可视化工作流放进同一个产品里。
 
 项目适合作为企业内部招聘中台的起点，也适合二次开发成 AI 面试、人才测评、招聘自动化或垂直行业人才管理产品。

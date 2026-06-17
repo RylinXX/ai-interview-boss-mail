@@ -6,16 +6,13 @@ import { useAuth } from '../contexts/AuthContext';
 
 const Login = lazy(() => import('../pages/Login'));
 const Dashboard = lazy(() => import('../pages/Dashboard'));
-const IndustryAgent = lazy(() => import('../pages/IndustryAgent'));
 const CustomerProjectsList = lazy(() => import('../pages/CustomerProjects/List'));
 const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detail'));
 const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
 const KnowledgeAssets = lazy(() => import('../pages/KnowledgeAssets'));
 const KnowledgeAssetIntake = lazy(() => import('../pages/KnowledgeAssets/Intake'));
 const KnowledgeAssetDetail = lazy(() => import('../pages/KnowledgeAssets/Detail'));
-const AIProductManager = lazy(() => import('../pages/AIProductManager'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
-const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
 const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
 const UsersList = lazy(() => import('../pages/Settings/Users'));
 const ProfileSettings = lazy(() => import('../pages/Settings/Profile'));
@@ -75,7 +72,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'industry-agent',
-        element: lazyPage(<IndustryAgent />),
+        element: <Navigate to="/ai-employees" replace />,
       },
       {
         path: 'customer-projects',
@@ -91,7 +88,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'ai-product-manager',
-        element: lazyPage(<AIProductManager />),
+        element: <Navigate to="/ai-employees" replace />,
       },
       {
         path: 'knowledge-assets',
@@ -111,7 +108,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'resumes/upload',
-        element: lazyPage(<ResumeUpload />),
+        element: <Navigate to="/knowledge-assets/intake" replace />,
       },
       {
         path: 'resumes/:id',

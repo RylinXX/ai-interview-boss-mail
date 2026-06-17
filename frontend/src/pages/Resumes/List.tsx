@@ -356,8 +356,8 @@ const ResumesList: React.FC = () => {
           <Dropdown menu={{ items: headerActions }} trigger={['click']}>
             <Button icon={<MoreOutlined />}>更多操作</Button>
           </Dropdown>
-          <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/resumes/upload')}>
-            导入人才样本
+          <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
+            资料入库
           </Button>
         </Space>
       </section>

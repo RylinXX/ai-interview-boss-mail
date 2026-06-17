@@ -14,10 +14,8 @@ import {
   CheckCircleOutlined,
   UploadOutlined,
   RobotOutlined,
-  TeamOutlined,
   SolutionOutlined,
   AppstoreOutlined,
-  BulbOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,8 +26,8 @@ const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const shellProductLine = 'Business Transformation OS';
-const shellModuleLine = '咨询方案与 AI 员工交付';
-const headerSubtitle = '客户诊断、方案文档、能力样本与 AI 员工执行统一推进';
+const shellModuleLine = '证据驱动方案交付';
+const headerSubtitle = '资料入库、证据检索、方案 Agent 与客户案卷统一推进';
 const headerTag = 'Consulting Workbench';
 
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success';
@@ -97,7 +95,7 @@ const AppLayout: React.FC = () => {
       addNotification(nextItems, {
         key: 'system-api-key',
         title: '模型 API Key 未配置',
-        description: '能力样本抽取、方案生成和 AI 员工草稿会不可用',
+        description: '资料解析、方案 Agent 和执行草稿会不可用',
         count: systemSettings && !systemSettings.llm_api_key_set ? 1 : 0,
         path: '/settings/system',
         tone: 'danger',
@@ -124,8 +122,8 @@ const AppLayout: React.FC = () => {
       });
       addNotification(nextItems, {
         key: 'resume-analyzed',
-        title: '能力样本已完成',
-        description: '可以引用到客户诊断、方案设计和能力背书',
+        title: '邮箱样本已完成',
+        description: '已同步为能力证据，可进入知识资产和方案引用',
         count: resumes.filter(item => item.parse_status === 'success').length,
         path: '/resumes',
         tone: 'success',
@@ -237,44 +235,31 @@ const AppLayout: React.FC = () => {
     {
       key: '/customer-projects',
       icon: <SolutionOutlined />,
-      label: '客户项目',
-    },
-    {
-      key: '/industry-agent',
-      icon: <RobotOutlined />,
-      label: '业务优化方案智能体',
+      label: '客户案卷',
     },
     {
       key: '/ai-employees',
-      icon: <TeamOutlined />,
-      label: 'AI 员工',
-    },
-    {
-      key: '/ai-product-manager',
-      icon: <BulbOutlined />,
-      label: 'AI 产品经理',
-    },
-    {
-      key: '/knowledge-assets',
-      icon: <AppstoreOutlined />,
-      label: '行业知识资产库',
+      icon: <RobotOutlined />,
+      label: '方案 Agent',
     },
     {
       key: '/knowledge-assets/intake',
       icon: <UploadOutlined />,
       label: '资料入库',
       roles: ['admin', 'hr'],
+      className: 'workflow-nav-item workflow-nav-item-first',
+    },
+    {
+      key: '/knowledge-assets',
+      icon: <AppstoreOutlined />,
+      label: '知识资产库',
+      className: 'workflow-nav-item',
     },
     {
       key: '/resumes',
       icon: <FileTextOutlined />,
-      label: '简历来源数据',
-    },
-    {
-      key: '/resumes/upload',
-      icon: <UploadOutlined />,
-      label: '导入人才样本',
-      roles: ['admin', 'hr'],
+      label: '邮箱样本',
+      className: 'workflow-nav-item workflow-nav-item-last',
     },
     {
       key: '/settings/users',
@@ -363,7 +348,7 @@ const AppLayout: React.FC = () => {
             <span className="status-dot" />
             <div>
               <strong>{shellModuleLine}</strong>
-              <span>客户案卷与交付推进</span>
+              <span>证据链路与交付推进</span>
             </div>
           </div>
         )}

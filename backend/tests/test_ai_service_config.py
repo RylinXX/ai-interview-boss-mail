@@ -1,5 +1,6 @@
 from app.services.ai_service import (
     _completion_options,
+    _get_extra_body,
     _normalize_llm_base_url,
     _parse_json_content,
 )
@@ -48,6 +49,20 @@ def test_volcengine_ark_base_url_does_not_force_json_response_format():
     )
 
     assert options == {"temperature": 0.2}
+
+
+def test_volcengine_ark_base_url_does_not_use_dashscope_extra_body(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.ai_service._get_llm_config",
+        lambda: {
+            "llm_provider": "dashscope",
+            "llm_base_url": "https://ark.cn-beijing.volces.com/api/v3",
+            "llm_model": "doubao-seed-2-0-pro-260215",
+            "llm_api_key": "test-key",
+        },
+    )
+
+    assert _get_extra_body() == {}
 
 
 def test_parse_json_content_handles_markdown_fence():

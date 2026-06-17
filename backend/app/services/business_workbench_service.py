@@ -13,6 +13,7 @@ from app.models.models import (
     CustomerProjectStatus,
     ProjectTask,
     ProjectTaskStatus,
+    KnowledgeAsset,
     Resume,
     SolutionDocument,
 )
@@ -84,12 +85,23 @@ def build_solution_content(project: CustomerProject) -> str:
     )
 
 
+_LIST_SPLIT_RE = re.compile(r"(?:\\r\\n|\\n|\\r|\r\n|\n|\r|,|，|;|；)")
+_NUMBERED_PREFIX_RE = re.compile(r"^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*")
+
+
+def _clean_numbered_text(value: Any) -> str:
+    return _NUMBERED_PREFIX_RE.sub("", str(value or "").strip()).strip()
+
+
 def _string_list(value: Any) -> List[str]:
     if not value:
         return []
     if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return [str(value).strip()]
+        parts: List[str] = []
+        for item in value:
+            parts.extend(_string_list(item))
+        return parts
+    return [item.strip() for item in _LIST_SPLIT_RE.split(str(value)) if item.strip()]
 
 
 def _text_blob(*parts: Any) -> str:
@@ -126,6 +138,53 @@ def _score_text(text: str, terms: List[str]) -> int:
     return sum(1 for term in terms if term and term in text)
 
 
+def _knowledge_asset_text(asset: KnowledgeAsset) -> str:
+    return _text_blob(
+        asset.title,
+        asset.summary,
+        asset.raw_text,
+        asset.industry_tags,
+        asset.business_topic_tags,
+        asset.scenario_tags,
+        asset.evidence_type_tags,
+        asset.capability_tags,
+        asset.methodology_tags,
+        asset.customer_type_tags,
+        asset.value_tags,
+        asset.proves,
+        asset.applicable_conditions,
+        asset.migration_risks,
+    ).lower()
+
+
+def _knowledge_asset_context_row(asset: KnowledgeAsset, score: int) -> Dict[str, Any]:
+    return {
+        "asset_id": str(asset.id),
+        "asset_title": asset.title,
+        "title": asset.title,
+        "source_type": asset.source_type,
+        "summary": asset.summary,
+        "raw_text": (asset.raw_text or "")[:900],
+        "industry_tags": _string_list(asset.industry_tags),
+        "business_topic_tags": _string_list(asset.business_topic_tags),
+        "evidence_type_tags": _string_list(asset.evidence_type_tags),
+        "capability_tags": _string_list(asset.capability_tags),
+        "proves": _string_list(asset.proves),
+        "does_not_prove": _string_list(asset.does_not_prove),
+        "applicable_conditions": _string_list(asset.applicable_conditions),
+        "migration_risks": _string_list(asset.migration_risks),
+        "confidence_score": asset.confidence_score or 0,
+        "score": score,
+    }
+
+
+def _related_evidence_titles(context: Dict[str, Any], limit: int = 3) -> List[str]:
+    titles: List[str] = []
+    titles.extend(case["project_name"] for case in context.get("project_cases", []) if case.get("project_name"))
+    titles.extend(asset["asset_title"] for asset in context.get("knowledge_assets", []) if asset.get("asset_title"))
+    return list(dict.fromkeys(titles))[:limit]
+
+
 def _build_ai_employee_evidence_context(
     db: Session,
     payload: AIEmployeeChatRequest,
@@ -149,6 +208,7 @@ def _build_ai_employee_evidence_context(
 
     project_cases: List[Dict[str, Any]] = []
     work_cases: List[Dict[str, Any]] = []
+    knowledge_assets: List[Dict[str, Any]] = []
     for resume in resumes:
         parsed = resume.parsed_data or {}
         logic_analysis = parsed.get("logic_analysis")
@@ -190,12 +250,29 @@ def _build_ai_employee_evidence_context(
                 }
             )
 
+    assets = (
+        db.query(KnowledgeAsset)
+        .order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+    for asset in assets:
+        score = _score_text(_knowledge_asset_text(asset), terms)
+        if score <= 0:
+            continue
+        knowledge_assets.append(_knowledge_asset_context_row(asset, score))
+
     project_cases.sort(key=lambda item: item["score"], reverse=True)
     work_cases.sort(key=lambda item: item["score"], reverse=True)
+    knowledge_assets.sort(
+        key=lambda item: (item["score"], item.get("confidence_score") or 0),
+        reverse=True,
+    )
     return {
         "terms": terms,
         "project_cases": project_cases[:8],
         "work_cases": work_cases[:8],
+        "knowledge_assets": knowledge_assets[:8],
         "candidate_count": len({item["resume_id"] for item in project_cases + work_cases}),
     }
 
@@ -213,7 +290,7 @@ def _fallback_chat_solution(payload: AIEmployeeChatRequest, context: Dict[str, A
                     "name": "模板采集与字段映射系统",
                     "scenario": "把不同区域或部门的官方模板统一入库并识别字段",
                     "value": "减少重复填写、格式错误和资料遗漏",
-                    "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                    "related_cases": _related_evidence_titles(context),
                     "implementation_steps": ["模板入库", "字段字典", "资料库接入", "自动填报", "人工审核", "导出交付"],
                 }
             ],
@@ -230,7 +307,7 @@ def _fallback_chat_solution(payload: AIEmployeeChatRequest, context: Dict[str, A
                     "name": "短视频直播增长工作台",
                     "scenario": "脚本生成、选品卖点、直播节奏、投流复盘和私域承接",
                     "value": "提升内容生产效率和销售转化复盘能力",
-                    "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                    "related_cases": _related_evidence_titles(context),
                     "implementation_steps": ["定位人群", "生成脚本", "设计直播策略", "沉淀复盘看板"],
                 }
             ],
@@ -246,7 +323,7 @@ def _fallback_chat_solution(payload: AIEmployeeChatRequest, context: Dict[str, A
                 "name": "需求分析与执行工作台",
                 "scenario": "客户需求整理、案例检索、方案生成和执行拆解",
                 "value": "把过往人才经验转化为可交付方案",
-                "related_cases": [case["project_name"] for case in context["project_cases"][:3]],
+                "related_cases": _related_evidence_titles(context),
                 "implementation_steps": ["需求录入", "经验检索", "方案生成", "人工确认", "执行拆解"],
             }
         ],
@@ -311,11 +388,14 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
         "knowledge_context": {
             "project_cases": context["project_cases"],
             "work_cases": context["work_cases"],
+            "knowledge_assets": context["knowledge_assets"],
             "candidate_count": context["candidate_count"],
         },
         "instruction": (
-            "你是一个可检索私有能力样本的AI员工。请先基于客户需求和已上传人才/项目经验给出解决方案，"
-            "再动态定义本方案需要的AI执行员工。强调AI完成50%-70%的整理、生成和初稿，人工负责关键判断。"
+            "你是一个可检索私有能力样本和知识资产的AI员工。请先基于客户需求、已上传人才/项目经验、"
+            "知识资产给出解决方案，再动态定义本方案需要的AI执行员工。"
+            "如果证据不足，仍要输出可讨论的待确认方案，并明确哪些是依据、哪些是假设。"
+            "强调AI完成50%-70%的整理、生成和初稿，人工负责关键判断。"
         ),
     }
     generated = generate_solution_agent_response(llm_payload)
@@ -333,22 +413,25 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
         "knowledge_context": {
             "project_count": len(context["project_cases"]),
             "work_count": len(context["work_cases"]),
+            "knowledge_asset_count": len(context["knowledge_assets"]),
             "candidate_count": context["candidate_count"],
             "project_cases": context["project_cases"][:6],
             "work_cases": context["work_cases"][:6],
+            "knowledge_assets": context["knowledge_assets"][:6],
         },
         "dynamic_workers": workers,
     }
     assistant_message = (
         f"我根据已上传的数据检索到 {len(context['project_cases'])} 个相关项目经验、"
-        f"{len(context['work_cases'])} 段公司经历。建议方案是「{solution['title']}」。"
+        f"{len(context['work_cases'])} 段公司经历、"
+        f"{len(context['knowledge_assets'])} 条知识资产。建议方案是「{solution['title']}」。"
         "第一阶段先输出解决方案和PDF，第二阶段由动态AI员工完成初稿、拆解和检查，"
         "关键范围、字段口径、客户承诺和最终交付仍由人工确认。"
     )
     return {
         "assistant_message": assistant_message,
         "solution": solution,
-        "retrieved_evidence": context["project_cases"][:6] + context["work_cases"][:4],
+        "retrieved_evidence": context["knowledge_assets"][:4] + context["project_cases"][:6] + context["work_cases"][:4],
         "dynamic_workers": workers,
         "human_decision_points": human_points,
         "model_used": not fallback_used,
@@ -361,6 +444,8 @@ def _solution_to_document_content(payload: AgentSolutionProjectCreate) -> str:
     title = solution.get("title") or f"{payload.business_type or payload.industry or '客户'}业务优化方案"
     summary = solution.get("summary") or "基于智能体分析生成的客户业务优化方案。"
     recommended = solution.get("recommended_solutions") or []
+    pain_points = _string_list(payload.pain_points)
+    goals = _string_list(payload.goals)
     capabilities = _string_list(solution.get("needed_capabilities"))
     risks = _string_list(solution.get("risks"))
     questions = _string_list(solution.get("next_questions"))
@@ -373,8 +458,8 @@ def _solution_to_document_content(payload: AgentSolutionProjectCreate) -> str:
         f"- 行业方向：{payload.industry or '待补充'}",
         f"- 业务类型：{payload.business_type or '待补充'}",
         f"- 当前流程：{payload.current_process or '待补充'}",
-        f"- 主要痛点：{'、'.join(payload.pain_points) or '待补充'}",
-        f"- 目标方向：{'、'.join(payload.goals) or '待补充'}",
+        f"- 主要痛点：{'、'.join(pain_points) or '待补充'}",
+        f"- 目标方向：{'、'.join(goals) or '待补充'}",
         "",
         "## 智能体结论",
         summary,
@@ -396,7 +481,12 @@ def _solution_to_document_content(payload: AgentSolutionProjectCreate) -> str:
             steps = _string_list(item.get("implementation_steps"))
             if steps:
                 lines.append("- 实施步骤：")
-                lines.extend([f"  {step_index}. {step}" for step_index, step in enumerate(steps, start=1)])
+                lines.extend(
+                    [
+                        f"  {step_index}. {_clean_numbered_text(step)}"
+                        for step_index, step in enumerate(steps, start=1)
+                    ]
+                )
     else:
         lines.append("待补充推荐方案。")
 
@@ -469,6 +559,8 @@ def create_customer_project_from_agent_solution(
     solution = payload.solution or {}
     title = solution.get("title") or f"{payload.business_type or payload.industry or '客户'}业务优化方案"
     summary = solution.get("summary") or ""
+    pain_points = _string_list(payload.pain_points)
+    goals = _string_list(payload.goals)
     next_questions = _string_list(solution.get("next_questions"))
     recommended = solution.get("recommended_solutions") or []
 
@@ -482,20 +574,20 @@ def create_customer_project_from_agent_solution(
                 f"智能体摘要：{summary}" if summary else "",
             ] if part
         ),
-        pain_points=payload.pain_points,
-        goals=payload.goals,
+        pain_points=pain_points,
+        goals=goals,
         status=CustomerProjectStatus.DESIGNING,
         diagnosis={
             "problem_categories": ["agent_solution", "delivery_design"],
             "root_cause_hypotheses": [
                 f"{point} 需要通过流程、数据和AI员工交付能力共同验证"
-                for point in payload.pain_points
+                for point in pain_points
             ],
             "optimization_opportunities": [
                 item.get("name")
                 for item in recommended
                 if isinstance(item, dict) and item.get("name")
-            ] or payload.goals,
+            ] or goals,
             "next_questions": next_questions,
         },
         created_by=created_by,

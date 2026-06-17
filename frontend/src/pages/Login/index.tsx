@@ -73,9 +73,9 @@ const Login: React.FC = () => {
         </div>
         <div className="login-copy">
           <Text className="eyebrow">Business Transformation OS</Text>
-          <Title level={1}>AI 产品经理的咨询交付工作台</Title>
+          <Title level={1}>证据驱动的方案 Agent 工作台</Title>
           <Text>
-            从客户诊断、方案文档到 AI 员工执行，把高级人才能力样本转化为企业业务优化方案。
+            从资料入库、证据检索到方案案卷和 AI 执行，把外部报告、内部经验和客户材料转成可复核的业务解决方案。
           </Text>
         </div>
 
@@ -116,9 +116,9 @@ const Login: React.FC = () => {
         </div>
 
         <div className="login-trust-row">
-          <span><SafetyCertificateOutlined /> 能力样本背书</span>
-          <span><LineChartOutlined /> 业务诊断</span>
-          <span><ClusterOutlined /> AI 员工交付</span>
+          <span><SafetyCertificateOutlined /> 证据资产背书</span>
+          <span><LineChartOutlined /> 方案诊断</span>
+          <span><ClusterOutlined /> AI 执行交付</span>
         </div>
       </section>
 

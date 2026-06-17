@@ -260,6 +260,48 @@ def test_create_customer_project_from_agent_solution_generates_delivery_assets(
     assert len(tasks) >= 6
 
 
+def test_create_customer_project_from_agent_solution_normalizes_list_text(
+    client, admin_auth_headers
+):
+    response = client.post(
+        "/api/customer-projects/from-agent-solution",
+        headers=admin_auth_headers,
+        json={
+            "industry": "本地生活",
+            "business_type": "连锁门店运营",
+            "current_process": "客服和社群分散在多个工具里",
+            "pain_points": ["客服话术不统一\\n会员分层粗糙"],
+            "goals": ["客服质检AI员工\\n私域复购运营方案"],
+            "solution": {
+                "title": "连锁门店客服质检方案",
+                "summary": "统一客服质检和私域运营闭环。",
+                "recommended_solutions": [
+                    {
+                        "name": "客服质检AI员工",
+                        "scenario": "客服接待和社群沟通",
+                        "value": "降低人工抽检成本",
+                        "implementation_steps": ["1. 梳理话术规范", "2. 接入客服工具"],
+                    }
+                ],
+                "needed_capabilities": ["客服质检", "私域运营"],
+                "risks": ["历史数据质量不足"],
+                "next_questions": ["现有客服工具是什么？"],
+                "knowledge_context": {"project_count": 2, "candidate_count": 1},
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["pain_points"] == ["客服话术不统一", "会员分层粗糙"]
+    assert data["goals"] == ["客服质检AI员工", "私域复购运营方案"]
+    content = data["solution_document"]["content"]
+    assert "主要痛点：客服话术不统一、会员分层粗糙" in content
+    assert "目标方向：客服质检AI员工、私域复购运营方案" in content
+    assert "  1. 梳理话术规范" in content
+    assert "1. 1." not in content
+
+
 def test_agent_solution_creates_dynamic_worker_tasks_with_concrete_outputs(
     client, admin_auth_headers
 ):

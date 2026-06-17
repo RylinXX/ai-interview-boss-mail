@@ -268,3 +268,234 @@ def test_ai_product_manager_draft_uses_cited_assets(client, admin_auth_headers, 
     assert data["missing_questions"]
     assert data["human_confirmation_points"]
     assert data["fallback_used"] is True
+
+
+def test_upload_knowledge_asset_file_splits_long_text_into_assets(client, admin_auth_headers, monkeypatch):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    body = "\n".join(
+        [
+            "工程咨询公司需要把官方投标模板、人员资质、项目业绩和审批流程沉淀成资料库。",
+            "系统需要支持字段映射、缺口标记、人工复核和最终文档导出。",
+            "这些资料来自内部项目复盘，可以证明招投标资料治理有明确业务价值。",
+        ]
+        * 45
+    )
+
+    response = client.post(
+        "/api/knowledge-assets/upload",
+        headers=admin_auth_headers,
+        data={
+            "title": "工程招投标资料治理报告",
+            "source_type": "official_document",
+            "source_name": "行业资料报告",
+            "source_confidentiality": "internal",
+            "industry_tags": "工程建设",
+            "business_topic_tags": "招投标,人员资质库",
+            "evidence_type_tags": "官方资料",
+        },
+        files={"file": ("bidding-report.md", body.encode("utf-8"), "text/markdown")},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total"] >= 2
+    assert all(item["source_file_path"] for item in data["items"])
+    assert {item["source_type"] for item in data["items"]} == {"official_document"}
+    assert data["items"][0]["title"].startswith("工程招投标资料治理报告")
+    assert "工程建设" in data["items"][0]["industry_tags"]
+    assert "招投标" in data["items"][0]["business_topic_tags"]
+    assert "官方资料" in data["items"][0]["evidence_type_tags"]
+    assert "投标模板" in data["items"][0]["raw_text"]
+
+
+def test_solution_agent_generates_solution_from_knowledge_assets(client, admin_auth_headers, monkeypatch):
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "招投标资料自动化案例",
+            "source_type": "company_case",
+            "raw_text": "工程咨询公司把投标模板、人员资质和审批流程做成招投标资料平台，减少重复填报。",
+            "industry_tags": ["工程建设"],
+            "business_topic_tags": ["招投标", "人员资质库"],
+            "evidence_type_tags": ["真实项目经验"],
+            "proves": ["招投标资料和人员资质可以系统化管理"],
+            "does_not_prove": ["不能证明客户现有资料已经完整"],
+        },
+    )
+
+    captured = {}
+
+    def fake_generate_solution_agent_response(payload):
+        captured["payload"] = payload
+        return {
+            "title": "招投标资料治理 Agent 方案",
+            "summary": "基于知识资产中的投标模板和人员资质库经验生成方案。",
+            "recommended_solutions": [
+                {
+                    "name": "资料模板字段映射系统",
+                    "scenario": "官方模板、企业资料和投标文件生成",
+                    "value": "减少重复填报和格式错误",
+                    "related_cases": ["招投标资料自动化案例"],
+                    "implementation_steps": ["资料入库", "字段映射", "人工复核", "导出交付"],
+                }
+            ],
+            "needed_capabilities": ["资料治理", "字段映射", "文档生成"],
+            "dynamic_workers": [
+                {
+                    "name": "资料解析员工",
+                    "responsibility": "识别客户资料字段和官方模板要求",
+                    "human_review": "人工确认字段口径和资料真实性",
+                }
+            ],
+            "risks": ["客户资料完整度需要人工确认"],
+            "next_questions": ["客户现有资质资料是否结构化？"],
+        }
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        fake_generate_solution_agent_response,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "我们想做招投标资料自动化和人员资质库",
+            "company_profile": "工程咨询公司，历史投标文件和人员资质很多。",
+            "project_materials": "已有官方模板和项目业绩材料。",
+            "constraints": "必须人工复核后导出。",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["model_used"] is True
+    assert data["fallback_used"] is False
+    assert data["solution"]["title"] == "招投标资料治理 Agent 方案"
+    assert data["retrieved_evidence"][0]["title"] == "招投标资料自动化案例"
+    assert data["dynamic_workers"][0]["name"] == "资料解析员工"
+    assert "人工确认字段口径和资料真实性" in data["human_decision_points"]
+    assert captured["payload"]["knowledge_context"]["assets"][0]["title"] == "招投标资料自动化案例"
+
+
+def test_solution_agent_returns_visible_run_trace_and_evidence_coverage(
+    client, admin_auth_headers, monkeypatch
+):
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "招投标资料自动化案例",
+            "source_type": "company_case",
+            "raw_text": "工程咨询公司把投标模板、人员资质和审批流程做成招投标资料平台，减少重复填报。",
+            "industry_tags": ["工程建设"],
+            "business_topic_tags": ["招投标", "人员资质库"],
+            "evidence_type_tags": ["真实项目经验"],
+            "proves": ["招投标资料和人员资质可以系统化管理"],
+            "does_not_prove": ["不能证明客户现有资料已经完整"],
+            "applicable_conditions": ["客户已有历史投标模板和人员资质数据"],
+            "migration_risks": ["字段口径不统一会影响自动填报质量"],
+        },
+    )
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "招投标资料治理 Agent 方案",
+            "summary": "基于知识资产中的投标模板和人员资质库经验生成方案。",
+            "recommended_solutions": [
+                {
+                    "name": "资料模板字段映射系统",
+                    "scenario": "官方模板、企业资料和投标文件生成",
+                    "value": "减少重复填报和格式错误",
+                    "related_cases": ["招投标资料自动化案例"],
+                    "implementation_steps": ["资料入库", "字段映射", "人工复核", "导出交付"],
+                }
+            ],
+            "needed_capabilities": ["资料治理", "字段映射", "文档生成"],
+            "dynamic_workers": [
+                {
+                    "name": "资料解析员工",
+                    "responsibility": "识别客户资料字段和官方模板要求",
+                    "human_review": "人工确认字段口径和资料真实性",
+                }
+            ],
+            "risks": ["客户资料完整度需要人工确认"],
+            "next_questions": ["客户现有资质资料是否结构化？"],
+        },
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "我们想做招投标资料自动化和人员资质库",
+            "company_profile": "工程咨询公司，历史投标文件和人员资质很多。",
+            "project_materials": "已有官方模板和项目业绩材料。",
+            "constraints": "必须人工复核后导出。",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["agent_trace"] == [
+        {"stage": "understand_requirement", "status": "completed", "summary": "已提取客户需求、公司背景、项目资料和约束条件。"},
+        {"stage": "retrieve_evidence", "status": "completed", "summary": "检索到 1 条知识资产。"},
+        {"stage": "assess_coverage", "status": "needs_review", "summary": "证据覆盖率 56%，仍需补充 4 类信息。"},
+        {"stage": "generate_solution", "status": "completed", "summary": "已调用大模型生成方案草案。"},
+        {"stage": "assign_dynamic_workers", "status": "completed", "summary": "已生成 1 个动态 AI 执行员工。"},
+    ]
+    assert data["evidence_coverage"]["score"] == 56
+    assert data["evidence_coverage"]["level"] == "partial"
+    assert "已有相近案例或资料" in data["evidence_coverage"]["covered"]
+    assert "客户现有系统和数据字段" in data["evidence_coverage"]["missing"]
+    assert data["clarifying_questions"][0] == "客户现有系统、表格或资料库分别在哪里？"
+    assert data["next_actions"][0] == "补充客户现有资料清单、字段样例和模板文件"
+
+
+def test_solution_agent_requires_more_evidence_before_model_generation(
+    client, admin_auth_headers, monkeypatch
+):
+    called = False
+
+    def fake_generate_solution_agent_response(payload):
+        nonlocal called
+        called = True
+        return {"title": "不应该生成"}
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        fake_generate_solution_agent_response,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "客户想做一个行业方案，但是没有提供任何资料。",
+            "limit": 5,
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert called is False
+    assert data["model_used"] is False
+    assert data["fallback_used"] is True
+    assert data["evidence_coverage"]["score"] == 0
+    assert data["evidence_coverage"]["level"] == "insufficient"
+    assert data["agent_trace"][2]["status"] == "blocked"
+    assert data["agent_trace"][3]["status"] == "skipped"
+    assert data["clarifying_questions"][:2] == [
+        "客户所在行业、公司规模和当前业务流程是什么？",
+        "这次方案优先解决效率、收入、风控还是交付标准化？",
+    ]

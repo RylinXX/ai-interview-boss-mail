@@ -150,6 +150,14 @@ def _as_list(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
 
 
+_LIST_SPLIT_RE = re.compile(r"(?:\\r\\n|\\n|\\r|\r\n|\n|\r|,|，|;|；)")
+_NUMBERED_PREFIX_RE = re.compile(r"^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*")
+
+
+def _clean_numbered_text(value: Any) -> str:
+    return _NUMBERED_PREFIX_RE.sub("", str(value or "").strip()).strip()
+
+
 def _is_pdf_file(file_path: str) -> bool:
     return os.path.splitext(file_path or "")[1].lower() == ".pdf"
 
@@ -944,7 +952,31 @@ def summarize_industry_solution_agent(db: Session, limit: int = 500) -> Dict[str
 
 
 def _string_list(values: Any) -> List[str]:
-    return [str(item).strip() for item in _as_list(values) if str(item).strip()]
+    if not values:
+        return []
+    if isinstance(values, list):
+        parts: List[str] = []
+        for item in values:
+            parts.extend(_string_list(item))
+        return parts
+    return [item.strip() for item in _LIST_SPLIT_RE.split(str(values)) if item.strip()]
+
+
+def _normalize_recommended_solutions(values: Any) -> List[Dict[str, Any]]:
+    normalized: List[Dict[str, Any]] = []
+    for item in _as_list(values):
+        if not isinstance(item, dict):
+            continue
+        next_item = dict(item)
+        if "implementation_steps" in next_item:
+            next_item["implementation_steps"] = [
+                _clean_numbered_text(step)
+                for step in _string_list(next_item.get("implementation_steps"))
+            ]
+        if "related_cases" in next_item:
+            next_item["related_cases"] = _string_list(next_item.get("related_cases"))
+        normalized.append(next_item)
+    return normalized
 
 
 def _request_text_blob(request_data: Dict[str, Any]) -> str:
@@ -1170,7 +1202,7 @@ def generate_industry_solution_from_agent(db: Session, request_data: Dict[str, A
     return {
         "title": generated.get("title") or "行业智能体方案草案",
         "summary": generated.get("summary") or "",
-        "recommended_solutions": _as_list(generated.get("recommended_solutions")),
+        "recommended_solutions": _normalize_recommended_solutions(generated.get("recommended_solutions")),
         "needed_capabilities": _string_list(generated.get("needed_capabilities")),
         "risks": _string_list(generated.get("risks")),
         "next_questions": _string_list(generated.get("next_questions")),

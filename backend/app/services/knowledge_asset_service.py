@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID
 
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -12,8 +14,19 @@ from app.schemas.knowledge_assets import (
     KnowledgeAssetIntakeRequest,
     KnowledgeAssetReviewUpdate,
     KnowledgeAssetSearchRequest,
+    SolutionAgentRequest,
 )
-from app.services.ai_service import generate_ai_product_manager_draft, generate_knowledge_asset_tags
+from app.services.ai_service import (
+    generate_ai_product_manager_draft,
+    generate_knowledge_asset_tags,
+    generate_solution_agent_response,
+)
+from app.utils.file_storage import save_upload_file
+
+
+SUPPORTED_KNOWLEDGE_UPLOAD_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
+DEFAULT_CHUNK_SIZE = 1800
+DEFAULT_CHUNK_OVERLAP = 180
 
 
 def _as_list(value: Any) -> List[str]:
@@ -45,6 +58,19 @@ def _unique(values: Iterable[str]) -> List[str]:
         if normalized and normalized not in result:
             result.append(normalized)
     return result
+
+
+def _parse_tag_input(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        values = value
+    else:
+        text = str(value)
+        for separator in ("，", "、", ";", "；", "\n", "\t"):
+            text = text.replace(separator, ",")
+        values = text.split(",")
+    return _unique(str(item).strip() for item in values if str(item).strip())
 
 
 def _infer_tags(text: str) -> Dict[str, List[str]]:
@@ -157,6 +183,95 @@ def create_manual_asset(
     db.commit()
     db.refresh(asset)
     return asset
+
+
+def _split_text_chunks(
+    text: str,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> List[str]:
+    clean = (text or "").strip()
+    if not clean:
+        return []
+    if len(clean) <= chunk_size:
+        return [clean]
+
+    chunks: List[str] = []
+    start = 0
+    safe_overlap = max(0, min(overlap, chunk_size // 2))
+    while start < len(clean):
+        end = min(start + chunk_size, len(clean))
+        chunk = clean[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        if end >= len(clean):
+            break
+        start = max(end - safe_overlap, start + 1)
+    return chunks
+
+
+def _read_uploaded_knowledge_text(file_path: str) -> str:
+    from app.services.resume_service import read_file_content
+
+    return read_file_content(file_path)
+
+
+def create_assets_from_upload(
+    db: Session,
+    file: UploadFile,
+    *,
+    title: str,
+    source_type: str = "manual_note",
+    source_name: Optional[str] = None,
+    source_url: Optional[str] = None,
+    source_confidentiality: str = "internal",
+    industry_tags: Any = None,
+    business_topic_tags: Any = None,
+    scenario_tags: Any = None,
+    evidence_type_tags: Any = None,
+    capability_tags: Any = None,
+    methodology_tags: Any = None,
+    customer_type_tags: Any = None,
+    value_tags: Any = None,
+    user_id: Optional[UUID] = None,
+) -> List[KnowledgeAsset]:
+    filename = file.filename or ""
+    extension = os.path.splitext(filename)[1].lower()
+    if extension not in SUPPORTED_KNOWLEDGE_UPLOAD_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="仅支持 PDF、DOCX、TXT、Markdown 资料上传")
+
+    file_path = save_upload_file(file, "knowledge")
+    raw_text = _read_uploaded_knowledge_text(file_path).strip()
+    if not raw_text:
+        raise HTTPException(status_code=400, detail="未能从资料文件中提取可用文本")
+
+    chunks = _split_text_chunks(raw_text)
+    assets: List[KnowledgeAsset] = []
+    base_title = title.strip() or os.path.splitext(filename)[0] or "未命名资料"
+    total = len(chunks)
+
+    for index, chunk in enumerate(chunks, start=1):
+        asset_title = base_title if total == 1 else f"{base_title} - 片段 {index}"
+        payload = KnowledgeAssetIntakeRequest(
+            title=asset_title,
+            source_type=source_type or "manual_note",
+            source_name=source_name or filename,
+            source_url=source_url,
+            source_file_path=file_path,
+            source_confidentiality=source_confidentiality or "internal",
+            raw_text=chunk,
+            industry_tags=_parse_tag_input(industry_tags),
+            business_topic_tags=_parse_tag_input(business_topic_tags),
+            scenario_tags=_parse_tag_input(scenario_tags),
+            evidence_type_tags=_parse_tag_input(evidence_type_tags),
+            capability_tags=_parse_tag_input(capability_tags),
+            methodology_tags=_parse_tag_input(methodology_tags),
+            customer_type_tags=_parse_tag_input(customer_type_tags),
+            value_tags=_parse_tag_input(value_tags),
+        )
+        assets.append(create_manual_asset(db, payload, user_id))
+
+    return assets
 
 
 def list_assets(
@@ -333,6 +448,181 @@ def _asset_evidence_payload(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _asset_to_solution_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
+    asset = item["asset"]
+    return {
+        "id": str(asset.id),
+        "title": asset.title,
+        "source_type": asset.source_type,
+        "source_name": asset.source_name,
+        "source_url": asset.source_url,
+        "summary": asset.summary,
+        "raw_text": asset.raw_text,
+        "industry_tags": asset.industry_tags or [],
+        "business_topic_tags": asset.business_topic_tags or [],
+        "evidence_type_tags": asset.evidence_type_tags or [],
+        "proves": asset.proves or [],
+        "does_not_prove": asset.does_not_prove or [],
+        "applicable_conditions": asset.applicable_conditions or [],
+        "migration_risks": asset.migration_risks or [],
+        "match_score": item["match_score"],
+        "match_reason": item["match_reason"],
+    }
+
+
+def _solution_agent_missing_questions(
+    payload: SolutionAgentRequest,
+    coverage: Dict[str, Any],
+) -> List[str]:
+    base_questions: List[str] = []
+    if not (payload.company_profile or "").strip():
+        base_questions.append("客户所在行业、公司规模和当前业务流程是什么？")
+    if not (payload.requirement or "").strip() or coverage["score"] < 40:
+        base_questions.append("这次方案优先解决效率、收入、风控还是交付标准化？")
+    if not (payload.project_materials or "").strip():
+        base_questions.append("客户现有系统、表格或资料库分别在哪里？")
+    if not (payload.constraints or "").strip():
+        base_questions.append("哪些资料可以对外引用，哪些只能内部参考？")
+
+    base_questions.extend(
+        [
+            "客户现有系统、表格或资料库分别在哪里？",
+            "是否有模板文件、字段样例、历史方案或真实案例可以补充？",
+            "本次输出要进入内部评审、客户汇报还是直接交付？",
+        ]
+    )
+    return _unique(base_questions)
+
+
+def _solution_agent_next_actions(coverage: Dict[str, Any]) -> List[str]:
+    actions = [
+        "补充客户现有资料清单、字段样例和模板文件",
+        "补充至少一个可公开或可匿名引用的同类案例",
+        "人工复核资料来源、适用边界和对外表述",
+    ]
+    if coverage["score"] >= 70:
+        actions.append("把方案草案转成客户案卷并生成执行任务")
+    else:
+        actions.append("补齐证据后重新运行方案 Agent")
+    return actions
+
+
+def _assess_solution_agent_coverage(
+    payload: SolutionAgentRequest,
+    evidence: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    covered: List[str] = []
+    missing: List[str] = []
+
+    if evidence:
+        covered.append("已有相近案例或资料")
+    else:
+        missing.append("可引用案例或资料")
+
+    if any(item.get("source_type") for item in evidence):
+        covered.append("资料来源类型")
+    else:
+        missing.append("资料来源类型")
+
+    if any(item.get("business_topic_tags") for item in evidence):
+        covered.append("业务主题标签")
+    else:
+        missing.append("业务主题标签")
+
+    if any(item.get("evidence_type_tags") for item in evidence):
+        covered.append("证据类型标签")
+    else:
+        missing.append("证据类型标签")
+
+    if (payload.company_profile or "").strip():
+        covered.append("客户背景")
+    else:
+        missing.append("客户背景")
+
+    if (payload.project_materials or "").strip():
+        covered.append("客户项目资料")
+    else:
+        missing.append("客户现有系统和数据字段")
+
+    if (payload.constraints or "").strip():
+        covered.append("约束条件")
+    else:
+        missing.append("约束条件")
+
+    missing.extend(
+        [
+            "客户现有系统和数据字段",
+            "当前业务基线指标",
+            "一期验收标准",
+            "资料授权和对外引用边界",
+        ]
+    )
+
+    if not evidence:
+        score = 0
+    else:
+        score = min(100, len(covered) * 8)
+    if score >= 70:
+        level = "strong"
+    elif score >= 40:
+        level = "partial"
+    else:
+        level = "insufficient"
+
+    return {
+        "score": score,
+        "level": level,
+        "covered": covered,
+        "missing": missing,
+        "requires_more_evidence": score < 40,
+    }
+
+
+def _solution_agent_trace(
+    *,
+    evidence_count: int,
+    coverage: Dict[str, Any],
+    model_used: bool,
+    worker_count: int,
+) -> List[Dict[str, str]]:
+    if coverage["requires_more_evidence"]:
+        assess_status = "blocked"
+        generate_status = "skipped"
+        generate_summary = "证据不足，已跳过模型方案生成，先要求补充资料。"
+    else:
+        assess_status = "needs_review" if coverage["score"] < 70 else "completed"
+        generate_status = "completed" if model_used else "fallback"
+        generate_summary = "已调用大模型生成方案草案。" if model_used else "模型不可用，已生成规则兜底方案。"
+
+    return [
+        {
+            "stage": "understand_requirement",
+            "status": "completed",
+            "summary": "已提取客户需求、公司背景、项目资料和约束条件。",
+        },
+        {
+            "stage": "retrieve_evidence",
+            "status": "completed" if evidence_count else "empty",
+            "summary": f"检索到 {evidence_count} 条知识资产。",
+        },
+        {
+            "stage": "assess_coverage",
+            "status": assess_status,
+            "summary": f"证据覆盖率 {coverage['score']}%，仍需补充 {len(coverage['missing'])} 类信息。",
+        },
+        {
+            "stage": "generate_solution",
+            "status": generate_status,
+            "summary": generate_summary,
+        },
+        {
+            "stage": "assign_dynamic_workers",
+            "status": "completed" if worker_count else "skipped",
+            "summary": f"已生成 {worker_count} 个动态 AI 执行员工。",
+        },
+    ]
+
+
 def _normalize_dict_list(value: Any, fallback: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not isinstance(value, list):
         return fallback
@@ -447,6 +737,229 @@ def generate_controlled_product_manager_draft(db: Session, payload: AIProductMan
         "human_confirmation_points": _as_list(generated.get("human_confirmation_points")) or fallback["human_confirmation_points"],
         "next_workflow": _as_list(generated.get("next_workflow")) or fallback["next_workflow"],
         "cited_assets": retrieved["items"],
+        "model_used": True,
+        "fallback_used": False,
+    }
+
+
+def _normalize_solution_list(value: Any) -> List[str]:
+    return _as_list(value)
+
+
+def _fallback_solution_agent_response(
+    payload: SolutionAgentRequest,
+    retrieved: Dict[str, Any],
+) -> Dict[str, Any]:
+    evidence = [_asset_to_solution_evidence(item) for item in retrieved["items"]]
+    coverage = _assess_solution_agent_coverage(payload, evidence)
+    clarifying_questions = _solution_agent_missing_questions(payload, coverage)
+    next_actions = _solution_agent_next_actions(coverage)
+    primary = evidence[0] if evidence else {}
+    primary_title = primary.get("title") or "当前资料"
+    topic_tags = _unique(tag for item in evidence for tag in item.get("business_topic_tags", []))
+    primary_topic = topic_tags[0] if topic_tags else "客户需求"
+    related_cases = [item["title"] for item in evidence[:4] if item.get("title")]
+
+    solution = {
+        "title": f"{primary_topic}证据化解决方案",
+        "summary": (
+            f"基于知识资产库中“{primary_title}”等资料，先形成可复核的方案假设，"
+            "再由人工确认业务边界、资料真实性和交付承诺。"
+            if evidence else
+            "当前知识资产库缺少足够证据，建议先补充报告、案例、官方资料或客户现有文档。"
+        ),
+        "recommended_solutions": [
+            {
+                "name": f"{primary_topic}资料治理与方案生成工作台",
+                "scenario": payload.requirement,
+                "value": "把外部资料、内部经验和客户材料统一沉淀为可引用证据，减少泛化方案和重复整理。",
+                "related_cases": related_cases,
+                "implementation_steps": [
+                    "资料入库并按片段拆分",
+                    "标注来源、可信度和适用边界",
+                    "检索相关证据生成方案草稿",
+                    "人工复核事实、风险和交付范围",
+                    "生成客户案卷和执行任务",
+                ],
+            }
+        ],
+        "needed_capabilities": ["资料治理", "证据检索", "方案设计", "人工复核", "交付拆解"],
+        "risks": [
+            "资料来源和适用范围需要人工确认",
+            "外部报告结论不能直接当作客户承诺",
+        ],
+        "next_questions": [
+            "客户现有资料包含哪些格式和来源？",
+            "本次优先解决效率、获客、风控还是交付标准化？",
+            "哪些资料可以对外引用，哪些只能内部参考？",
+        ],
+        "knowledge_context": {
+            "asset_count": len(evidence),
+            "assets": evidence[:6],
+        },
+        "dynamic_workers": [
+            {
+                "name": "资料解析员工",
+                "responsibility": "读取客户资料、外部报告和内部样本，拆分成可引用证据",
+                "human_review": "人工确认资料来源、敏感信息和适用范围",
+            },
+            {
+                "name": "方案设计员工",
+                "responsibility": "基于证据生成方案方向、模块和落地步骤",
+                "human_review": "人工确认客户承诺、预算边界和一期范围",
+            },
+            {
+                "name": "交付拆解员工",
+                "responsibility": "把方案拆成任务板、验收指标和报告章节",
+                "human_review": "人工验收最终交付物",
+            },
+        ],
+    }
+    return {
+        "assistant_message": f"我从知识资产库检索到 {len(evidence)} 条相关证据，建议先生成「{solution['title']}」。",
+        "solution": solution,
+        "retrieved_evidence": evidence,
+        "dynamic_workers": solution["dynamic_workers"],
+        "human_decision_points": [
+            "人工确认引用资料是否适合当前客户场景",
+            "人工确认资料真实性、敏感边界和对外表述",
+            "人工确认最终交付范围和客户承诺",
+        ],
+        "agent_trace": _solution_agent_trace(
+            evidence_count=len(evidence),
+            coverage=coverage,
+            model_used=False,
+            worker_count=len(solution["dynamic_workers"]),
+        ),
+        "evidence_coverage": coverage,
+        "clarifying_questions": clarifying_questions,
+        "next_actions": next_actions,
+        "model_used": False,
+        "fallback_used": True,
+    }
+
+
+def _normalize_dynamic_workers(solution: Dict[str, Any]) -> List[Dict[str, str]]:
+    workers = solution.get("dynamic_workers")
+    if isinstance(workers, list) and workers:
+        return [
+            {
+                "name": str(item.get("name") or "AI 执行员工"),
+                "responsibility": str(item.get("responsibility") or "根据方案承担具体执行任务"),
+                "human_review": str(item.get("human_review") or "关键结论由人工审核确认"),
+            }
+            for item in workers
+            if isinstance(item, dict)
+        ]
+    return [
+        {
+            "name": "资料解析员工",
+            "responsibility": "整理资料、证据和缺口",
+            "human_review": "人工确认资料边界",
+        },
+        {
+            "name": "方案设计员工",
+            "responsibility": "生成方案模块和落地步骤",
+            "human_review": "人工确认方案承诺",
+        },
+    ]
+
+
+def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[str, Any]:
+    query = _text_blob(
+        payload.requirement,
+        payload.company_profile,
+        payload.project_materials,
+        payload.constraints,
+        payload.confirmed_context,
+    )
+    retrieved = search_assets(
+        db,
+        KnowledgeAssetSearchRequest(query=query, limit=payload.limit),
+    )
+    fallback = _fallback_solution_agent_response(payload, retrieved)
+    evidence = [_asset_to_solution_evidence(item) for item in retrieved["items"]]
+    coverage = _assess_solution_agent_coverage(payload, evidence)
+    clarifying_questions = _solution_agent_missing_questions(payload, coverage)
+    next_actions = _solution_agent_next_actions(coverage)
+    if coverage["requires_more_evidence"]:
+        return {
+            **fallback,
+            "agent_trace": _solution_agent_trace(
+                evidence_count=len(evidence),
+                coverage=coverage,
+                model_used=False,
+                worker_count=len(fallback["dynamic_workers"]),
+            ),
+            "evidence_coverage": coverage,
+            "clarifying_questions": clarifying_questions,
+            "next_actions": next_actions,
+        }
+    agent_payload = {
+        "user_profile": {
+            "requirement": payload.requirement,
+            "company_profile": payload.company_profile,
+            "project_materials": payload.project_materials,
+            "constraints": payload.constraints,
+            "confirmed_context": payload.confirmed_context,
+        },
+        "knowledge_context": {
+            "source": "knowledge_assets",
+            "asset_count": len(evidence),
+            "assets": evidence,
+        },
+        "instruction": (
+            "你是一个基于证据库工作的方案 Agent。只能基于提供的 knowledge_assets 生成方案，"
+            "不要编造真实客户名称、财务数据或未提供的事实。请返回可创建客户案卷的 JSON。"
+        ),
+    }
+    generated = generate_solution_agent_response(agent_payload)
+    if not generated:
+        return fallback
+
+    solution = {
+        "title": generated.get("title") or fallback["solution"]["title"],
+        "summary": generated.get("summary") or fallback["solution"]["summary"],
+        "recommended_solutions": _normalize_dict_list(
+            generated.get("recommended_solutions"),
+            fallback["solution"]["recommended_solutions"],
+        ),
+        "needed_capabilities": _normalize_solution_list(generated.get("needed_capabilities")) or fallback["solution"]["needed_capabilities"],
+        "risks": _normalize_solution_list(generated.get("risks")) or fallback["solution"]["risks"],
+        "next_questions": _normalize_solution_list(generated.get("next_questions")) or fallback["solution"]["next_questions"],
+        "knowledge_context": {
+            "source": "knowledge_assets",
+            "asset_count": len(evidence),
+            "assets": evidence[:6],
+        },
+    }
+    dynamic_workers = _normalize_dynamic_workers(generated)
+    solution["dynamic_workers"] = dynamic_workers
+    human_points = [
+        "人工确认引用资料是否适合当前客户场景",
+        "人工确认资料真实性、敏感边界和对外表述",
+        "人工确认最终交付范围和客户承诺",
+        *(worker["human_review"] for worker in dynamic_workers if worker.get("human_review")),
+    ]
+
+    return {
+        "assistant_message": (
+            f"我从知识资产库检索到 {len(evidence)} 条相关证据，"
+            f"建议方案是「{solution['title']}」。"
+        ),
+        "solution": solution,
+        "retrieved_evidence": evidence,
+        "dynamic_workers": dynamic_workers,
+        "human_decision_points": _unique(human_points),
+        "agent_trace": _solution_agent_trace(
+            evidence_count=len(evidence),
+            coverage=coverage,
+            model_used=True,
+            worker_count=len(dynamic_workers),
+        ),
+        "evidence_coverage": coverage,
+        "clarifying_questions": clarifying_questions,
+        "next_actions": next_actions,
         "model_used": True,
         "fallback_used": False,
     }

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { App, Button, Card, Form, Input, Select, Space, Typography } from 'antd';
-import { ArrowLeftOutlined, DatabaseOutlined, SaveOutlined } from '@ant-design/icons';
+import { App, Button, Card, Form, Input, Select, Space, Typography, Upload } from 'antd';
+import { ArrowLeftOutlined, DatabaseOutlined, InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
 import '../BusinessWorkbench.css';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+const { Dragger } = Upload;
 
 type IntakeFormValues = {
   title: string;
@@ -29,10 +30,13 @@ type IntakeFormValues = {
 const sourceTypeOptions = [
   { value: 'manual_note', label: '人工资料' },
   { value: 'company_case', label: '案例资料' },
+  { value: 'official_document', label: '官方资料' },
   { value: 'official_database', label: '官方数据库' },
   { value: 'third_party_data', label: '三方数据' },
+  { value: 'competitor_product', label: '竞品资料' },
   { value: 'open_source_project', label: '开源项目' },
   { value: 'commercial_product', label: '商业产品' },
+  { value: 'sop', label: 'SOP/方法论' },
 ];
 
 const confidentialityOptions = [
@@ -55,28 +59,55 @@ const KnowledgeAssetIntakePage: React.FC = () => {
   const navigate = useNavigate();
   const [form] = Form.useForm<IntakeFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  const [fileList, setFileList] = useState<any[]>([]);
 
   const handleSubmit = async () => {
     const values = await form.validateFields();
+    if (!fileList.length && !values.raw_text?.trim()) {
+      message.error('请上传资料文件或粘贴资料正文');
+      return;
+    }
     setSubmitting(true);
     try {
-      await request.post('/knowledge-assets/intake', {
-        title: values.title,
-        source_type: values.source_type || 'manual_note',
-        source_name: values.source_name,
-        source_url: values.source_url,
-        source_file_path: values.source_file_path,
-        source_confidentiality: values.source_confidentiality || 'internal',
-        raw_text: values.raw_text,
-        industry_tags: normalizeList(values.industry_tags),
-        business_topic_tags: normalizeList(values.business_topic_tags),
-        scenario_tags: normalizeList(values.scenario_tags),
-        evidence_type_tags: normalizeList(values.evidence_type_tags),
-        capability_tags: normalizeList(values.capability_tags),
-        methodology_tags: normalizeList(values.methodology_tags),
-        customer_type_tags: normalizeList(values.customer_type_tags),
-        value_tags: normalizeList(values.value_tags),
-      });
+      if (fileList.length) {
+        const formData = new FormData();
+        formData.append('file', fileList[0]);
+        formData.append('title', values.title);
+        formData.append('source_type', values.source_type || 'manual_note');
+        formData.append('source_confidentiality', values.source_confidentiality || 'internal');
+        if (values.source_name) formData.append('source_name', values.source_name);
+        if (values.source_url) formData.append('source_url', values.source_url);
+        if (values.industry_tags?.length) formData.append('industry_tags', normalizeList(values.industry_tags).join(','));
+        if (values.business_topic_tags?.length) formData.append('business_topic_tags', normalizeList(values.business_topic_tags).join(','));
+        if (values.scenario_tags?.length) formData.append('scenario_tags', normalizeList(values.scenario_tags).join(','));
+        if (values.evidence_type_tags?.length) formData.append('evidence_type_tags', normalizeList(values.evidence_type_tags).join(','));
+        if (values.capability_tags?.length) formData.append('capability_tags', normalizeList(values.capability_tags).join(','));
+        if (values.methodology_tags?.length) formData.append('methodology_tags', normalizeList(values.methodology_tags).join(','));
+        if (values.customer_type_tags?.length) formData.append('customer_type_tags', normalizeList(values.customer_type_tags).join(','));
+        if (values.value_tags?.length) formData.append('value_tags', normalizeList(values.value_tags).join(','));
+        await request.post('/knowledge-assets/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 120000,
+        });
+      } else {
+        await request.post('/knowledge-assets/intake', {
+          title: values.title,
+          source_type: values.source_type || 'manual_note',
+          source_name: values.source_name,
+          source_url: values.source_url,
+          source_file_path: values.source_file_path,
+          source_confidentiality: values.source_confidentiality || 'internal',
+          raw_text: values.raw_text,
+          industry_tags: normalizeList(values.industry_tags),
+          business_topic_tags: normalizeList(values.business_topic_tags),
+          scenario_tags: normalizeList(values.scenario_tags),
+          evidence_type_tags: normalizeList(values.evidence_type_tags),
+          capability_tags: normalizeList(values.capability_tags),
+          methodology_tags: normalizeList(values.methodology_tags),
+          customer_type_tags: normalizeList(values.customer_type_tags),
+          value_tags: normalizeList(values.value_tags),
+        });
+      }
       message.success('知识资产已入库');
       navigate('/knowledge-assets');
     } catch (error) {
@@ -86,20 +117,45 @@ const KnowledgeAssetIntakePage: React.FC = () => {
     }
   };
 
+  const uploadProps = {
+    beforeUpload: (file: any) => {
+      const allowed = /\.(pdf|docx|txt|md|markdown)$/i.test(file.name || '');
+      if (!allowed) {
+        message.error('仅支持 PDF、DOCX、TXT、Markdown 资料');
+        return Upload.LIST_IGNORE;
+      }
+      setFileList([file]);
+      return false;
+    },
+    onRemove: () => {
+      setFileList([]);
+    },
+    fileList,
+    maxCount: 1,
+    accept: '.pdf,.docx,.txt,.md,.markdown',
+  };
+
   return (
     <div className="knowledge-assets-page workbench-page">
-      <section className="page-header">
-        <div>
+      <section className="workbench-module-hero">
+        <div className="workbench-module-copy">
           <Button className="dossier-back" type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/knowledge-assets')} />
+          <span className="module-eyebrow"><DatabaseOutlined /> 资料入库</span>
           <Title level={2}>资料入库</Title>
-          <Text type="secondary">统一归档案例、资料、数据源与方法论</Text>
+          <Text type="secondary">把案例、数据源、方法论和内部纪要归档成可复核、可引用的知识资产。</Text>
         </div>
-        <Space>
+        <Space wrap className="workbench-module-actions">
           <Button onClick={() => navigate('/knowledge-assets')}>取消</Button>
           <Button type="primary" icon={<SaveOutlined />} loading={submitting} onClick={handleSubmit}>
             保存入库
           </Button>
         </Space>
+        <div className="workbench-module-steps" aria-label="资料入库工作步骤">
+          <span><strong>01</strong> 上传或粘贴</span>
+          <span><strong>02</strong> 自动切片</span>
+          <span><strong>03</strong> 标签评分</span>
+          <span><strong>04</strong> 方案引用</span>
+        </div>
       </section>
 
       <Form
@@ -116,8 +172,19 @@ const KnowledgeAssetIntakePage: React.FC = () => {
             <Form.Item label="标题" name="title" rules={[{ required: true, message: '请输入标题' }]}>
               <Input placeholder="例如：工程咨询公司招投标资料平台案例" />
             </Form.Item>
-            <Form.Item label="资料正文" name="raw_text" rules={[{ required: true, message: '请输入资料正文' }]}>
-              <TextArea rows={14} placeholder="粘贴案例、官方资料、三方数据摘要、竞品分析、开源项目说明或内部访谈纪要" />
+            <Form.Item label="资料文件">
+              <Dragger {...uploadProps}>
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-text">拖拽 PDF、DOCX、TXT 或 Markdown 到这里</p>
+                <p className="ant-upload-hint">
+                  <Text type="secondary">上传后会自动抽取正文并按片段进入知识资产库</Text>
+                </p>
+              </Dragger>
+            </Form.Item>
+            <Form.Item label="资料正文" name="raw_text" extra="没有文件时可以直接粘贴正文；有文件时正文可留空。">
+              <TextArea rows={10} placeholder="粘贴案例、官方资料、三方数据摘要、竞品分析、开源项目说明或内部访谈纪要" />
             </Form.Item>
           </Card>
 
@@ -173,7 +240,7 @@ const KnowledgeAssetIntakePage: React.FC = () => {
       <Card className="knowledge-intake-side-note">
         <Space>
           <DatabaseOutlined />
-          <Text>保存后系统会先生成基础标签与证据评分，复核后再进入方案引用链路。</Text>
+          <Text>保存后系统会生成基础标签、证据评分和资料片段，方案 Agent 会从这里检索证据。</Text>
         </Space>
       </Card>
     </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { App, Button, Card, Col, Form, Input, Row, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Col, Form, Input, Progress, Row, Space, Steps, Tag, Typography } from 'antd';
 import {
   ArrowRightOutlined,
   AuditOutlined,
@@ -15,6 +15,8 @@ import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
 
+const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
+
 type ChatRole = 'user' | 'assistant';
 
 type ChatMessage = {
@@ -26,6 +28,7 @@ type AIEmployeeChatForm = {
   requirement: string;
   company_profile?: string;
   project_materials?: string;
+  constraints?: string;
 };
 
 type SolutionDirection = {
@@ -43,6 +46,14 @@ type DynamicWorker = {
 };
 
 type RetrievedEvidence = {
+  id?: string;
+  title?: string;
+  source_type?: string;
+  source_name?: string;
+  match_score?: number;
+  match_reason?: string;
+  business_topic_tags?: string[];
+  evidence_type_tags?: string[];
   project_name?: string;
   company?: string;
   role?: string;
@@ -51,6 +62,20 @@ type RetrievedEvidence = {
   summary?: string;
   capabilities?: string[];
   score?: number;
+};
+
+type AgentTraceItem = {
+  stage: string;
+  status: string;
+  summary: string;
+};
+
+type EvidenceCoverage = {
+  score?: number;
+  level?: string;
+  covered?: string[];
+  missing?: string[];
+  requires_more_evidence?: boolean;
 };
 
 type AIEmployeeChatResponse = {
@@ -63,15 +88,17 @@ type AIEmployeeChatResponse = {
     risks?: string[];
     next_questions?: string[];
     knowledge_context?: {
-      project_count?: number;
-      work_count?: number;
-      candidate_count?: number;
+      asset_count?: number;
     };
     dynamic_workers?: DynamicWorker[];
   };
   retrieved_evidence: RetrievedEvidence[];
   dynamic_workers: DynamicWorker[];
   human_decision_points: string[];
+  agent_trace?: AgentTraceItem[];
+  evidence_coverage?: EvidenceCoverage;
+  clarifying_questions?: string[];
+  next_actions?: string[];
   model_used: boolean;
   fallback_used: boolean;
 };
@@ -82,6 +109,27 @@ const splitToList = (value?: string) => {
     .map(item => item.trim())
     .filter(Boolean)
     .slice(0, 6);
+};
+
+const agentStageLabel: Record<string, string> = {
+  understand_requirement: '理解需求',
+  retrieve_evidence: '检索证据',
+  assess_coverage: '评估覆盖',
+  generate_solution: '生成方案',
+  assign_dynamic_workers: '拆解员工',
+};
+
+const agentStepStatus = (status: string): 'wait' | 'process' | 'finish' | 'error' => {
+  if (status === 'completed') return 'finish';
+  if (status === 'blocked') return 'error';
+  if (status === 'skipped') return 'wait';
+  return 'process';
+};
+
+const coverageColor = (level?: string) => {
+  if (level === 'strong') return '#389e0d';
+  if (level === 'partial') return '#d48806';
+  return '#cf1322';
 };
 
 const AIEmployeesList: React.FC = () => {
@@ -100,6 +148,7 @@ const AIEmployeesList: React.FC = () => {
   );
   const dynamicWorkers = chatResult?.dynamic_workers || chatResult?.solution?.dynamic_workers || [];
   const context = chatResult?.solution?.knowledge_context || {};
+  const coverage = chatResult?.evidence_coverage || {};
 
   const submitChat = async (values: AIEmployeeChatForm) => {
     const userMessage: ChatMessage = {
@@ -111,14 +160,18 @@ const AIEmployeesList: React.FC = () => {
     setSubmitting(true);
     setLastInput(values);
     try {
-      const result = await request.post('/ai-employees/chat', {
-        ...values,
-        messages: nextMessages,
-      }, { timeout: 60000 });
+      const result = await request.post('/solution-agent/generate', {
+        requirement: values.requirement,
+        company_profile: values.company_profile,
+        project_materials: values.project_materials,
+        constraints: values.constraints,
+        confirmed_context: { messages: nextMessages },
+        limit: 8,
+      }, { timeout: 120000 });
       setChatResult(result as AIEmployeeChatResponse);
       setMessages([...nextMessages, { role: 'assistant', content: result.assistant_message }]);
     } catch (error) {
-      toast.error(getApiErrorMessage(error, 'AI 员工分析失败'));
+      toast.error(getApiErrorMessage(error, '方案 Agent 分析失败'));
     } finally {
       setSubmitting(false);
     }
@@ -135,7 +188,7 @@ const AIEmployeesList: React.FC = () => {
         : splitToList(chatResult.solution.summary);
       const project = await request.post('/customer-projects/from-agent-solution', {
         industry: '客户业务优化',
-        business_type: chatResult.solution.title || 'AI 员工解决方案',
+        business_type: chatResult.solution.title || '方案 Agent 解决方案',
         current_process: lastInput.project_materials || lastInput.company_profile || lastInput.requirement,
         pain_points: splitToList(lastInput.requirement),
         goals,
@@ -154,18 +207,18 @@ const AIEmployeesList: React.FC = () => {
     <div className="ai-employees-page workbench-page">
       <section className="consulting-hero employee-hero ai-chat-hero">
         <div className="consulting-hero-copy">
-          <span className="dossier-code">AI Product Manager</span>
-          <Title level={1}>AI 员工解决方案工作台</Title>
+          <span className="dossier-code">Solution Agent</span>
+          <Title level={1}>方案 Agent</Title>
           <Text>
-            输入客户真实需求，系统会基于已上传的简历、项目经验和能力样本检索证据，先生成解决方案，再动态定义本次交付需要的 AI 员工和人工决策点。
+            输入客户真实需求，系统会从知识资产库检索报告、案例、样本和客户资料，生成带证据边界的方案，再拆出本次交付需要的 AI 执行员工和人工决策点。
           </Text>
         </div>
         <Space className="consulting-hero-actions">
           <Button icon={<FileTextOutlined />} onClick={() => navigate('/customer-projects')}>
-            客户项目
+            客户案卷
           </Button>
-          <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => navigate('/resumes')}>
-            能力样本库
+          <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
+            资料入库
           </Button>
         </Space>
       </section>
@@ -180,20 +233,20 @@ const AIEmployeesList: React.FC = () => {
         <Card className="consulting-metric-card">
           <span className="metric-icon"><DatabaseOutlined /></span>
           <Text type="secondary">数据依据</Text>
-          <strong>{context.candidate_count ?? '-'}</strong>
-          <span>来自已上传的人才经历和项目样本</span>
+          <strong>{context.asset_count ?? '-'}</strong>
+          <span>来自知识资产、外部资料和邮箱样本</span>
+        </Card>
+        <Card className="consulting-metric-card">
+          <span className="metric-icon"><SafetyCertificateOutlined /></span>
+          <Text type="secondary">证据覆盖</Text>
+          <strong>{typeof coverage.score === 'number' ? `${coverage.score}%` : '-'}</strong>
+          <span>{coverage.level === 'strong' ? '证据较完整' : coverage.level === 'partial' ? '可生成草案，需人工复核' : '先补资料再生成'}</span>
         </Card>
         <Card className="consulting-metric-card">
           <span className="metric-icon"><AuditOutlined /></span>
           <Text type="secondary">阶段二</Text>
           <strong>执行</strong>
-          <span>按方案动态生成 AI 员工和任务入口</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><SafetyCertificateOutlined /></span>
-          <Text type="secondary">人工介入</Text>
-          <strong>30%</strong>
-          <span>关键判断、客户承诺、最终交付由人工确认</span>
+          <span>按方案动态生成 AI 执行员工和任务入口</span>
         </Card>
       </div>
 
@@ -204,7 +257,7 @@ const AIEmployeesList: React.FC = () => {
             title={
               <Space>
                 <RobotOutlined />
-                <span>AI 员工对话</span>
+                <span>方案 Agent 对话</span>
               </Space>
             }
           >
@@ -216,6 +269,7 @@ const AIEmployeesList: React.FC = () => {
                 requirement: '客户要做处置方案治理方案，官方有模板，需要自动填写公司资质和项目基础信息。',
                 company_profile: '公司具备多项施工、治理或服务资质，需要把资质、人员、项目履历统一沉淀成可复用资料库。',
                 project_materials: '已有项目名称、地址、负责人、治理范围、预算信息和部分官方模板，希望先生成一份可交付方案。',
+                constraints: 'AI 只负责资料整理和方案初稿，关键事实、客户承诺和最终交付必须人工复核。',
               }}
             >
               <Form.Item
@@ -231,9 +285,12 @@ const AIEmployeesList: React.FC = () => {
               <Form.Item name="project_materials" label="项目资料 / 模板资料">
                 <Input.TextArea rows={3} placeholder="项目基础信息、已有模板、历史材料、数据口径" />
               </Form.Item>
+              <Form.Item name="constraints" label="约束条件">
+                <Input.TextArea rows={3} placeholder="数据权限、人工复核、交付周期、预算、不可承诺事项" />
+              </Form.Item>
               <Space wrap>
                 <Button type="primary" htmlType="submit" icon={<SendOutlined />} loading={submitting}>
-                  让 AI 员工分析
+                  让方案 Agent 分析
                 </Button>
                 <Button onClick={() => form.resetFields()} disabled={submitting}>
                   重置样例
@@ -245,9 +302,9 @@ const AIEmployeesList: React.FC = () => {
               <div className="ai-chat-message ai-chat-message-assistant">
                 <RobotOutlined />
                 <div>
-                  <Text strong>AI 员工</Text>
+                  <Text strong>方案 Agent</Text>
                   <Paragraph>
-                    我会先检索你上传的候选人经历、项目案例和能力样本，把它们转成客户方案依据。当前 MVP 会先输出方案、动态 AI 员工和人工审核点。
+                    我会先检索知识资产库，把外部资料、内部案例、邮箱样本和客户材料转成可引用证据，再输出方案、动态执行员工和人工审核点。
                   </Paragraph>
                 </div>
               </div>
@@ -255,7 +312,7 @@ const AIEmployeesList: React.FC = () => {
                 <div className={`ai-chat-message ai-chat-message-${item.role}`} key={`${item.role}-${index}`}>
                   {item.role === 'assistant' ? <RobotOutlined /> : <AuditOutlined />}
                   <div>
-                    <Text strong>{item.role === 'assistant' ? 'AI 员工' : '你'}</Text>
+                    <Text strong>{item.role === 'assistant' ? '方案 Agent' : '你'}</Text>
                     <Paragraph>{item.content}</Paragraph>
                   </div>
                 </div>
@@ -266,32 +323,79 @@ const AIEmployeesList: React.FC = () => {
 
         <Col xs={24} xl={10}>
           <div className="ai-side-stack">
-            <Card className="agent-knowledge-card ai-side-card" title="检索到的能力依据">
+            <Card className="agent-trace-card ai-side-card" title="Agent 运行链路">
+              {chatResult?.agent_trace?.length ? (
+                <Steps
+                  direction="vertical"
+                  size="small"
+                  items={chatResult.agent_trace.map(item => ({
+                    title: agentStageLabel[item.stage] || item.stage,
+                    description: item.summary,
+                    status: agentStepStatus(item.status),
+                  }))}
+                />
+              ) : (
+                <Text type="secondary">提交需求后，这里会显示理解、检索、评估、生成和拆解的执行轨迹。</Text>
+              )}
+            </Card>
+
+            <Card className="agent-knowledge-card ai-side-card" title="检索到的证据资产">
               {chatResult ? (
                 <>
                   <div className="ai-context-counts">
-                    <span><strong>{context.project_count || 0}</strong>项目经验</span>
-                    <span><strong>{context.work_count || 0}</strong>公司经历</span>
-                    <span><strong>{context.candidate_count || 0}</strong>候选人样本</span>
+                    <span><strong>{context.asset_count || chatResult.retrieved_evidence?.length || 0}</strong>证据资产</span>
+                    <span><strong>{chatResult.retrieved_evidence?.filter(item => item.source_type === 'company_case').length || 0}</strong>案例资料</span>
+                    <span><strong>{chatResult.retrieved_evidence?.filter(item => item.source_type?.includes('document')).length || 0}</strong>报告资料</span>
                   </div>
                   <div className="ai-evidence-list">
                     {(chatResult.retrieved_evidence || []).slice(0, 5).map((item, index) => (
-                      <section key={`${item.project_name || item.company}-${index}`}>
-                        <Text strong>{item.project_name || item.company || `能力样本 ${index + 1}`}</Text>
+                      <section key={`${item.id || item.title || index}`}>
+                        <Text strong>{item.title || item.project_name || item.company || `证据资产 ${index + 1}`}</Text>
                         <Paragraph>
-                          {item.solution || item.summary || item.capabilities?.join('、') || '已命中客户需求相关能力。'}
+                          {item.summary || item.solution || item.capabilities?.join('、') || item.match_reason || '已命中客户需求相关资料。'}
                         </Paragraph>
-                        <Tag>{item.role || item.candidate_name || '经验依据'}</Tag>
+                        <Space wrap>
+                          <Tag>{item.source_name || item.source_type || item.role || item.candidate_name || '证据依据'}</Tag>
+                          {typeof item.match_score === 'number' ? <Tag color="processing">{Math.round(item.match_score)} 分</Tag> : null}
+                        </Space>
                       </section>
                     ))}
                   </div>
                 </>
               ) : (
-                <Text type="secondary">提交一次客户需求后，这里会展示系统从上传数据里检索到的项目和公司经验。</Text>
+                <Text type="secondary">提交一次客户需求后，这里会展示系统从知识资产库检索到的证据资料。</Text>
               )}
             </Card>
 
-            <Card className="agent-solution-card ai-side-card" title="动态 AI 员工">
+            <Card className="agent-coverage-card ai-side-card" title="证据覆盖与缺口">
+              {chatResult ? (
+                <div className="agent-coverage-content">
+                  <Progress
+                    percent={coverage.score || 0}
+                    strokeColor={coverageColor(coverage.level)}
+                    status={coverage.level === 'insufficient' ? 'exception' : 'normal'}
+                  />
+                  <div className="agent-coverage-columns">
+                    <section>
+                      <Text type="secondary">已覆盖</Text>
+                      <Space wrap>
+                        {(coverage.covered || []).map(item => <Tag color="green" key={item}>{item}</Tag>)}
+                      </Space>
+                    </section>
+                    <section>
+                      <Text type="secondary">待补充</Text>
+                      <Space wrap>
+                        {(coverage.missing || []).map(item => <Tag color="orange" key={item}>{item}</Tag>)}
+                      </Space>
+                    </section>
+                  </div>
+                </div>
+              ) : (
+                <Text type="secondary">系统会根据资料命中、客户背景、项目材料和约束条件评估是否足够生成方案。</Text>
+              )}
+            </Card>
+
+            <Card className="agent-solution-card ai-side-card" title="动态 AI 执行员工">
               {dynamicWorkers.length ? (
                 <div className="ai-worker-list">
                   {dynamicWorkers.map((worker, index) => (
@@ -306,7 +410,7 @@ const AIEmployeesList: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <Text type="secondary">AI 员工不会被预先固定，系统会按客户需求动态生成模板解析、资料抽取、增长策略等执行角色。</Text>
+                <Text type="secondary">AI 执行员工不会被预先固定，系统会按客户需求动态生成资料解析、方案设计、交付拆解等执行角色。</Text>
               )}
             </Card>
           </div>
@@ -320,7 +424,7 @@ const AIEmployeesList: React.FC = () => {
               <Tag color={chatResult.model_used ? 'green' : 'orange'}>
                 {chatResult.model_used ? '已接入大语言模型' : '规则兜底生成'}
               </Tag>
-              <Title level={3}>{chatResult.solution.title || 'AI 员工解决方案'}</Title>
+              <Title level={3}>{chatResult.solution.title || '方案 Agent 解决方案'}</Title>
               <Paragraph>{chatResult.solution.summary}</Paragraph>
             </div>
             <Button
@@ -346,8 +450,8 @@ const AIEmployeesList: React.FC = () => {
                     ))}
                   </div>
                   <ol>
-                    {(item.implementation_steps || []).map(step => (
-                      <li key={step}>{step}</li>
+                    {(item.implementation_steps || []).map((step, stepIndex) => (
+                      <li key={`${step}-${stepIndex}`}>{cleanNumberedText(step)}</li>
                     ))}
                   </ol>
                 </section>
@@ -362,6 +466,21 @@ const AIEmployeesList: React.FC = () => {
                 <li key={point}>{point}</li>
               ))}
             </ul>
+          </div>
+
+          <div className="agent-followup-grid">
+            <section>
+              <Text strong>继续追问</Text>
+              <ul>
+                {(chatResult.clarifying_questions || []).map(item => <li key={item}>{item}</li>)}
+              </ul>
+            </section>
+            <section>
+              <Text strong>下一步动作</Text>
+              <ul>
+                {(chatResult.next_actions || []).map(item => <li key={item}>{item}</li>)}
+              </ul>
+            </section>
           </div>
         </Card>
       )}

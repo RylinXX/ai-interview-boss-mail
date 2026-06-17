@@ -130,3 +130,26 @@ class AIProductManagerDraftResponse(BaseModel):
     cited_assets: List[RetrievedKnowledgeAsset] = []
     model_used: bool = False
     fallback_used: bool = False
+
+
+class SolutionAgentRequest(BaseModel):
+    requirement: str
+    company_profile: Optional[str] = None
+    project_materials: Optional[str] = None
+    constraints: Optional[str] = None
+    confirmed_context: Dict[str, Any] = {}
+    limit: int = 8
+
+
+class SolutionAgentResponse(BaseModel):
+    assistant_message: str
+    solution: Dict[str, Any]
+    retrieved_evidence: List[Dict[str, Any]] = []
+    dynamic_workers: List[Dict[str, Any]] = []
+    human_decision_points: List[str] = []
+    agent_trace: List[Dict[str, Any]] = []
+    evidence_coverage: Dict[str, Any] = {}
+    clarifying_questions: List[str] = []
+    next_actions: List[str] = []
+    model_used: bool = False
+    fallback_used: bool = False

@@ -555,7 +555,7 @@ const SystemSettingsPage: React.FC = () => {
         <div className="consulting-hero-copy">
           <span className="dossier-code">System Control</span>
           <Title level={1}>系统设置</Title>
-          <Text>配置 AI 模型、邮件服务、样本导入和提示词参数，保证方案生成与 AI 员工交付可用。</Text>
+          <Text>配置 AI 模型、邮件服务、资料入库和提示词参数，保证方案 Agent 与 AI 执行交付可用。</Text>
         </div>
       </section>
 

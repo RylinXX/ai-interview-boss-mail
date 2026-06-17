@@ -83,7 +83,8 @@ def _get_client() -> OpenAI:
 
 def _get_extra_body() -> Dict[str, Any]:
     cfg = _get_llm_config()
-    if cfg.get("llm_provider") == "dashscope":
+    base_url = (cfg.get("llm_base_url") or "").lower()
+    if cfg.get("llm_provider") == "dashscope" and "dashscope.aliyuncs.com" in base_url:
         return {"enable_thinking": False}
     return {}
 

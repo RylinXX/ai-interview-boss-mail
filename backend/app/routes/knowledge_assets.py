@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.config.database import get_db
@@ -16,6 +16,8 @@ from app.schemas.knowledge_assets import (
     KnowledgeAssetReviewUpdate,
     KnowledgeAssetSearchRequest,
     KnowledgeAssetSearchResponse,
+    SolutionAgentRequest,
+    SolutionAgentResponse,
 )
 from app.services import knowledge_asset_service as service
 
@@ -45,6 +47,52 @@ def create_knowledge_asset_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.create_manual_asset(db, payload, current_user.id)
+
+
+@router.post("/knowledge-assets/upload", response_model=KnowledgeAssetListResponse)
+def upload_knowledge_asset_route(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    source_type: str = Form("manual_note"),
+    source_name: Optional[str] = Form(None),
+    source_url: Optional[str] = Form(None),
+    source_confidentiality: str = Form("internal"),
+    industry_tags: Optional[str] = Form(None),
+    business_topic_tags: Optional[str] = Form(None),
+    scenario_tags: Optional[str] = Form(None),
+    evidence_type_tags: Optional[str] = Form(None),
+    capability_tags: Optional[str] = Form(None),
+    methodology_tags: Optional[str] = Form(None),
+    customer_type_tags: Optional[str] = Form(None),
+    value_tags: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    assets = service.create_assets_from_upload(
+        db,
+        file,
+        title=title,
+        source_type=source_type,
+        source_name=source_name,
+        source_url=source_url,
+        source_confidentiality=source_confidentiality,
+        industry_tags=industry_tags,
+        business_topic_tags=business_topic_tags,
+        scenario_tags=scenario_tags,
+        evidence_type_tags=evidence_type_tags,
+        capability_tags=capability_tags,
+        methodology_tags=methodology_tags,
+        customer_type_tags=customer_type_tags,
+        value_tags=value_tags,
+        user_id=current_user.id,
+    )
+    return {
+        "items": assets,
+        "total": len(assets),
+        "industry_tags": sorted({tag for asset in assets for tag in (asset.industry_tags or [])}),
+        "business_topic_tags": sorted({tag for asset in assets for tag in (asset.business_topic_tags or [])}),
+        "evidence_type_tags": sorted({tag for asset in assets for tag in (asset.evidence_type_tags or [])}),
+    }
 
 
 @router.post("/resumes/{resume_id}/knowledge-assets/sync", response_model=KnowledgeAssetListResponse)
@@ -82,6 +130,15 @@ def generate_ai_product_manager_draft_route(
     current_user: User = Depends(get_current_user),
 ):
     return service.generate_controlled_product_manager_draft(db, payload)
+
+
+@router.post("/solution-agent/generate", response_model=SolutionAgentResponse)
+def generate_solution_agent_route(
+    payload: SolutionAgentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.generate_solution_agent(db, payload)
 
 
 @router.get("/knowledge-assets/{asset_id}", response_model=KnowledgeAssetResponse)
