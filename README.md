@@ -1,4 +1,4 @@
-# AI Interview
+# QylinIntel Business Transformation OS
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Backend](https://img.shields.io/badge/backend-FastAPI-009688.svg)
@@ -6,94 +6,74 @@
 ![Database](https://img.shields.io/badge/database-PostgreSQL-336791.svg)
 ![AI](https://img.shields.io/badge/AI-OpenAI%20SDK%20compatible-7C3AED.svg)
 
-AI Interview 是一个面向招聘团队的开源智能招聘管理系统。它把岗位发布、简历 AI 解析、候选人匹配评分、部门评审、AI 面试助手、在线笔试、Offer 管理、招聘漏斗和可视化工作流放进同一个产品里。
+QylinIntel 是一个面向业务咨询、方案交付和资料治理的 AI 工作台。当前主线已经从早期的招聘流程管理，演进为「资料入库 -> 知识资产 -> 方案 Agent -> 客户案卷 -> 交付任务」的一体化系统。
 
-项目适合作为企业内部招聘中台的起点，也适合二次开发成 AI 面试、人才测评、招聘自动化或垂直行业人才管理产品。
+系统适合用来沉淀行业资料、客户材料、项目案例、邮箱样本和能力样本，再让方案 Agent 基于可追溯证据生成方案草案、拆解 AI 执行员工和人工决策点。
 
-![AI Interview 数据分析仪表盘](docs/assets/screenshots/dashboard.png)
+![方案 Agent 工作台](docs/assets/screenshots/ai-employees.png)
 
-## 为什么做这个项目
+## 当前定位
 
-招聘流程里最耗时间的部分，往往不是点击按钮，而是反复阅读、整理和同步信息：简历要读，岗位要对齐，面试题要准备，面试反馈要汇总，候选人状态要推进，管理者还要看到漏斗数据。
+这不是一个只调用大模型生成文本的页面。系统会先把资料变成可检索、可复核、可引用的知识资产，再在方案生成时展示检索证据、覆盖程度、运行链路和未被证据支持的结论。
 
-AI Interview 的设计目标是让 AI 进入这些真实工作环节：
+核心流程：
 
-- 从简历中提取候选人画像，而不是只保存附件。
-- 结合岗位要求生成匹配评分、风险点和面试关注点。
-- 根据候选人背景生成结构化面试题。
-- 汇总面试官评分、文字评价和转写内容，生成 AI 综合面试分析。
-- 通过模型配置、提示词配置和工作流编排，让团队可以持续调优招聘策略。
+1. 资料入库：上传 PDF、DOCX、TXT、Markdown，或直接粘贴正文。
+2. 知识资产：抽取文本、切片、打标签、生成摘要、记录来源和证据边界。
+3. 方案 Agent：结合客户需求检索知识资产，生成带证据引用的解决方案。
+4. 客户案卷：把方案沉淀为客户项目、方案文档和任务清单。
+5. 人工复核：关键事实、客户承诺和最终交付内容保留人工确认。
 
-## AI 能力展示
-
-### 简历 AI 解析与匹配评分
-
-上传简历后，系统会生成候选人基本信息、技能标签、岗位匹配分、初筛建议、风险提醒和可追问方向。HR 可以基于 AI 建议继续推进、转岗、淘汰或发起部门评审。
-
-![简历 AI 分析结果](docs/assets/screenshots/resume-ai-analysis.png)
-
-### AI 面试助手
-
-面试评分页将候选人简历最大化展示在左侧，右侧提供 AI 生成的结构化题目、参考答案、评分标准和面试小组提交状态。面试官可以边看简历边评分，也可以上传录音并进入后续分析。
-
-![AI 面试评分界面](docs/assets/screenshots/interview-score.png)
-
-### 面试结果 AI 分析
-
-面试完成后，系统会汇总多位面试官评分、评价文本、面试题表现和综合建议，生成可追踪的候选人评估报告，帮助 HR 和用人部门减少信息丢失。
-
-![面试结果 AI 分析](docs/assets/screenshots/interview-ai-result.png)
-
-### 模型与提示词可配置
-
-系统支持 OpenAI SDK 兼容接口，默认适配 DashScope，也可以连接 OpenAI 或企业内部模型网关。管理员可以在页面中维护模型、Base URL、API Key 和不同任务的提示词模板。
-
-![AI 模型配置](docs/assets/screenshots/ai-model-settings.png)
-
-![AI 提示词配置](docs/assets/screenshots/prompt-settings.png)
-
-## 功能亮点
+## 核心能力
 
 | 模块 | 能力 |
 | --- | --- |
-| 岗位管理 | 岗位创建、公开发布、JD 生成、岗位统计、公开职位页 |
-| 简历管理 | 单个/批量上传、重复检查、PDF 预览、AI 解析、匹配评分、转岗重评 |
-| AI 初筛 | 候选人画像、初筛建议、风险点、岗位匹配解释、人工确认闭环 |
-| 协同评审 | 用人部门评审链接、技术评价、HR 综合决策、淘汰原因归档 |
-| 面试管理 | 多轮面试、面试小组、AI 题目生成、评分标准、录音上传、转写与综合评价 |
-| 在线笔试 | 算法题、选择题、问答题、公开答题链接、代码运行和 AI 评价 |
-| Offer 管理 | Offer 模板、发送、接受/拒绝确认、状态流转 |
-| 招聘仪表盘 | 招聘漏斗、岗位分析、面试官分析、时间线趋势 |
-| 工作流引擎 | React Flow 可视化编排，内置 LLM、条件、邮件、HTTP 等节点 |
-| 系统设置 | LLM 配置、邮件配置、提示词管理、用户与角色管理 |
+| 方案 Agent | 对话式需求理解、SSE 运行轨迹、证据检索、覆盖度评估、方案生成、AI 执行员工拆解 |
+| 资料入库 | 支持文件上传和正文粘贴，自动抽取文本、分片、记录来源和保密级别 |
+| 知识资产库 | 按来源、行业、主题、证据类型、复核状态和评分管理可引用资料 |
+| RAG 检索链路 | 关键词、BM25-like、语义哈希向量、RRF 融合、rerank、上下文压缩和引用 ID |
+| 客户案卷 | 从 Agent 方案生成客户项目，沉淀诊断、方案文档、任务板和导出内容 |
+| 邮箱样本 | 同步 BOSS 邮件附件，解析简历/能力样本，并同步为可引用知识资产 |
+| 系统设置 | 用户管理、模型配置、OpenAI 兼容接口、Prompt 配置、邮箱导入配置 |
 
 ## 产品截图
 
-### 候选人与岗位流程
+### 方案 Agent
 
-![简历管理](docs/assets/screenshots/resumes.png)
+方案 Agent 是当前主入口，页面主图见上方。用户输入客户需求、公司资料、项目材料和约束条件后，系统会检索知识资产库，输出证据、方案、风险、追问、下一步动作和动态 AI 执行员工。
 
-![岗位管理](docs/assets/screenshots/positions.png)
+### 客户案卷
 
-![公开职位页](docs/assets/screenshots/public-job.png)
+客户案卷用于承接方案交付。每个案卷会沉淀客户背景、核心问题、交付目标、方案文档和任务状态，让方案从一次对话继续推进到可管理的交付过程。
 
-### 面试、笔试和自动化
+![客户项目案卷](docs/assets/screenshots/customer-projects.png)
 
-![面试管理](docs/assets/screenshots/interviews.png)
+## 典型使用方式
 
-![在线笔试](docs/assets/screenshots/coding-tests.png)
+### 1. 建立资料库
 
-![工作流编排](docs/assets/screenshots/workflows.png)
+进入「资料入库」，上传外部报告、官方模板、客户资料、历史项目材料，或直接粘贴正文。系统会把长文档切成多个知识片段，并保留来源文件、片段序号、摘要、标签和证据说明。
+
+### 2. 复核知识资产
+
+进入「知识资产库」，按行业、主题、证据类型、来源和复核状态筛选资料。团队可以检查每条资产能证明什么、不能证明什么，以及它适合被哪些方案场景引用。
+
+### 3. 生成方案草案
+
+进入「方案 Agent」，输入客户需求和约束。系统会先检索知识资产，再输出方案。如果证据不足，系统会提示缺口、追问问题和下一步补资料动作，而不是直接强行编造完整方案。
+
+### 4. 进入交付案卷
+
+方案通过人工复核后，可以生成客户案卷。案卷内继续维护诊断、任务板、执行草稿、方案文档和导出内容。
 
 ## 技术栈
 
 - 前端：React 19、Vite、TypeScript、Ant Design、React Router、Recharts、React Flow
-- 后端：FastAPI、SQLAlchemy、Alembic、Pydantic、JWT、Background Tasks
-- 数据库：PostgreSQL 15
-- AI：OpenAI SDK 兼容接口，支持 DashScope、OpenAI 或企业内部兼容模型网关
-- 文档与部署：Docker Compose、Nginx、GitHub Actions
-
-![系统架构](docs/assets/architecture.svg)
+- 后端：FastAPI、SQLAlchemy、Alembic、Pydantic、JWT、Background Tasks、SSE
+- 数据库：PostgreSQL 15，测试和轻量开发可使用 SQLite
+- AI：OpenAI SDK 兼容接口，支持 DashScope、OpenAI 或企业内部模型网关
+- 文档处理：PyMuPDF、PyPDF2、python-docx、Mammoth、pydub
+- 部署：Docker Compose、Nginx、GitHub Actions
 
 ## 快速开始
 
@@ -102,7 +82,7 @@ AI Interview 的设计目标是让 AI 进入这些真实工作环节：
 - Node.js 20+
 - Python 3.11+
 - Docker Desktop 或本地 PostgreSQL 15+
-- FFmpeg（用于音频处理；Docker 镜像已内置）
+- FFmpeg，音频转写相关功能会用到
 
 ### 1. 准备环境变量
 
@@ -112,7 +92,13 @@ cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
-根据需要修改 `backend/.env` 中的 `SECRET_KEY`、`DATABASE_URL`、`INITIAL_ADMIN_PASSWORD`、`OPENAI_API_KEY` 和 `OPENAI_BASE_URL`。LLM 也可以登录后在“系统设置”页面配置。
+开发环境默认管理员账号：
+
+```text
+admin@example.com / admin123
+```
+
+生产环境必须修改 `.env` 中的 `SECRET_KEY`、`INITIAL_ADMIN_PASSWORD` 和数据库密码。
 
 ### 2. 启动数据库
 
@@ -120,18 +106,40 @@ cp frontend/.env.example frontend/.env
 docker compose up -d postgres
 ```
 
+默认数据库连接：
+
+```text
+postgresql://postgres:postgres@localhost:5433/ai_interview
+```
+
 ### 3. 启动后端
 
 ```bash
 cd backend
 python -m venv venv
+```
+
+Windows PowerShell：
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+macOS / Linux：
+
+```bash
 source venv/bin/activate
+```
+
+继续安装依赖并启动服务：
+
+```bash
 pip install -r requirements.txt
 alembic upgrade head
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-后端 API 文档：<http://localhost:8000/docs>
+API 文档地址：<http://localhost:8000/docs>
 
 ### 4. 启动前端
 
@@ -141,39 +149,7 @@ npm install
 npm run dev
 ```
 
-打开 <http://localhost:5173>。开发环境默认管理员为 `admin@example.com / admin123`，也可以通过 `INITIAL_ADMIN_EMAIL` 和 `INITIAL_ADMIN_PASSWORD` 自定义。
-
-## 演示数据与截图
-
-项目内置了演示数据、测试简历 PDF 和截图脚本，便于生成 README、博客或发布页素材。
-
-```bash
-# 1. 准备一个演示数据库
-docker exec ai_interview_db sh -c "createdb -U postgres ai_interview_demo" || true
-
-# 2. 写入岗位、候选人、AI 分析、面试、笔试、工作流等演示数据
-cd backend
-DATABASE_URL=postgresql://postgres:postgres@localhost:5433/ai_interview_demo python scripts/seed_demo_data.py
-
-# 3. 生成真实感测试简历 PDF
-cd ..
-node scripts/generate-demo-resume-pdfs.mjs
-
-# 4. 启动前后端后，重新截取全部宣传图
-node scripts/capture-demo-screenshots.mjs
-```
-
-截图会输出到 `docs/assets/screenshots/`。脚本默认使用 `admin@example.com / admin123` 登录本地应用，并覆盖生成仪表盘、简历 AI 分析、AI 面试评分、面试结果分析、模型配置、提示词配置等截图。
-
-## Docker 部署
-
-生产部署建议先修改根目录 `.env`，至少设置高强度 `SECRET_KEY` 和 `INITIAL_ADMIN_PASSWORD`。
-
-```bash
-docker compose -f docker-compose.prod.yml up --build -d
-```
-
-默认访问地址为 <http://localhost>。前端 Nginx 会代理 `/api` 和 `/uploads` 到后端服务。
+打开 <http://localhost:5173>。
 
 ## 常用命令
 
@@ -186,63 +162,86 @@ make build-frontend  # 构建前端
 make docker-prod     # 构建并启动生产 Compose
 ```
 
+## Docker 部署
+
+先在根目录 `.env` 设置生产变量，至少包括：
+
+```text
+SECRET_KEY=change-this-to-a-long-random-value
+INITIAL_ADMIN_PASSWORD=change-this-password
+POSTGRES_PASSWORD=change-this-db-password
+```
+
+启动生产编排：
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+默认访问地址为 <http://localhost>。前端 Nginx 会代理 `/api` 和 `/uploads` 到后端服务。
+
+## 关键配置
+
+| 变量 | 说明 |
+| --- | --- |
+| `DATABASE_URL` | 后端数据库连接 |
+| `SECRET_KEY` | JWT 签名密钥，生产环境必须修改 |
+| `INITIAL_ADMIN_EMAIL` | 首次启动创建的管理员邮箱 |
+| `INITIAL_ADMIN_PASSWORD` | 首次启动创建的管理员密码 |
+| `INITIAL_ADMIN_NAME` | 首次启动创建的管理员名称 |
+| `CORS_ORIGINS` | 允许跨域来源，多个值用逗号分隔 |
+| `OPENAI_API_KEY` | OpenAI SDK 兼容模型服务密钥 |
+| `OPENAI_BASE_URL` | 模型服务 Base URL |
+| `LLM_PROVIDER` | 模型提供方标识，默认 `dashscope` |
+| `LLM_MODEL` | 默认模型名称 |
+| `RESUME_PARSE_MAX_CONCURRENT` | 样本解析并发数 |
+| `VITE_API_URL` | 前端 API 地址，开发默认 `/api` |
+
 ## 项目结构
 
 ```text
 .
-├── backend/                 # FastAPI API、模型、服务、路由、Alembic 迁移
+├── backend/                 # FastAPI API、模型、服务、路由和 Alembic 迁移
 ├── frontend/                # React + Vite 前端应用
-├── docs/                    # 宣传博客、产品图和架构图
-├── scripts/                 # 演示简历 PDF 与截图生成脚本
+├── docs/                    # 产品说明、设计记录、截图和架构图
+├── scripts/                 # 演示数据、截图和辅助脚本
 ├── docker-compose.yml       # 开发数据库
 ├── docker-compose.prod.yml  # 生产编排
 └── Makefile                 # 常用开发命令
 ```
 
-## 配置说明
-
-| 变量 | 说明 |
-| --- | --- |
-| `DATABASE_URL` | 后端数据库连接串 |
-| `SECRET_KEY` | JWT 签名密钥，生产环境必须设置 |
-| `INITIAL_ADMIN_EMAIL` | 首次启动创建的管理员邮箱 |
-| `INITIAL_ADMIN_PASSWORD` | 首次启动创建的管理员密码 |
-| `CORS_ORIGINS` | 允许跨域来源，多个值用逗号分隔 |
-| `OPENAI_API_KEY` | 兼容 OpenAI SDK 的模型服务密钥 |
-| `OPENAI_BASE_URL` | 模型服务 Base URL |
-| `LLM_PROVIDER` | 模型提供方标识，默认 `dashscope` |
-| `LLM_MODEL` | 默认模型名 |
-| `RESUME_PARSE_MAX_CONCURRENT` | 简历解析队列并发数，生产环境建议先设为 `6` 到 `8` |
-| `VITE_API_URL` | 前端 API 地址，默认 `/api` |
-
 ## 测试与质量
 
+后端测试：
+
 ```bash
-cd backend && pytest
-cd frontend && npm run build
+cd backend
+pytest
 ```
 
-GitHub Actions 会在推送和 Pull Request 时运行后端测试与前端构建。
+前端构建：
+
+```bash
+cd frontend
+npm run build
+```
+
+当前项目也包含 Alembic 迁移检查、知识资产服务测试和前端构建验证，适合在提交前作为基础检查。
 
 ## 安全建议
 
-- 生产环境务必修改 `SECRET_KEY`、管理员初始密码和数据库密码。
-- 不要提交 `.env`、上传简历、音频、数据库文件或本地虚拟环境。
+- 不要提交 `.env`、本地数据库、上传文件、简历、音频、客户资料或本地虚拟环境。
+- 生产环境务必修改管理员初始密码、数据库密码和 `SECRET_KEY`。
+- AI 处理客户资料、简历和项目材料时，要遵守数据授权、隐私保护和本地合规要求。
 - 公开部署前建议接入 HTTPS、对象存储、日志审计和更细粒度的数据权限。
-- AI 解析简历和面试内容时，请遵守候选人隐私、数据保留和本地法规要求。
 
-## 路线图
+## 当前路线
 
-- 多租户与组织隔离
-- 更完整的权限策略和审计日志
-- 简历解析队列的可观测性面板
-- 更多招聘渠道集成
-- 工作流节点插件市场
-- 国际化和暗色模式
-
-## 贡献
-
-欢迎通过 Issue、Discussion 和 Pull Request 参与。开始前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [SECURITY.md](SECURITY.md)。
+- 强化知识资产复核和引用质量控制。
+- 继续完善客户案卷里的多轮 Agent 执行。
+- 增加 URL 资料抓取和更细粒度的文档章节切片。
+- 改进检索可观测性，让 RAG 命中、融合、rerank 和压缩过程更容易复盘。
+- 将早期招聘模块继续收敛为「邮箱样本 / 能力样本 / 证据资产」能力。
 
 ## License
 
