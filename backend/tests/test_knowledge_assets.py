@@ -4,6 +4,442 @@ from app.models.models import Resume, ResumeStatus, ScreeningResult
 from app.services import knowledge_asset_service
 
 
+def test_upload_knowledge_asset_file_returns_chunk_provenance(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    body = "\n".join(
+        [
+            f"section {idx} proposal template qualification workflow approval automation"
+            for idx in range(220)
+        ]
+    )
+
+    response = client.post(
+        "/api/knowledge-assets/upload",
+        headers=admin_auth_headers,
+        data={
+            "title": "Proposal Operations Manual",
+            "source_type": "official_document",
+            "source_name": "Operations Playbook",
+            "source_confidentiality": "internal",
+        },
+        files={"file": ("proposal-ops.md", body.encode("utf-8"), "text/markdown")},
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) >= 2
+    document_ids = {item["source_document_id"] for item in items}
+    assert len(document_ids) == 1
+    assert [item["chunk_index"] for item in items] == list(range(len(items)))
+    assert all(item["chunk_total"] == len(items) for item in items)
+    assert all(item["citation_id"] for item in items)
+    assert all("chunk" in item["source_locator"] for item in items)
+    assert all(item["source_excerpt"] for item in items)
+
+
+def test_solution_agent_returns_source_payloads_and_retrieval_log(
+    client, admin_auth_headers, monkeypatch
+):
+    created = client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Case",
+            "source_type": "company_case",
+            "source_name": "Internal Case Library",
+            "raw_text": "proposal template qualification workflow approval automation reduces repeated document work",
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+            "proves": ["proposal document workflows can be automated with approval controls"],
+        },
+    ).json()
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "Proposal Automation Plan",
+            "summary": "Use cited evidence to automate proposal document workflows.",
+            "recommended_solutions": [],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        },
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={"requirement": "proposal automation workflow", "limit": 3},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    evidence = data["retrieved_evidence"][0]
+    assert evidence["id"] == created["id"]
+    assert evidence["citation_id"]
+    assert evidence["source_payload"]["citation_id"] == evidence["citation_id"]
+    assert evidence["source_payload"]["source_name"] == "Internal Case Library"
+    assert evidence["source_payload"]["chunk_index"] == 0
+    assert evidence["source_payload"]["excerpt"]
+    assert data["retrieval_log"]["original_query"] == "proposal automation workflow"
+    assert data["retrieval_log"]["returned_count"] >= 1
+    assert data["retrieval_log"]["results"][0]["asset_id"] == created["id"]
+
+
+def test_search_assets_records_hybrid_retrieval_pipeline(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Workflow Automation",
+            "source_type": "company_case",
+            "raw_text": "proposal approval workflow automation template qualification document generation",
+            "business_topic_tags": ["proposal", "workflow"],
+            "evidence_type_tags": ["case"],
+        },
+    )
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Social Content Calendar",
+            "source_type": "manual_note",
+            "raw_text": "marketing calendar social media captions publishing cadence",
+            "business_topic_tags": ["marketing"],
+        },
+    )
+
+    response = client.post(
+        "/api/knowledge-assets/search",
+        headers=admin_auth_headers,
+        json={"query": "proposal workflow automation", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["items"][0]["asset"]["title"] == "Proposal Workflow Automation"
+    assert data["retrieval_log"]["retrieval_mode"] == "hybrid_keyword_bm25_semantic"
+    assert "knowledge_asset_bm25_search" in data["retrieval_log"]["selected_tools"]
+    assert "knowledge_asset_semantic_vector_search" in data["retrieval_log"]["selected_tools"]
+    assert "rrf_fusion" in data["retrieval_log"]["selected_tools"]
+    assert data["retrieval_log"]["route_counts"]["keyword_tag"] >= 1
+    assert data["retrieval_log"]["route_counts"]["bm25_text"] >= 1
+    assert data["retrieval_log"]["route_counts"]["semantic_vector"] >= 1
+    first = data["retrieval_log"]["results"][0]
+    assert first["route_scores"]["bm25_text"] > 0
+    assert first["route_scores"]["semantic_vector"] > 0
+    assert first["rrf_score"] > 0
+    assert first["rerank_score"] > 0
+
+
+def test_solution_agent_payload_uses_compressed_evidence_context(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    long_text = " ".join(["proposal workflow automation approval qualification template"] * 240)
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Evidence",
+            "source_type": "company_case",
+            "raw_text": long_text,
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+            "proves": ["proposal workflows can be automated with review controls"],
+        },
+    )
+    captured = {}
+
+    def fake_generate_solution_agent_response(payload):
+        captured["payload"] = payload
+        return {
+            "title": "Proposal Workflow Plan",
+            "summary": "Plan",
+            "recommended_solutions": [],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        }
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        fake_generate_solution_agent_response,
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "proposal workflow automation",
+            "company_profile": "consulting company",
+            "project_materials": "proposal templates and approval records",
+            "constraints": "manual review required",
+            "limit": 3,
+        },
+    )
+
+    assert response.status_code == 200
+    evidence = captured["payload"]["knowledge_context"]["assets"][0]
+    assert evidence["compressed_context"]
+    assert len(evidence["compressed_context"]) <= 900
+    assert response.json()["retrieval_log"]["context_compression"]["included_count"] >= 1
+
+
+def test_solution_agent_persists_conversation_run_messages_and_steps(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Case",
+            "source_type": "company_case",
+            "raw_text": "proposal workflow automation approval template qualification",
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+        },
+    )
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "Proposal Agent Plan",
+            "summary": "Plan",
+            "recommended_solutions": [],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        },
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "proposal workflow automation",
+            "company_profile": "consulting company",
+            "project_materials": "proposal templates",
+            "constraints": "manual review",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["conversation_id"]
+    assert data["run_id"]
+
+    messages_response = client.get(
+        f"/api/solution-agent/conversations/{data['conversation_id']}/messages",
+        headers=admin_auth_headers,
+    )
+    assert messages_response.status_code == 200
+    messages = messages_response.json()["items"]
+    assert [message["role"] for message in messages] == ["user", "assistant"]
+    assert messages[1]["sources"]
+    assert messages[1]["retrieval_log"]["retrieval_mode"] == "hybrid_keyword_bm25_semantic"
+
+    run_response = client.get(
+        f"/api/solution-agent/runs/{data['run_id']}",
+        headers=admin_auth_headers,
+    )
+    assert run_response.status_code == 200
+    run = run_response.json()
+    assert run["status"] == "completed"
+    assert run["retrieval_log"]["retrieval_mode"] == "hybrid_keyword_bm25_semantic"
+    assert len(run["steps"]) >= 5
+    assert run["steps"][0]["stage"] == "understand_requirement"
+
+
+def test_solution_agent_returns_multi_agent_crew_trace(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Case",
+            "source_type": "company_case",
+            "raw_text": "proposal workflow automation approval template qualification",
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+            "proves": ["proposal workflows can be automated"],
+        },
+    )
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "Proposal Agent Plan",
+            "summary": "Plan",
+            "recommended_solutions": [],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        },
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "proposal workflow automation",
+            "company_profile": "consulting company",
+            "project_materials": "proposal templates",
+            "constraints": "manual review",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    roles = [step["agent_role"] for step in data["crew_trace"]]
+    assert roles == [
+        "requirement_analyst",
+        "evidence_researcher",
+        "evidence_critic",
+        "solution_writer",
+        "delivery_task_designer",
+    ]
+    assert data["crew_trace"][1]["outputs"]["retrieval_mode"] == "hybrid_keyword_bm25_semantic"
+    run = client.get(f"/api/solution-agent/runs/{data['run_id']}", headers=admin_auth_headers).json()
+    assert run["steps"][0]["agent_role"] == "requirement_analyst"
+
+
+def test_solution_agent_marks_uncited_solution_claims_for_review(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    created = client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Case",
+            "source_type": "company_case",
+            "raw_text": "proposal workflow automation approval template qualification",
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+            "proves": ["proposal workflows can be automated"],
+        },
+    ).json()
+
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "Proposal Agent Plan",
+            "summary": "Plan",
+            "recommended_solutions": [
+                {
+                    "name": "Proposal workflow automation",
+                    "scenario": "proposal approvals",
+                    "value": "reduce repeated document work",
+                    "related_cases": ["Proposal Automation Case"],
+                    "implementation_steps": ["collect templates", "review generated output"],
+                },
+                {
+                    "name": "Guaranteed revenue growth",
+                    "scenario": "sales forecasting",
+                    "value": "guarantee 50 percent revenue growth",
+                    "related_cases": [],
+                    "implementation_steps": ["publish guarantee"],
+                },
+            ],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        },
+        raising=False,
+    )
+
+    response = client.post(
+        "/api/solution-agent/generate",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "proposal workflow automation",
+            "company_profile": "consulting company",
+            "project_materials": "proposal templates",
+            "constraints": "manual review",
+        },
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    first_solution = data["solution"]["recommended_solutions"][0]
+    assert first_solution["cited_asset_ids"] == [created["id"]]
+    assert first_solution["cited_citation_ids"]
+    assert data["evidence_self_check"]["status"] == "needs_review"
+    assert data["evidence_self_check"]["uncited_solution_count"] == 1
+    assert data["unsupported_claims"][0]["name"] == "Guaranteed revenue growth"
+
+
+def test_solution_agent_stream_emits_trace_and_done_events(
+    client, admin_auth_headers, monkeypatch
+):
+    monkeypatch.setattr(knowledge_asset_service, "generate_knowledge_asset_tags", lambda payload: {})
+    client.post(
+        "/api/knowledge-assets/intake",
+        headers=admin_auth_headers,
+        json={
+            "title": "Proposal Automation Case",
+            "source_type": "company_case",
+            "raw_text": "proposal workflow automation approval template qualification",
+            "business_topic_tags": ["proposal"],
+            "evidence_type_tags": ["case"],
+        },
+    )
+    monkeypatch.setattr(
+        knowledge_asset_service,
+        "generate_solution_agent_response",
+        lambda payload: {
+            "title": "Proposal Agent Plan",
+            "summary": "Plan",
+            "recommended_solutions": [],
+            "needed_capabilities": [],
+            "dynamic_workers": [],
+            "risks": [],
+            "next_questions": [],
+        },
+        raising=False,
+    )
+
+    with client.stream(
+        "POST",
+        "/api/solution-agent/stream",
+        headers=admin_auth_headers,
+        json={
+            "requirement": "proposal workflow automation",
+            "company_profile": "consulting company",
+            "project_materials": "proposal templates",
+            "constraints": "manual review",
+        },
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert response.status_code == 200
+    assert "event: start" in body
+    assert "event: trace" in body
+    assert "event: done" in body
+    assert '"run_id"' in body
+
+
 def test_manual_intake_creates_reviewable_knowledge_asset(client, admin_auth_headers):
     response = client.post(
         "/api/knowledge-assets/intake",

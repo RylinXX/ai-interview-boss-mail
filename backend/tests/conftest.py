@@ -26,7 +26,8 @@ from app.models.models import (
     Resume, ResumeStatus, ScreeningResult, Interview, InterviewStatus, InterviewResult,
     InterviewPanel, DepartmentReview, SystemConfig, CodingTest, CodingSubmission,
     ResumeMailImport, CustomerProject, ProjectTask, SolutionDocument, AIEmployeeRun,
-    IndustryAgentSolutionDraft, KnowledgeAsset,
+    IndustryAgentSolutionDraft, KnowledgeAsset, SolutionAgentConversation,
+    SolutionAgentMessage, SolutionAgentRun, SolutionAgentStep,
 )
 from app.config.database import get_db
 from app.core.security import get_password_hash, create_access_token
@@ -72,6 +73,10 @@ def db() -> Generator[Session, None, None]:
         AIEmployeeRun.__table__,
         KnowledgeAsset.__table__,
         IndustryAgentSolutionDraft.__table__,
+        SolutionAgentConversation.__table__,
+        SolutionAgentRun.__table__,
+        SolutionAgentMessage.__table__,
+        SolutionAgentStep.__table__,
     ]
 
     for table in tables_to_create:

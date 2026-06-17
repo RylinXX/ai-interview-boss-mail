@@ -1,14 +1,27 @@
 from __future__ import annotations
 
 import os
+import math
+import re
+import hashlib
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.models.models import KnowledgeAsset, KnowledgeAssetReviewStatus, Resume
+from app.models.models import (
+    KnowledgeAsset,
+    KnowledgeAssetReviewStatus,
+    Resume,
+    SolutionAgentConversation,
+    SolutionAgentMessage,
+    SolutionAgentRun,
+    SolutionAgentStep,
+)
 from app.schemas.knowledge_assets import (
     AIProductManagerDraftRequest,
     KnowledgeAssetIntakeRequest,
@@ -27,6 +40,9 @@ from app.utils.file_storage import save_upload_file
 SUPPORTED_KNOWLEDGE_UPLOAD_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
 DEFAULT_CHUNK_SIZE = 1800
 DEFAULT_CHUNK_OVERLAP = 180
+DEFAULT_RRF_K = 60
+DEFAULT_CONTEXT_CHAR_LIMIT = 900
+DEFAULT_SEMANTIC_VECTOR_DIM = 256
 
 
 def _as_list(value: Any) -> List[str]:
@@ -58,6 +74,307 @@ def _unique(values: Iterable[str]) -> List[str]:
         if normalized and normalized not in result:
             result.append(normalized)
     return result
+
+
+def _source_excerpt(text: Optional[str], max_length: int = 320) -> str:
+    cleaned = " ".join((text or "").split())
+    return cleaned[:max_length]
+
+
+def _build_citation_id(asset: KnowledgeAsset, rank: Optional[int] = None) -> str:
+    prefix = f"K{rank}" if rank is not None else "K"
+    return f"{prefix}-{str(asset.id)[:8]}"
+
+
+def _default_source_locator(
+    *,
+    source_name: Optional[str],
+    source_file_path: Optional[str],
+    chunk_index: int,
+    chunk_total: int,
+) -> str:
+    source = source_name or source_file_path or "knowledge_asset"
+    return f"{source}#chunk-{chunk_index + 1}-of-{max(chunk_total, 1)}"
+
+
+def _source_payload(
+    asset: KnowledgeAsset,
+    *,
+    citation_id: Optional[str] = None,
+    match_score: Optional[float] = None,
+    match_reason: Optional[str] = None,
+) -> Dict[str, Any]:
+    payload = {
+        "citation_id": citation_id or _build_citation_id(asset),
+        "asset_id": str(asset.id),
+        "title": asset.title,
+        "source_type": asset.source_type,
+        "source_name": asset.source_name,
+        "source_url": asset.source_url,
+        "source_file_path": asset.source_file_path,
+        "source_document_id": asset.source_document_id,
+        "chunk_index": asset.chunk_index or 0,
+        "chunk_total": asset.chunk_total or 1,
+        "source_page": asset.source_page,
+        "source_section": asset.source_section,
+        "source_locator": asset.source_locator,
+        "excerpt": asset.source_excerpt or _source_excerpt(asset.raw_text or asset.summary),
+    }
+    if match_score is not None:
+        payload["match_score"] = match_score
+    if match_reason:
+        payload["match_reason"] = match_reason
+    return payload
+
+
+def _tokenize_retrieval_text(text: str) -> List[str]:
+    tokens = re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]{2,}", (text or "").lower())
+    return [token for token in tokens if len(token) >= 2]
+
+
+def _semantic_features(text: str) -> List[str]:
+    tokens = _tokenize_retrieval_text(text)
+    features = list(tokens)
+    for token in tokens:
+        if len(token) >= 5 and re.match(r"^[a-z0-9_]+$", token):
+            features.extend(token[index:index + 4] for index in range(0, len(token) - 3))
+    return features
+
+
+def _hash_feature_index(feature: str, dim: int = DEFAULT_SEMANTIC_VECTOR_DIM) -> int:
+    digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
+    return int.from_bytes(digest, "big") % dim
+
+
+def _semantic_vector(text: str, dim: int = DEFAULT_SEMANTIC_VECTOR_DIM) -> Dict[int, float]:
+    vector: Dict[int, float] = {}
+    for feature in _semantic_features(text):
+        index = _hash_feature_index(feature, dim)
+        vector[index] = vector.get(index, 0.0) + 1.0
+    norm = math.sqrt(sum(value * value for value in vector.values()))
+    if norm <= 0:
+        return {}
+    return {index: value / norm for index, value in vector.items()}
+
+
+def _cosine_sparse(left: Dict[int, float], right: Dict[int, float]) -> float:
+    if not left or not right:
+        return 0.0
+    if len(left) > len(right):
+        left, right = right, left
+    return sum(value * right.get(index, 0.0) for index, value in left.items())
+
+
+def _bm25_query_terms(query: str, terms: List[str]) -> List[str]:
+    values = [
+        *_tokenize_retrieval_text(query),
+        *(str(term).lower().strip() for term in terms),
+    ]
+    return _unique(value for value in values if len(value) >= 2)
+
+
+def _compress_asset_context(asset: KnowledgeAsset, max_chars: int = DEFAULT_CONTEXT_CHAR_LIMIT) -> str:
+    parts = [
+        f"Title: {asset.title}",
+        f"Source: {asset.source_name or asset.source_type}",
+        f"Locator: {asset.source_locator or ''}",
+        f"Summary: {asset.summary or ''}",
+        f"Proves: {'; '.join(asset.proves or [])}",
+        f"Limits: {'; '.join(asset.does_not_prove or [])}",
+        f"Excerpt: {asset.source_excerpt or _source_excerpt(asset.raw_text or asset.summary, 520)}",
+    ]
+    compressed = " ".join(part for part in parts if part and part.strip())
+    return compressed[:max_chars]
+
+
+def _keyword_recall_items(
+    rows: List[KnowledgeAsset],
+    payload: KnowledgeAssetSearchRequest,
+    terms: List[str],
+    inferred: Dict[str, List[str]],
+) -> List[Dict[str, Any]]:
+    items: List[Dict[str, Any]] = []
+    for asset in rows:
+        if not _overlaps(payload.industry_tags, asset.industry_tags):
+            continue
+        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
+            continue
+        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
+            continue
+        match_score, match_reason = _score_asset_for_terms(asset, terms, inferred)
+        if match_score <= 0:
+            continue
+        items.append(
+            {
+                "asset": asset,
+                "match_score": match_score,
+                "match_reason": match_reason,
+            }
+        )
+    items.sort(key=lambda item: item["match_score"], reverse=True)
+    return items
+
+
+def _bm25_recall_items(
+    rows: List[KnowledgeAsset],
+    payload: KnowledgeAssetSearchRequest,
+    query: str,
+    terms: List[str],
+) -> List[Dict[str, Any]]:
+    query_terms = _bm25_query_terms(query, terms)
+    if not query_terms:
+        return []
+
+    documents = []
+    for asset in rows:
+        if not _overlaps(payload.industry_tags, asset.industry_tags):
+            continue
+        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
+            continue
+        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
+            continue
+        blob = _asset_search_blob(asset).lower()
+        documents.append(
+            {
+                "asset": asset,
+                "blob": blob,
+                "length": max(len(_tokenize_retrieval_text(blob)), 1),
+            }
+        )
+    if not documents:
+        return []
+
+    total_docs = len(documents)
+    avg_length = sum(item["length"] for item in documents) / total_docs
+    document_frequency = {
+        term: sum(1 for item in documents if term in item["blob"])
+        for term in query_terms
+    }
+    results: List[Dict[str, Any]] = []
+    k1 = 1.2
+    b = 0.75
+
+    for item in documents:
+        score = 0.0
+        matched_terms: List[str] = []
+        for term in query_terms:
+            tf = item["blob"].count(term)
+            if tf <= 0:
+                continue
+            matched_terms.append(term)
+            df = max(document_frequency.get(term, 0), 1)
+            idf = math.log(1 + (total_docs - df + 0.5) / (df + 0.5))
+            denominator = tf + k1 * (1 - b + b * (item["length"] / max(avg_length, 1)))
+            score += idf * ((tf * (k1 + 1)) / max(denominator, 0.0001))
+        if score <= 0:
+            continue
+        results.append(
+            {
+                "asset": item["asset"],
+                "match_score": min(score * 25, 100.0),
+                "match_reason": "BM25 terms: " + ", ".join(matched_terms[:6]),
+            }
+        )
+
+    results.sort(key=lambda result: result["match_score"], reverse=True)
+    return results
+
+
+def _semantic_vector_recall_items(
+    rows: List[KnowledgeAsset],
+    payload: KnowledgeAssetSearchRequest,
+    query: str,
+    terms: List[str],
+) -> List[Dict[str, Any]]:
+    query_vector = _semantic_vector(_text_blob(query, terms))
+    if not query_vector:
+        return []
+
+    results: List[Dict[str, Any]] = []
+    for asset in rows:
+        if not _overlaps(payload.industry_tags, asset.industry_tags):
+            continue
+        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
+            continue
+        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
+            continue
+        asset_vector = _semantic_vector(_asset_search_blob(asset))
+        similarity = _cosine_sparse(query_vector, asset_vector)
+        if similarity <= 0.01:
+            continue
+        results.append(
+            {
+                "asset": asset,
+                "match_score": min(similarity * 100, 100.0),
+                "match_reason": f"semantic cosine similarity {similarity:.3f}",
+            }
+        )
+
+    results.sort(key=lambda result: result["match_score"], reverse=True)
+    return results
+
+
+def _rrf_fuse_results(route_results: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    fused: Dict[str, Dict[str, Any]] = {}
+    for route_name, results in route_results.items():
+        for rank, item in enumerate(results, start=1):
+            asset = item["asset"]
+            key = str(asset.id)
+            entry = fused.setdefault(
+                key,
+                {
+                    "asset": asset,
+                    "route_scores": {},
+                    "route_ranks": {},
+                    "rrf_score": 0.0,
+                    "match_reasons": [],
+                },
+            )
+            entry["route_scores"][route_name] = item["match_score"]
+            entry["route_ranks"][route_name] = rank
+            entry["rrf_score"] += 1 / (DEFAULT_RRF_K + rank)
+            if item.get("match_reason"):
+                entry["match_reasons"].append(f"{route_name}: {item['match_reason']}")
+
+    items: List[Dict[str, Any]] = []
+    for entry in fused.values():
+        route_scores = entry["route_scores"]
+        best_route_score = max(route_scores.values()) if route_scores else 0.0
+        items.append(
+            {
+                "asset": entry["asset"],
+                "match_score": min(best_route_score + entry["rrf_score"] * 120, 100.0),
+                "match_reason": "; ".join(entry["match_reasons"][:4]),
+                "route_scores": route_scores,
+                "route_ranks": entry["route_ranks"],
+                "rrf_score": round(entry["rrf_score"], 6),
+            }
+        )
+    items.sort(key=lambda item: (item["rrf_score"], item["match_score"]), reverse=True)
+    return items
+
+
+def _rerank_items(items: List[Dict[str, Any]], terms: List[str]) -> List[Dict[str, Any]]:
+    normalized_terms = [str(term).lower().strip() for term in terms if str(term).strip()]
+    for item in items:
+        asset = item["asset"]
+        title = (asset.title or "").lower()
+        blob = _asset_search_blob(asset).lower()
+        title_hits = sum(1 for term in normalized_terms if term and term in title)
+        content_hits = sum(1 for term in normalized_terms if term and term in blob)
+        confidence_bonus = min(float(asset.confidence_score or 0.0), 100.0) * 0.04
+        evidence_bonus = min(float(asset.evidence_strength_score or 0.0), 100.0) * 0.03
+        rerank_score = (
+            float(item["match_score"])
+            + title_hits * 3.0
+            + content_hits * 0.8
+            + confidence_bonus
+            + evidence_bonus
+        )
+        item["rerank_score"] = round(rerank_score, 4)
+        item["match_score"] = min(rerank_score, 100.0)
+    items.sort(key=lambda item: item["rerank_score"], reverse=True)
+    return items
 
 
 def _parse_tag_input(value: Any) -> List[str]:
@@ -156,6 +473,19 @@ def create_manual_asset(
         source_url=payload.source_url,
         source_file_path=payload.source_file_path,
         source_confidentiality=payload.source_confidentiality,
+        source_document_id=payload.source_document_id or str(uuid4()),
+        chunk_index=max(int(payload.chunk_index or 0), 0),
+        chunk_total=max(int(payload.chunk_total or 1), 1),
+        source_page=payload.source_page,
+        source_section=payload.source_section,
+        source_locator=payload.source_locator or _default_source_locator(
+            source_name=payload.source_name,
+            source_file_path=payload.source_file_path,
+            chunk_index=max(int(payload.chunk_index or 0), 0),
+            chunk_total=max(int(payload.chunk_total or 1), 1),
+        ),
+        source_excerpt=payload.source_excerpt or _source_excerpt(payload.raw_text),
+        retrieval_metadata=payload.retrieval_metadata or {},
         raw_text=payload.raw_text,
         summary=ai_tags.get("summary") or payload.raw_text[:240],
         industry_tags=industry_tags,
@@ -249,8 +579,10 @@ def create_assets_from_upload(
     assets: List[KnowledgeAsset] = []
     base_title = title.strip() or os.path.splitext(filename)[0] or "未命名资料"
     total = len(chunks)
+    source_document_id = str(uuid4())
 
     for index, chunk in enumerate(chunks, start=1):
+        chunk_index = index - 1
         asset_title = base_title if total == 1 else f"{base_title} - 片段 {index}"
         payload = KnowledgeAssetIntakeRequest(
             title=asset_title,
@@ -259,6 +591,23 @@ def create_assets_from_upload(
             source_url=source_url,
             source_file_path=file_path,
             source_confidentiality=source_confidentiality or "internal",
+            source_document_id=source_document_id,
+            chunk_index=chunk_index,
+            chunk_total=total,
+            source_locator=_default_source_locator(
+                source_name=source_name or filename,
+                source_file_path=file_path,
+                chunk_index=chunk_index,
+                chunk_total=total,
+            ),
+            source_excerpt=_source_excerpt(chunk),
+            retrieval_metadata={
+                "original_filename": filename,
+                "upload_title": base_title,
+                "chunking_strategy": "fixed_window",
+                "chunk_size": DEFAULT_CHUNK_SIZE,
+                "chunk_overlap": DEFAULT_CHUNK_OVERLAP,
+            },
             raw_text=chunk,
             industry_tags=_parse_tag_input(industry_tags),
             business_topic_tags=_parse_tag_input(business_topic_tags),
@@ -386,6 +735,66 @@ def _score_asset_for_terms(asset: KnowledgeAsset, terms: List[str], inferred: Di
     return min(score, 100.0), reason
 
 
+def _build_retrieval_log(
+    *,
+    query: str,
+    terms: List[str],
+    limit: int,
+    total_candidates: int,
+    items: List[Dict[str, Any]],
+    route_counts: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    compressed_contexts = [_compress_asset_context(item["asset"]) for item in items]
+    return {
+        "original_query": query,
+        "rewritten_query": query,
+        "retrieval_mode": "hybrid_keyword_bm25_semantic",
+        "selected_tools": [
+            "knowledge_asset_keyword_search",
+            "knowledge_asset_bm25_search",
+            "knowledge_asset_semantic_vector_search",
+            "rrf_fusion",
+            "heuristic_reranker",
+            "context_compressor",
+        ],
+        "terms": terms,
+        "limit": limit,
+        "candidate_count": total_candidates,
+        "route_counts": route_counts or {},
+        "rrf": {"k": DEFAULT_RRF_K},
+        "semantic_vector": {
+            "provider": "local_hashing_vectorizer",
+            "dimension": DEFAULT_SEMANTIC_VECTOR_DIM,
+        },
+        "rerank": {"strategy": "heuristic_title_content_confidence"},
+        "context_compression": {
+            "max_chars_per_asset": DEFAULT_CONTEXT_CHAR_LIMIT,
+            "included_count": len(items),
+            "total_chars": sum(len(context) for context in compressed_contexts),
+        },
+        "returned_count": len(items),
+        "results": [
+            {
+                "rank": index + 1,
+                "asset_id": str(item["asset"].id),
+                "citation_id": _build_citation_id(item["asset"], index + 1),
+                "title": item["asset"].title,
+                "match_score": item["match_score"],
+                "match_reason": item["match_reason"],
+                "route_scores": item.get("route_scores", {}),
+                "route_ranks": item.get("route_ranks", {}),
+                "rrf_score": item.get("rrf_score", 0),
+                "rerank_score": item.get("rerank_score", item["match_score"]),
+                "source_document_id": item["asset"].source_document_id,
+                "source_locator": item["asset"].source_locator,
+                "chunk_index": item["asset"].chunk_index or 0,
+                "chunk_total": item["asset"].chunk_total or 1,
+            }
+            for index, item in enumerate(items)
+        ],
+    }
+
+
 def search_assets(db: Session, payload: KnowledgeAssetSearchRequest) -> Dict[str, Any]:
     query = (payload.query or "").strip()
     inferred = _infer_tags(query)
@@ -398,36 +807,59 @@ def search_assets(db: Session, payload: KnowledgeAssetSearchRequest) -> Dict[str
         .all()
     )
 
-    items: List[Dict[str, Any]] = []
-    for asset in rows:
-        if not _overlaps(payload.industry_tags, asset.industry_tags):
-            continue
-        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
-            continue
-        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
-            continue
-        match_score, match_reason = _score_asset_for_terms(asset, terms, inferred)
-        if match_score <= 0:
-            continue
-        items.append(
-            {
-                "asset": asset,
-                "match_score": match_score,
-                "match_reason": match_reason,
-            }
-        )
-
-    items.sort(key=lambda item: item["match_score"], reverse=True)
-    return {"query": payload.query, "items": items[:safe_limit]}
+    keyword_items = _keyword_recall_items(rows, payload, terms, inferred)
+    bm25_items = _bm25_recall_items(rows, payload, query, terms)
+    semantic_items = _semantic_vector_recall_items(rows, payload, query, terms)
+    fused_items = _rrf_fuse_results(
+        {
+            "keyword_tag": keyword_items,
+            "bm25_text": bm25_items,
+            "semantic_vector": semantic_items,
+        }
+    )
+    reranked_items = _rerank_items(fused_items, terms)
+    ranked_items = reranked_items[:safe_limit]
+    for index, item in enumerate(ranked_items, start=1):
+        item["rank"] = index
+    return {
+        "query": payload.query,
+        "items": ranked_items,
+        "retrieval_log": _build_retrieval_log(
+            query=query,
+            terms=terms,
+            limit=safe_limit,
+            total_candidates=len(fused_items),
+            items=ranked_items,
+            route_counts={
+                "keyword_tag": len(keyword_items),
+                "bm25_text": len(bm25_items),
+                "semantic_vector": len(semantic_items),
+                "fused": len(fused_items),
+            },
+        ),
+    }
 
 
 def _asset_evidence_payload(item: Dict[str, Any]) -> Dict[str, Any]:
     asset = item["asset"]
+    rank = item.get("rank")
+    citation_id = _build_citation_id(asset, rank)
     return {
         "id": str(asset.id),
+        "citation_id": citation_id,
         "title": asset.title,
         "source_type": asset.source_type,
         "source_name": asset.source_name,
+        "source_url": asset.source_url,
+        "source_file_path": asset.source_file_path,
+        "source_document_id": asset.source_document_id,
+        "chunk_index": asset.chunk_index or 0,
+        "chunk_total": asset.chunk_total or 1,
+        "source_page": asset.source_page,
+        "source_section": asset.source_section,
+        "source_locator": asset.source_locator,
+        "source_excerpt": asset.source_excerpt or _source_excerpt(asset.raw_text or asset.summary),
+        "compressed_context": _compress_asset_context(asset),
         "summary": asset.summary,
         "industry_tags": asset.industry_tags or [],
         "business_topic_tags": asset.business_topic_tags or [],
@@ -445,17 +877,35 @@ def _asset_evidence_payload(item: Dict[str, Any]) -> Dict[str, Any]:
             "confidence_score": asset.confidence_score or 0.0,
         },
         "match_reason": item["match_reason"],
+        "source_payload": _source_payload(
+            asset,
+            citation_id=citation_id,
+            match_score=item["match_score"],
+            match_reason=item["match_reason"],
+        ),
     }
 
 
 def _asset_to_solution_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     asset = item["asset"]
+    rank = item.get("rank")
+    citation_id = _build_citation_id(asset, rank)
     return {
         "id": str(asset.id),
+        "citation_id": citation_id,
         "title": asset.title,
         "source_type": asset.source_type,
         "source_name": asset.source_name,
         "source_url": asset.source_url,
+        "source_file_path": asset.source_file_path,
+        "source_document_id": asset.source_document_id,
+        "chunk_index": asset.chunk_index or 0,
+        "chunk_total": asset.chunk_total or 1,
+        "source_page": asset.source_page,
+        "source_section": asset.source_section,
+        "source_locator": asset.source_locator,
+        "source_excerpt": asset.source_excerpt or _source_excerpt(asset.raw_text or asset.summary),
+        "compressed_context": _compress_asset_context(asset),
         "summary": asset.summary,
         "raw_text": asset.raw_text,
         "industry_tags": asset.industry_tags or [],
@@ -467,6 +917,12 @@ def _asset_to_solution_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
         "migration_risks": asset.migration_risks or [],
         "match_score": item["match_score"],
         "match_reason": item["match_reason"],
+        "source_payload": _source_payload(
+            asset,
+            citation_id=citation_id,
+            match_score=item["match_score"],
+            match_reason=item["match_reason"],
+        ),
     }
 
 
@@ -619,6 +1075,87 @@ def _solution_agent_trace(
             "stage": "assign_dynamic_workers",
             "status": "completed" if worker_count else "skipped",
             "summary": f"已生成 {worker_count} 个动态 AI 执行员工。",
+        },
+    ]
+
+
+def _solution_agent_crew_trace(
+    *,
+    payload: SolutionAgentRequest,
+    evidence: List[Dict[str, Any]],
+    coverage: Dict[str, Any],
+    retrieval_log: Dict[str, Any],
+    model_used: bool,
+    worker_count: int,
+) -> List[Dict[str, Any]]:
+    writer_status = "skipped" if coverage.get("requires_more_evidence") else ("completed" if model_used else "fallback")
+    return [
+        {
+            "stage": "understand_requirement",
+            "agent_role": "requirement_analyst",
+            "status": "completed",
+            "summary": "Extracted requirement, customer context, materials, constraints, and confirmed context.",
+            "inputs": {
+                "requirement": payload.requirement,
+                "has_company_profile": bool((payload.company_profile or "").strip()),
+                "has_project_materials": bool((payload.project_materials or "").strip()),
+                "has_constraints": bool((payload.constraints or "").strip()),
+            },
+            "outputs": {
+                "query_terms": retrieval_log.get("terms", []),
+            },
+        },
+        {
+            "stage": "retrieve_evidence",
+            "agent_role": "evidence_researcher",
+            "status": "completed",
+            "summary": f"Retrieved {len(evidence)} evidence items through hybrid search.",
+            "inputs": {
+                "retrieval_mode": retrieval_log.get("retrieval_mode"),
+                "selected_tools": retrieval_log.get("selected_tools", []),
+            },
+            "outputs": {
+                "retrieval_mode": retrieval_log.get("retrieval_mode"),
+                "route_counts": retrieval_log.get("route_counts", {}),
+                "returned_count": retrieval_log.get("returned_count", len(evidence)),
+            },
+        },
+        {
+            "stage": "assess_coverage",
+            "agent_role": "evidence_critic",
+            "status": "blocked" if coverage.get("requires_more_evidence") else ("needs_review" if coverage.get("score", 0) < 70 else "completed"),
+            "summary": f"Evidence coverage is {coverage.get('score', 0)}% with level {coverage.get('level')}.",
+            "inputs": {
+                "evidence_count": len(evidence),
+            },
+            "outputs": {
+                "covered": coverage.get("covered", []),
+                "missing": coverage.get("missing", []),
+            },
+        },
+        {
+            "stage": "generate_solution",
+            "agent_role": "solution_writer",
+            "status": writer_status,
+            "summary": "Generated the solution draft from cited evidence." if model_used else "Used fallback or skipped generation due to evidence status.",
+            "inputs": {
+                "compressed_context_count": len([item for item in evidence if item.get("compressed_context")]),
+            },
+            "outputs": {
+                "model_used": model_used,
+            },
+        },
+        {
+            "stage": "assign_dynamic_workers",
+            "agent_role": "delivery_task_designer",
+            "status": "completed" if worker_count else "needs_review",
+            "summary": f"Prepared {worker_count} dynamic delivery workers for execution handoff.",
+            "inputs": {
+                "solution_ready": not coverage.get("requires_more_evidence"),
+            },
+            "outputs": {
+                "worker_count": worker_count,
+            },
         },
     ]
 
@@ -815,6 +1352,7 @@ def _fallback_solution_agent_response(
             },
         ],
     }
+    evidence_self_check, unsupported_claims = _apply_solution_evidence_self_check(solution, evidence)
     return {
         "assistant_message": f"我从知识资产库检索到 {len(evidence)} 条相关证据，建议先生成「{solution['title']}」。",
         "solution": solution,
@@ -825,12 +1363,23 @@ def _fallback_solution_agent_response(
             "人工确认资料真实性、敏感边界和对外表述",
             "人工确认最终交付范围和客户承诺",
         ],
+        "evidence_self_check": evidence_self_check,
+        "unsupported_claims": unsupported_claims,
         "agent_trace": _solution_agent_trace(
             evidence_count=len(evidence),
             coverage=coverage,
             model_used=False,
             worker_count=len(solution["dynamic_workers"]),
         ),
+        "crew_trace": _solution_agent_crew_trace(
+            payload=payload,
+            evidence=evidence,
+            coverage=coverage,
+            retrieval_log=retrieved.get("retrieval_log", {}),
+            model_used=False,
+            worker_count=len(solution["dynamic_workers"]),
+        ),
+        "retrieval_log": retrieved.get("retrieval_log", {}),
         "evidence_coverage": coverage,
         "clarifying_questions": clarifying_questions,
         "next_actions": next_actions,
@@ -865,7 +1414,335 @@ def _normalize_dynamic_workers(solution: Dict[str, Any]) -> List[Dict[str, str]]
     ]
 
 
-def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[str, Any]:
+def _match_evidence_references(
+    references: Iterable[Any],
+    evidence: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    matched: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for ref in references:
+        normalized = str(ref or "").strip().lower()
+        if not normalized:
+            continue
+        for item in evidence:
+            values = [
+                item.get("id"),
+                item.get("citation_id"),
+                item.get("title"),
+                item.get("source_name"),
+            ]
+            if any(normalized == str(value or "").strip().lower() for value in values):
+                evidence_id = str(item.get("id"))
+            elif any(normalized in str(value or "").strip().lower() for value in [item.get("title"), item.get("source_name")]):
+                evidence_id = str(item.get("id"))
+            else:
+                continue
+            if evidence_id not in seen:
+                matched.append(item)
+                seen.add(evidence_id)
+            break
+    return matched
+
+
+def _apply_solution_evidence_self_check(
+    solution: Dict[str, Any],
+    evidence: List[Dict[str, Any]],
+) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    recommended = solution.get("recommended_solutions")
+    if not isinstance(recommended, list):
+        recommended = []
+        solution["recommended_solutions"] = recommended
+
+    unsupported: List[Dict[str, Any]] = []
+    cited_count = 0
+    for item in recommended:
+        if not isinstance(item, dict):
+            continue
+        explicit_refs = [
+            *_as_list(item.get("cited_asset_ids")),
+            *_as_list(item.get("cited_citation_ids")),
+        ]
+        inferred_refs = _as_list(item.get("related_cases"))
+        matched = _match_evidence_references(explicit_refs, evidence)
+        if not matched:
+            matched = _match_evidence_references(inferred_refs, evidence)
+
+        if matched:
+            cited_count += 1
+            item["cited_asset_ids"] = _unique(str(match.get("id")) for match in matched if match.get("id"))
+            item["cited_citation_ids"] = _unique(str(match.get("citation_id")) for match in matched if match.get("citation_id"))
+            item["citation_status"] = "supported"
+        else:
+            item["cited_asset_ids"] = []
+            item["cited_citation_ids"] = []
+            item["citation_status"] = "needs_evidence"
+            unsupported.append(
+                {
+                    "name": item.get("name") or item.get("scenario") or "unnamed_solution",
+                    "scenario": item.get("scenario"),
+                    "value": item.get("value"),
+                    "reason": "No retrieved evidence citation matched this solution direction.",
+                }
+            )
+
+    total = len([item for item in recommended if isinstance(item, dict)])
+    self_check = {
+        "status": "passed" if not unsupported else "needs_review",
+        "total_solution_count": total,
+        "cited_solution_count": cited_count,
+        "uncited_solution_count": len(unsupported),
+        "unsupported_claims": unsupported,
+    }
+    solution["evidence_self_check"] = self_check
+    return self_check, unsupported
+
+
+def _solution_agent_conversation_title(requirement: str) -> str:
+    text = " ".join((requirement or "").split())
+    return text[:80] or "Solution Agent Conversation"
+
+
+def _get_or_create_solution_agent_conversation(
+    db: Session,
+    payload: SolutionAgentRequest,
+    user_id: Optional[UUID],
+) -> SolutionAgentConversation:
+    if payload.conversation_id:
+        conversation = (
+            db.query(SolutionAgentConversation)
+            .filter(SolutionAgentConversation.id == payload.conversation_id)
+            .first()
+        )
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Solution agent conversation not found")
+        if user_id and conversation.created_by and conversation.created_by != user_id:
+            raise HTTPException(status_code=404, detail="Solution agent conversation not found")
+        return conversation
+
+    conversation = SolutionAgentConversation(
+        title=_solution_agent_conversation_title(payload.requirement),
+        last_requirement=payload.requirement,
+        message_count=0,
+        created_by=user_id,
+        last_active_at=datetime.utcnow(),
+    )
+    db.add(conversation)
+    db.flush()
+    return conversation
+
+
+def _solution_agent_run_status(result: Dict[str, Any]) -> str:
+    coverage = result.get("evidence_coverage") or {}
+    if coverage.get("requires_more_evidence"):
+        return "blocked"
+    if result.get("fallback_used"):
+        return "fallback"
+    return "completed"
+
+
+def _persist_solution_agent_interaction(
+    db: Session,
+    payload: SolutionAgentRequest,
+    result: Dict[str, Any],
+    user_id: Optional[UUID],
+) -> Dict[str, Any]:
+    if not user_id:
+        return result
+
+    conversation = _get_or_create_solution_agent_conversation(db, payload, user_id)
+    now = datetime.utcnow()
+    run = SolutionAgentRun(
+        conversation_id=conversation.id,
+        status=_solution_agent_run_status(result),
+        requirement=payload.requirement,
+        request_payload=jsonable_encoder(payload.model_dump()),
+        response_payload=jsonable_encoder(result),
+        retrieval_log=jsonable_encoder(result.get("retrieval_log") or {}),
+        evidence_coverage=jsonable_encoder(result.get("evidence_coverage") or {}),
+        model_used=bool(result.get("model_used")),
+        fallback_used=bool(result.get("fallback_used")),
+        created_by=user_id,
+        started_at=now,
+        completed_at=now,
+    )
+    db.add(run)
+    db.flush()
+
+    user_message = SolutionAgentMessage(
+        conversation_id=conversation.id,
+        run_id=run.id,
+        role="user",
+        content=payload.requirement,
+        payload=jsonable_encoder(payload.model_dump()),
+    )
+    assistant_message = SolutionAgentMessage(
+        conversation_id=conversation.id,
+        run_id=run.id,
+        role="assistant",
+        content=result.get("assistant_message") or "",
+        payload=jsonable_encoder(result.get("solution") or {}),
+        sources=jsonable_encoder(result.get("retrieved_evidence") or []),
+        agent_trace=jsonable_encoder(result.get("agent_trace") or []),
+        retrieval_log=jsonable_encoder(result.get("retrieval_log") or {}),
+    )
+    db.add(user_message)
+    db.add(assistant_message)
+
+    trace_steps = result.get("crew_trace") or result.get("agent_trace") or []
+    for index, trace in enumerate(trace_steps, start=1):
+        step_output = jsonable_encoder(trace.get("outputs") or trace)
+        if trace.get("agent_role"):
+            step_output["agent_role"] = trace.get("agent_role")
+        db.add(
+            SolutionAgentStep(
+                run_id=run.id,
+                step_index=index,
+                stage=str(trace.get("stage") or f"step_{index}"),
+                status=str(trace.get("status") or "completed"),
+                summary=trace.get("summary"),
+                input=jsonable_encoder(trace.get("inputs") or ({"requirement": payload.requirement} if index == 1 else {})),
+                output=step_output,
+                elapsed_ms=0,
+            )
+        )
+
+    conversation.last_requirement = payload.requirement
+    conversation.message_count = int(conversation.message_count or 0) + 2
+    conversation.last_active_at = now
+    conversation.updated_at = now
+    db.commit()
+    db.refresh(run)
+    db.refresh(user_message)
+    db.refresh(assistant_message)
+
+    return {
+        **result,
+        "conversation_id": str(conversation.id),
+        "run_id": str(run.id),
+        "user_message_id": str(user_message.id),
+        "assistant_message_id": str(assistant_message.id),
+    }
+
+
+def _conversation_to_dict(conversation: SolutionAgentConversation) -> Dict[str, Any]:
+    return {
+        "id": str(conversation.id),
+        "title": conversation.title,
+        "last_requirement": conversation.last_requirement,
+        "message_count": conversation.message_count or 0,
+        "created_at": conversation.created_at,
+        "updated_at": conversation.updated_at,
+        "last_active_at": conversation.last_active_at,
+    }
+
+
+def list_solution_agent_conversations(
+    db: Session,
+    user_id: UUID,
+    limit: int = 50,
+) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 50), 100))
+    rows = (
+        db.query(SolutionAgentConversation)
+        .filter(SolutionAgentConversation.created_by == user_id)
+        .order_by(SolutionAgentConversation.last_active_at.desc())
+        .limit(safe_limit)
+        .all()
+    )
+    return {"items": [_conversation_to_dict(row) for row in rows], "total": len(rows)}
+
+
+def get_solution_agent_messages(
+    db: Session,
+    user_id: UUID,
+    conversation_id: UUID,
+) -> Dict[str, Any]:
+    conversation = (
+        db.query(SolutionAgentConversation)
+        .filter(
+            SolutionAgentConversation.id == conversation_id,
+            SolutionAgentConversation.created_by == user_id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Solution agent conversation not found")
+    messages = (
+        db.query(SolutionAgentMessage)
+        .filter(SolutionAgentMessage.conversation_id == conversation_id)
+        .order_by(SolutionAgentMessage.created_at.asc())
+        .all()
+    )
+    return {
+        "conversation": _conversation_to_dict(conversation),
+        "items": [
+            {
+                "id": str(message.id),
+                "conversation_id": str(message.conversation_id),
+                "run_id": str(message.run_id) if message.run_id else None,
+                "role": message.role,
+                "content": message.content,
+                "payload": message.payload or {},
+                "sources": message.sources or [],
+                "agent_trace": message.agent_trace or [],
+                "retrieval_log": message.retrieval_log or {},
+                "created_at": message.created_at,
+            }
+            for message in messages
+        ],
+        "total": len(messages),
+    }
+
+
+def get_solution_agent_run(
+    db: Session,
+    user_id: UUID,
+    run_id: UUID,
+) -> Dict[str, Any]:
+    run = (
+        db.query(SolutionAgentRun)
+        .filter(SolutionAgentRun.id == run_id, SolutionAgentRun.created_by == user_id)
+        .first()
+    )
+    if not run:
+        raise HTTPException(status_code=404, detail="Solution agent run not found")
+    return {
+        "id": str(run.id),
+        "conversation_id": str(run.conversation_id),
+        "status": run.status,
+        "requirement": run.requirement,
+        "request_payload": run.request_payload or {},
+        "response_payload": run.response_payload or {},
+        "retrieval_log": run.retrieval_log or {},
+        "evidence_coverage": run.evidence_coverage or {},
+        "model_used": bool(run.model_used),
+        "fallback_used": bool(run.fallback_used),
+        "error": run.error,
+        "started_at": run.started_at,
+        "completed_at": run.completed_at,
+        "steps": [
+            {
+                "id": str(step.id),
+                "step_index": step.step_index,
+                "stage": step.stage,
+                "status": step.status,
+                "summary": step.summary,
+                "agent_role": (step.output or {}).get("agent_role"),
+                "input": step.input or {},
+                "output": step.output or {},
+                "elapsed_ms": step.elapsed_ms or 0,
+                "created_at": step.created_at,
+            }
+            for step in run.steps
+        ],
+    }
+
+
+def generate_solution_agent(
+    db: Session,
+    payload: SolutionAgentRequest,
+    user_id: Optional[UUID] = None,
+) -> Dict[str, Any]:
     query = _text_blob(
         payload.requirement,
         payload.company_profile,
@@ -883,7 +1760,7 @@ def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[
     clarifying_questions = _solution_agent_missing_questions(payload, coverage)
     next_actions = _solution_agent_next_actions(coverage)
     if coverage["requires_more_evidence"]:
-        return {
+        result = {
             **fallback,
             "agent_trace": _solution_agent_trace(
                 evidence_count=len(evidence),
@@ -891,10 +1768,12 @@ def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[
                 model_used=False,
                 worker_count=len(fallback["dynamic_workers"]),
             ),
+            "retrieval_log": retrieved.get("retrieval_log", {}),
             "evidence_coverage": coverage,
             "clarifying_questions": clarifying_questions,
             "next_actions": next_actions,
         }
+        return _persist_solution_agent_interaction(db, payload, result, user_id)
     agent_payload = {
         "user_profile": {
             "requirement": payload.requirement,
@@ -915,7 +1794,7 @@ def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[
     }
     generated = generate_solution_agent_response(agent_payload)
     if not generated:
-        return fallback
+        return _persist_solution_agent_interaction(db, payload, fallback, user_id)
 
     solution = {
         "title": generated.get("title") or fallback["solution"]["title"],
@@ -941,8 +1820,9 @@ def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[
         "人工确认最终交付范围和客户承诺",
         *(worker["human_review"] for worker in dynamic_workers if worker.get("human_review")),
     ]
+    evidence_self_check, unsupported_claims = _apply_solution_evidence_self_check(solution, evidence)
 
-    return {
+    result = {
         "assistant_message": (
             f"我从知识资产库检索到 {len(evidence)} 条相关证据，"
             f"建议方案是「{solution['title']}」。"
@@ -951,18 +1831,30 @@ def generate_solution_agent(db: Session, payload: SolutionAgentRequest) -> Dict[
         "retrieved_evidence": evidence,
         "dynamic_workers": dynamic_workers,
         "human_decision_points": _unique(human_points),
+        "evidence_self_check": evidence_self_check,
+        "unsupported_claims": unsupported_claims,
         "agent_trace": _solution_agent_trace(
             evidence_count=len(evidence),
             coverage=coverage,
             model_used=True,
             worker_count=len(dynamic_workers),
         ),
+        "crew_trace": _solution_agent_crew_trace(
+            payload=payload,
+            evidence=evidence,
+            coverage=coverage,
+            retrieval_log=retrieved.get("retrieval_log", {}),
+            model_used=True,
+            worker_count=len(dynamic_workers),
+        ),
+        "retrieval_log": retrieved.get("retrieval_log", {}),
         "evidence_coverage": coverage,
         "clarifying_questions": clarifying_questions,
         "next_actions": next_actions,
         "model_used": True,
         "fallback_used": False,
     }
+    return _persist_solution_agent_interaction(db, payload, result, user_id)
 
 
 def get_asset(db: Session, asset_id: UUID) -> Optional[KnowledgeAsset]:

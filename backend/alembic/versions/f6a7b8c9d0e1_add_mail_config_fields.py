@@ -5,7 +5,7 @@ Revises: e5f6a7b8c9d0
 Create Date: 2026-03-06
 
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 
 
@@ -16,12 +16,6 @@ depends_on = None
 
 
 def upgrade():
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
-    if not inspector.has_table('system_configs'):
-        return
-
-    existing_columns = {column['name'] for column in inspector.get_columns('system_configs')}
     columns = [
         sa.Column('smtp_host', sa.String(), nullable=True),
         sa.Column('smtp_port', sa.Integer(), nullable=True, server_default='465'),
@@ -31,19 +25,25 @@ def upgrade():
         sa.Column('mail_from_name', sa.String(), nullable=True, server_default='\u62db\u8058\u7cfb\u7edf'),
         sa.Column('mail_enabled', sa.Boolean(), nullable=True, server_default='false'),
     ]
-    for column in columns:
-        if column.name not in existing_columns:
+
+    if context.is_offline_mode():
+        for column in columns:
             op.add_column('system_configs', column)
+        return
 
-
-def downgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     if not inspector.has_table('system_configs'):
         return
 
     existing_columns = {column['name'] for column in inspector.get_columns('system_configs')}
-    for column_name in (
+    for column in columns:
+        if column.name not in existing_columns:
+            op.add_column('system_configs', column)
+
+
+def downgrade():
+    column_names = (
         'mail_enabled',
         'mail_from_name',
         'mail_from',
@@ -51,6 +51,19 @@ def downgrade():
         'smtp_username',
         'smtp_port',
         'smtp_host',
-    ):
+    )
+
+    if context.is_offline_mode():
+        for column_name in column_names:
+            op.drop_column('system_configs', column_name)
+        return
+
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if not inspector.has_table('system_configs'):
+        return
+
+    existing_columns = {column['name'] for column in inspector.get_columns('system_configs')}
+    for column_name in column_names:
         if column_name in existing_columns:
             op.drop_column('system_configs', column_name)

@@ -409,6 +409,11 @@ def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str,
     try:
         cfg = _get_llm_config()
         payload_text = json.dumps(agent_payload, ensure_ascii=False, indent=2)
+        citation_contract = (
+            "Every recommended_solutions item must include cited_asset_ids and cited_citation_ids "
+            "from knowledge_context.assets. Unsupported solution claims must be listed in "
+            "unsupported_claims instead of being presented as supported facts."
+        )
         system = (
             "你是一个行业解决方案智能体，擅长把人才库、项目库和公司经历转化成可落地的AI/数字化方案。"
             "请严格返回 JSON，不要添加额外说明。"
@@ -446,6 +451,7 @@ def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str,
             model=cfg["llm_model"],
             messages=[
                 {"role": "system", "content": system},
+                {"role": "system", "content": citation_contract},
                 {"role": "user", "content": user},
             ],
             extra_body=_get_extra_body(),

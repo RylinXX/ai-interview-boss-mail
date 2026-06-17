@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { App, Button, Card, Col, Form, Input, Progress, Row, Space, Steps, Tag, Typography } from 'antd';
 import {
   ArrowRightOutlined,
@@ -15,7 +15,7 @@ import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
 
-const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
+const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[.、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
 
 type ChatRole = 'user' | 'assistant';
 
@@ -47,9 +47,21 @@ type DynamicWorker = {
 
 type RetrievedEvidence = {
   id?: string;
+  citation_id?: string;
   title?: string;
   source_type?: string;
   source_name?: string;
+  source_locator?: string;
+  source_excerpt?: string;
+  compressed_context?: string;
+  source_payload?: {
+    citation_id?: string;
+    source_name?: string;
+    source_locator?: string;
+    excerpt?: string;
+    chunk_index?: number;
+    chunk_total?: number;
+  };
   match_score?: number;
   match_reason?: string;
   business_topic_tags?: string[];
@@ -66,8 +78,11 @@ type RetrievedEvidence = {
 
 type AgentTraceItem = {
   stage: string;
+  agent_role?: string;
   status: string;
   summary: string;
+  inputs?: Record<string, unknown>;
+  outputs?: Record<string, unknown>;
 };
 
 type EvidenceCoverage = {
@@ -78,7 +93,21 @@ type EvidenceCoverage = {
   requires_more_evidence?: boolean;
 };
 
+type RetrievalLog = {
+  retrieval_mode?: string;
+  returned_count?: number;
+  context_compression?: {
+    total_chars?: number;
+  };
+  route_counts?: Record<string, number>;
+  rrf?: Record<string, unknown>;
+  rerank?: Record<string, unknown>;
+  [key: string]: unknown;
+};
+
 type AIEmployeeChatResponse = {
+  conversation_id?: string;
+  run_id?: string;
   assistant_message: string;
   solution: {
     title?: string;
@@ -95,12 +124,47 @@ type AIEmployeeChatResponse = {
   retrieved_evidence: RetrievedEvidence[];
   dynamic_workers: DynamicWorker[];
   human_decision_points: string[];
+  evidence_self_check?: {
+    status?: string;
+    total_solution_count?: number;
+    cited_solution_count?: number;
+    uncited_solution_count?: number;
+  };
+  unsupported_claims?: Array<{
+    name?: string;
+    reason?: string;
+    scenario?: string;
+    value?: string;
+  }>;
   agent_trace?: AgentTraceItem[];
+  crew_trace?: AgentTraceItem[];
+  retrieval_log?: RetrievalLog;
   evidence_coverage?: EvidenceCoverage;
   clarifying_questions?: string[];
   next_actions?: string[];
   model_used: boolean;
   fallback_used: boolean;
+};
+
+type ConversationSummary = {
+  id: string;
+  title: string;
+  message_count?: number;
+  last_active_at?: string;
+};
+
+type ConversationMessage = {
+  role: ChatRole;
+  content: string;
+  run_id?: string | null;
+};
+
+type ConversationMessagesResponse = {
+  items?: ConversationMessage[];
+};
+
+type SolutionAgentRunResponse = {
+  response_payload?: AIEmployeeChatResponse;
 };
 
 const splitToList = (value?: string) => {
@@ -119,6 +183,14 @@ const agentStageLabel: Record<string, string> = {
   assign_dynamic_workers: '拆解员工',
 };
 
+const agentRoleLabel: Record<string, string> = {
+  requirement_analyst: '需求分析 Agent',
+  evidence_researcher: '证据检索 Agent',
+  evidence_critic: '证据批评 Agent',
+  solution_writer: '方案撰写 Agent',
+  delivery_task_designer: '交付拆解 Agent',
+};
+
 const agentStepStatus = (status: string): 'wait' | 'process' | 'finish' | 'error' => {
   if (status === 'completed') return 'finish';
   if (status === 'blocked') return 'error';
@@ -132,6 +204,60 @@ const coverageColor = (level?: string) => {
   return '#cf1322';
 };
 
+const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
+
+const streamSolutionAgent = async (
+  payload: Record<string, unknown>,
+  onTrace: (trace: AgentTraceItem) => void
+) => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${apiBaseUrl}/solution-agent/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`Stream request failed: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalResult: AIEmployeeChatResponse | null = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+    for (const rawEvent of events) {
+      const lines = rawEvent.split('\n');
+      const eventName = lines.find(line => line.startsWith('event:'))?.replace('event:', '').trim();
+      const dataText = lines
+        .filter(line => line.startsWith('data:'))
+        .map(line => line.replace('data:', '').trim())
+        .join('\n');
+      if (!eventName || !dataText) continue;
+      const data = JSON.parse(dataText);
+      if (eventName === 'trace') {
+        onTrace(data as AgentTraceItem);
+      }
+      if (eventName === 'done') {
+        finalResult = data as AIEmployeeChatResponse;
+      }
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error('Stream finished without final result');
+  }
+  return finalResult;
+};
+
 const AIEmployeesList: React.FC = () => {
   const { message: toast } = App.useApp();
   const navigate = useNavigate();
@@ -141,6 +267,9 @@ const AIEmployeesList: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatResult, setChatResult] = useState<AIEmployeeChatResponse | null>(null);
   const [lastInput, setLastInput] = useState<AIEmployeeChatForm | null>(null);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | undefined>();
+  const [streamTrace, setStreamTrace] = useState<AgentTraceItem[]>([]);
 
   const solutionDirections = useMemo(
     () => chatResult?.solution?.recommended_solutions || [],
@@ -149,6 +278,47 @@ const AIEmployeesList: React.FC = () => {
   const dynamicWorkers = chatResult?.dynamic_workers || chatResult?.solution?.dynamic_workers || [];
   const context = chatResult?.solution?.knowledge_context || {};
   const coverage = chatResult?.evidence_coverage || {};
+  const visibleTrace = chatResult?.crew_trace?.length ? chatResult.crew_trace : (streamTrace.length ? streamTrace : chatResult?.agent_trace || []);
+
+  const fetchConversations = async () => {
+    try {
+      const result = await request.get('/solution-agent/conversations');
+      setConversations((result.items || []) as ConversationSummary[]);
+    } catch {
+      setConversations([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchConversations();
+  }, []);
+
+  const startNewConversation = () => {
+    setActiveConversationId(undefined);
+    setMessages([]);
+    setChatResult(null);
+    setLastInput(null);
+    setStreamTrace([]);
+  };
+
+  const openConversation = async (conversationId: string) => {
+    try {
+      const history = await request.get(`/solution-agent/conversations/${conversationId}/messages`) as ConversationMessagesResponse;
+      const items = history.items || [];
+      setActiveConversationId(conversationId);
+      setMessages(items.map(item => ({ role: item.role, content: item.content })));
+      const assistant = [...items].reverse().find(item => item.role === 'assistant' && item.run_id);
+      if (assistant?.run_id) {
+        const run = await request.get(`/solution-agent/runs/${assistant.run_id}`) as SolutionAgentRunResponse;
+        if (run.response_payload) {
+          setChatResult(run.response_payload);
+        }
+        setStreamTrace([]);
+      }
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, '加载对话失败'));
+    }
+  };
 
   const submitChat = async (values: AIEmployeeChatForm) => {
     const userMessage: ChatMessage = {
@@ -159,17 +329,25 @@ const AIEmployeesList: React.FC = () => {
     setMessages(nextMessages);
     setSubmitting(true);
     setLastInput(values);
+    setChatResult(null);
+    setStreamTrace([]);
     try {
-      const result = await request.post('/solution-agent/generate', {
+      const result = await streamSolutionAgent({
+        conversation_id: activeConversationId,
         requirement: values.requirement,
         company_profile: values.company_profile,
         project_materials: values.project_materials,
         constraints: values.constraints,
         confirmed_context: { messages: nextMessages },
         limit: 8,
-      }, { timeout: 120000 });
+      }, trace => {
+        setStreamTrace(previous => [...previous, trace]);
+      });
       setChatResult(result as AIEmployeeChatResponse);
+      setActiveConversationId(result.conversation_id);
       setMessages([...nextMessages, { role: 'assistant', content: result.assistant_message }]);
+      setStreamTrace([]);
+      fetchConversations();
     } catch (error) {
       toast.error(getApiErrorMessage(error, '方案 Agent 分析失败'));
     } finally {
@@ -261,6 +439,24 @@ const AIEmployeesList: React.FC = () => {
               </Space>
             }
           >
+            <div className="agent-history-strip">
+              <Space wrap>
+                <Button size="small" type={!activeConversationId ? 'primary' : 'default'} onClick={startNewConversation}>
+                  New
+                </Button>
+                {conversations.slice(0, 6).map(item => (
+                  <Button
+                    size="small"
+                    key={item.id}
+                    type={activeConversationId === item.id ? 'primary' : 'default'}
+                    onClick={() => openConversation(item.id)}
+                  >
+                    {item.title || 'Conversation'}
+                  </Button>
+                ))}
+              </Space>
+            </div>
+
             <Form
               form={form}
               layout="vertical"
@@ -324,12 +520,14 @@ const AIEmployeesList: React.FC = () => {
         <Col xs={24} xl={10}>
           <div className="ai-side-stack">
             <Card className="agent-trace-card ai-side-card" title="Agent 运行链路">
-              {chatResult?.agent_trace?.length ? (
+              {visibleTrace.length ? (
                 <Steps
                   direction="vertical"
                   size="small"
-                  items={chatResult.agent_trace.map(item => ({
-                    title: agentStageLabel[item.stage] || item.stage,
+                  items={visibleTrace.map(item => ({
+                    title: item.agent_role
+                      ? `${agentRoleLabel[item.agent_role] || item.agent_role} · ${agentStageLabel[item.stage] || item.stage}`
+                      : agentStageLabel[item.stage] || item.stage,
                     description: item.summary,
                     status: agentStepStatus(item.status),
                   }))}
@@ -355,6 +553,8 @@ const AIEmployeesList: React.FC = () => {
                           {item.summary || item.solution || item.capabilities?.join('、') || item.match_reason || '已命中客户需求相关资料。'}
                         </Paragraph>
                         <Space wrap>
+                          <Tag color="blue">{item.citation_id || item.source_payload?.citation_id || `K${index + 1}`}</Tag>
+                          {(item.source_locator || item.source_payload?.source_locator) ? <Tag>{item.source_locator || item.source_payload?.source_locator}</Tag> : null}
                           <Tag>{item.source_name || item.source_type || item.role || item.candidate_name || '证据依据'}</Tag>
                           {typeof item.match_score === 'number' ? <Tag color="processing">{Math.round(item.match_score)} 分</Tag> : null}
                         </Space>
@@ -392,6 +592,55 @@ const AIEmployeesList: React.FC = () => {
                 </div>
               ) : (
                 <Text type="secondary">系统会根据资料命中、客户背景、项目材料和约束条件评估是否足够生成方案。</Text>
+              )}
+            </Card>
+
+            <Card className="agent-self-check-card ai-side-card" title="Evidence self-check">
+              {chatResult?.evidence_self_check ? (
+                <div className="agent-self-check">
+                  <Space wrap>
+                    <Tag color={chatResult.evidence_self_check.status === 'passed' ? 'green' : 'orange'}>
+                      {chatResult.evidence_self_check.status || 'needs_review'}
+                    </Tag>
+                    <Tag>{chatResult.evidence_self_check.cited_solution_count ?? 0} cited</Tag>
+                    <Tag>{chatResult.evidence_self_check.uncited_solution_count ?? 0} uncited</Tag>
+                  </Space>
+                  {(chatResult.unsupported_claims || []).length ? (
+                    <div className="unsupported-claim-list">
+                      {(chatResult.unsupported_claims || []).map((claim, index) => (
+                        <section key={`${claim.name || index}`}>
+                          <Text strong>{claim.name || `Claim ${index + 1}`}</Text>
+                          <Paragraph>{claim.reason || claim.value || claim.scenario}</Paragraph>
+                        </section>
+                      ))}
+                    </div>
+                  ) : (
+                    <Text type="secondary">All solution directions are linked to retrieved evidence.</Text>
+                  )}
+                </div>
+              ) : (
+                <Text type="secondary">After generation, uncited solution claims will be listed here for review.</Text>
+              )}
+            </Card>
+
+            <Card className="agent-retrieval-card ai-side-card" title="RAG retrieval log">
+              {chatResult?.retrieval_log ? (
+                <div className="agent-retrieval-log">
+                  <Space wrap>
+                    <Tag color="purple">{chatResult.retrieval_log.retrieval_mode || 'retrieval'}</Tag>
+                    <Tag>returned {chatResult.retrieval_log.returned_count ?? 0}</Tag>
+                    <Tag>compressed {chatResult.retrieval_log.context_compression?.total_chars ?? 0} chars</Tag>
+                  </Space>
+                  <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto', marginTop: 12 }}>
+                    {JSON.stringify({
+                      route_counts: chatResult.retrieval_log.route_counts,
+                      rrf: chatResult.retrieval_log.rrf,
+                      rerank: chatResult.retrieval_log.rerank,
+                    }, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <Text type="secondary">提交需求后，这里会显示检索模式、多路召回、RRF、rerank 和上下文压缩信息。</Text>
               )}
             </Card>
 

@@ -14,6 +14,14 @@ class KnowledgeAssetIntakeRequest(BaseModel):
     source_url: Optional[str] = None
     source_file_path: Optional[str] = None
     source_confidentiality: str = "internal"
+    source_document_id: Optional[str] = None
+    chunk_index: int = 0
+    chunk_total: int = 1
+    source_page: Optional[int] = None
+    source_section: Optional[str] = None
+    source_locator: Optional[str] = None
+    source_excerpt: Optional[str] = None
+    retrieval_metadata: Dict[str, Any] = {}
     raw_text: str
     industry_tags: List[str] = []
     business_topic_tags: List[str] = []
@@ -58,6 +66,16 @@ class KnowledgeAssetResponse(BaseModel):
     source_file_path: Optional[str] = None
     source_resume_id: Optional[UUID] = None
     source_confidentiality: str = "internal"
+    source_document_id: Optional[str] = None
+    chunk_index: int = 0
+    chunk_total: int = 1
+    source_page: Optional[int] = None
+    source_section: Optional[str] = None
+    source_locator: Optional[str] = None
+    source_excerpt: Optional[str] = None
+    retrieval_metadata: Dict[str, Any] = {}
+    citation_id: Optional[str] = None
+    source_payload: Dict[str, Any] = {}
     raw_text: Optional[str] = None
     summary: Optional[str] = None
     industry_tags: List[str] = []
@@ -110,6 +128,7 @@ class RetrievedKnowledgeAsset(BaseModel):
 class KnowledgeAssetSearchResponse(BaseModel):
     query: str
     items: List[RetrievedKnowledgeAsset]
+    retrieval_log: Dict[str, Any] = {}
 
 
 class AIProductManagerDraftRequest(BaseModel):
@@ -133,6 +152,7 @@ class AIProductManagerDraftResponse(BaseModel):
 
 
 class SolutionAgentRequest(BaseModel):
+    conversation_id: Optional[UUID] = None
     requirement: str
     company_profile: Optional[str] = None
     project_materials: Optional[str] = None
@@ -142,12 +162,20 @@ class SolutionAgentRequest(BaseModel):
 
 
 class SolutionAgentResponse(BaseModel):
+    conversation_id: Optional[UUID] = None
+    run_id: Optional[UUID] = None
+    user_message_id: Optional[UUID] = None
+    assistant_message_id: Optional[UUID] = None
     assistant_message: str
     solution: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]] = []
     dynamic_workers: List[Dict[str, Any]] = []
     human_decision_points: List[str] = []
+    evidence_self_check: Dict[str, Any] = {}
+    unsupported_claims: List[Dict[str, Any]] = []
     agent_trace: List[Dict[str, Any]] = []
+    crew_trace: List[Dict[str, Any]] = []
+    retrieval_log: Dict[str, Any] = {}
     evidence_coverage: Dict[str, Any] = {}
     clarifying_questions: List[str] = []
     next_actions: List[str] = []

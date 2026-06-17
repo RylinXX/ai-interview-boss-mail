@@ -1,10 +1,19 @@
 from sqlalchemy import Column, String, Boolean, DateTime, Text, Enum, JSON, Integer, ForeignKey, Float, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 import uuid
+import os
 from datetime import datetime
 from app.models.base import Base
 import enum
 from sqlalchemy.orm import relationship
+
+db_url = os.getenv("DATABASE_URL", "")
+is_sqlite = db_url.startswith("sqlite") or os.getenv("APP_ENV") == "test"
+
+from sqlalchemy.ext.compiler import compiles
+@compiles(UUID, "sqlite")
+def compile_uuid_sqlite(element, compiler, **kw):
+    return "VARCHAR(36)"
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
@@ -78,7 +87,7 @@ class QuestionBank(Base):
     name = Column(String, nullable=False)
     category = Column(Enum(QuestionCategory), default=QuestionCategory.TECHNICAL)
     difficulty = Column(Enum(QuestionDifficulty), default=QuestionDifficulty.INTERMEDIATE)
-    tags = Column(ARRAY(String))
+    tags = Column(JSON if is_sqlite else ARRAY(String))
     questions = Column(JSON)
     source_file = Column(String)
     position_id = Column(UUID(as_uuid=True), ForeignKey("positions.id"))
@@ -600,6 +609,14 @@ class KnowledgeAsset(Base):
     source_file_path = Column(String, nullable=True)
     source_resume_id = Column(UUID(as_uuid=True), ForeignKey("resumes.id"), nullable=True, index=True)
     source_confidentiality = Column(String, default="internal")
+    source_document_id = Column(String, nullable=True, index=True)
+    chunk_index = Column(Integer, default=0)
+    chunk_total = Column(Integer, default=1)
+    source_page = Column(Integer, nullable=True)
+    source_section = Column(String, nullable=True)
+    source_locator = Column(String, nullable=True)
+    source_excerpt = Column(Text, nullable=True)
+    retrieval_metadata = Column(JSON, default=dict)
     raw_text = Column(Text, nullable=True)
     summary = Column(Text, nullable=True)
     industry_tags = Column(JSON, default=list)
@@ -631,6 +648,29 @@ class KnowledgeAsset(Base):
     source_resume = relationship("Resume")
     creator = relationship("User")
 
+    @property
+    def citation_id(self):
+        return f"K-{str(self.id)[:8]}"
+
+    @property
+    def source_payload(self):
+        return {
+            "citation_id": self.citation_id,
+            "asset_id": str(self.id),
+            "title": self.title,
+            "source_type": self.source_type,
+            "source_name": self.source_name,
+            "source_url": self.source_url,
+            "source_file_path": self.source_file_path,
+            "source_document_id": self.source_document_id,
+            "chunk_index": self.chunk_index or 0,
+            "chunk_total": self.chunk_total or 1,
+            "source_page": self.source_page,
+            "source_section": self.source_section,
+            "source_locator": self.source_locator,
+            "excerpt": self.source_excerpt or (self.summary or "")[:320],
+        }
+
 
 class IndustryAgentSolutionDraft(Base):
     __tablename__ = "industry_agent_solution_drafts"
@@ -654,3 +694,93 @@ class IndustryAgentSolutionDraft(Base):
     completed_at = Column(DateTime, nullable=True)
 
     creator = relationship("User")
+
+
+class SolutionAgentConversation(Base):
+    __tablename__ = "solution_agent_conversations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title = Column(String, nullable=False)
+    last_requirement = Column(Text, nullable=True)
+    message_count = Column(Integer, default=0)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_active_at = Column(DateTime, default=datetime.utcnow)
+
+    creator = relationship("User")
+    messages = relationship(
+        "SolutionAgentMessage",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+    )
+    runs = relationship(
+        "SolutionAgentRun",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+    )
+
+
+class SolutionAgentRun(Base):
+    __tablename__ = "solution_agent_runs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey("solution_agent_conversations.id"), nullable=False, index=True)
+    status = Column(String, default="completed", nullable=False, index=True)
+    requirement = Column(Text, nullable=True)
+    request_payload = Column(JSON, default=dict)
+    response_payload = Column(JSON, default=dict)
+    retrieval_log = Column(JSON, default=dict)
+    evidence_coverage = Column(JSON, default=dict)
+    model_used = Column(Boolean, default=False)
+    fallback_used = Column(Boolean, default=False)
+    error = Column(Text, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("SolutionAgentConversation", back_populates="runs")
+    creator = relationship("User")
+    steps = relationship(
+        "SolutionAgentStep",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="SolutionAgentStep.step_index",
+    )
+    messages = relationship("SolutionAgentMessage", back_populates="run")
+
+
+class SolutionAgentMessage(Base):
+    __tablename__ = "solution_agent_messages"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey("solution_agent_conversations.id"), nullable=False, index=True)
+    run_id = Column(UUID(as_uuid=True), ForeignKey("solution_agent_runs.id"), nullable=True, index=True)
+    role = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    payload = Column(JSON, default=dict)
+    sources = Column(JSON, default=list)
+    agent_trace = Column(JSON, default=list)
+    retrieval_log = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("SolutionAgentConversation", back_populates="messages")
+    run = relationship("SolutionAgentRun", back_populates="messages")
+
+
+class SolutionAgentStep(Base):
+    __tablename__ = "solution_agent_steps"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id = Column(UUID(as_uuid=True), ForeignKey("solution_agent_runs.id"), nullable=False, index=True)
+    step_index = Column(Integer, nullable=False)
+    stage = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    summary = Column(Text, nullable=True)
+    input = Column(JSON, default=dict)
+    output = Column(JSON, default=dict)
+    elapsed_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    run = relationship("SolutionAgentRun", back_populates="steps")

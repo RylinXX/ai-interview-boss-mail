@@ -5,7 +5,7 @@ Revises: m2n3o4p5q6r7
 Create Date: 2026-05-15
 
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -26,6 +26,26 @@ def upgrade():
         create_type=False,
     )
     status_enum.create(bind, checkfirst=True)
+
+    if context.is_offline_mode():
+        op.create_table(
+            'industry_agent_solution_drafts',
+            sa.Column('id', sa.UUID(), primary_key=True),
+            sa.Column('status', status_enum, nullable=False, server_default='PROCESSING'),
+            sa.Column('stage', sa.String(), nullable=False, server_default='queued'),
+            sa.Column('current_step', sa.String(), nullable=False, server_default='已创建生成任务'),
+            sa.Column('progress', sa.Integer(), nullable=False, server_default='5'),
+            sa.Column('request_payload', sa.JSON(), nullable=True),
+            sa.Column('result', sa.JSON(), nullable=True),
+            sa.Column('error', sa.Text(), nullable=True),
+            sa.Column('created_by', sa.UUID(), sa.ForeignKey('users.id'), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.Column('updated_at', sa.DateTime(), nullable=True),
+            sa.Column('completed_at', sa.DateTime(), nullable=True),
+        )
+        op.create_index('ix_industry_agent_solution_drafts_status', 'industry_agent_solution_drafts', ['status'])
+        op.create_index('ix_industry_agent_solution_drafts_created_by', 'industry_agent_solution_drafts', ['created_by'])
+        return
 
     inspector = sa.inspect(bind)
     if inspector.has_table('industry_agent_solution_drafts'):
