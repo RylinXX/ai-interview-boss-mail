@@ -53,7 +53,7 @@ const ResumesList: React.FC = () => {
   const fetchResumes = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const params: any = {};
+      const params: any = { limit: 10000 };
       if (searchName) params.candidate_name = searchName;
       const res = await request.get('/resumes', { params }) as any[];
       const filtered = parseStatus ? res.filter(item => item.parse_status === parseStatus) : res;
@@ -90,8 +90,8 @@ const ResumesList: React.FC = () => {
     setMailSyncing(true);
     try {
       const res = (await request.post('/resume-mail-import/sync', undefined, {
-        params: { limit: 100 },
-        timeout: 120000,
+        params: { limit: 1000 },
+        timeout: 240000,
       })) as any;
       const summary = `扫描 ${res.scanned_messages ?? 0}，导入 ${res.imported ?? 0}，跳过 ${res.skipped ?? 0}，失败 ${res.failed ?? 0}`;
       if ((res.failed ?? 0) > 0) {
@@ -356,8 +356,8 @@ const ResumesList: React.FC = () => {
           <Dropdown menu={{ items: headerActions }} trigger={['click']}>
             <Button icon={<MoreOutlined />}>更多操作</Button>
           </Dropdown>
-          <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
-            资料入库
+          <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/resumes/upload')}>
+            导入样本
           </Button>
         </Space>
       </section>

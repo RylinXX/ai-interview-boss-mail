@@ -43,6 +43,7 @@ DEFAULT_CHUNK_OVERLAP = 180
 DEFAULT_RRF_K = 60
 DEFAULT_CONTEXT_CHAR_LIMIT = 900
 DEFAULT_SEMANTIC_VECTOR_DIM = 256
+MAX_KNOWLEDGE_ASSET_LIST_LIMIT = 100000
 
 
 def _as_list(value: Any) -> List[str]:
@@ -633,7 +634,7 @@ def list_assets(
     source_type: Optional[str] = None,
     limit: int = 100,
 ) -> Dict[str, Any]:
-    safe_limit = max(1, min(int(limit or 100), 500))
+    safe_limit = max(1, min(int(limit or MAX_KNOWLEDGE_ASSET_LIST_LIMIT), MAX_KNOWLEDGE_ASSET_LIST_LIMIT))
     q = db.query(KnowledgeAsset)
     if source_type:
         q = q.filter(KnowledgeAsset.source_type == source_type)
@@ -642,7 +643,9 @@ def list_assets(
     if query:
         like = f"%{query}%"
         q = q.filter(or_(KnowledgeAsset.title.ilike(like), KnowledgeAsset.summary.ilike(like), KnowledgeAsset.raw_text.ilike(like)))
-    rows = q.order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc()).limit(safe_limit).all()
+    needs_tag_filter = bool(industry or topic or evidence_type)
+    query_limit = MAX_KNOWLEDGE_ASSET_LIST_LIMIT if needs_tag_filter else safe_limit
+    rows = q.order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc()).limit(query_limit).all()
     filtered = []
     for row in rows:
         if industry and industry not in (row.industry_tags or []):
@@ -652,6 +655,7 @@ def list_assets(
         if evidence_type and evidence_type not in (row.evidence_type_tags or []):
             continue
         filtered.append(row)
+    filtered = filtered[:safe_limit]
     return {
         "items": filtered,
         "total": len(filtered),

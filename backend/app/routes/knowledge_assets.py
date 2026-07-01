@@ -36,7 +36,7 @@ def list_knowledge_assets_route(
     evidence_type: Optional[str] = None,
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=100000, ge=1, le=100000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):

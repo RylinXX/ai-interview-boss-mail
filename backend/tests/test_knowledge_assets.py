@@ -1,7 +1,58 @@
 from uuid import uuid4
+from datetime import datetime, timedelta
 
-from app.models.models import Resume, ResumeStatus, ScreeningResult
+from app.models.models import KnowledgeAsset, Resume, ResumeStatus, ScreeningResult
 from app.services import knowledge_asset_service
+
+
+def test_list_knowledge_assets_returns_all_requested_assets_and_filters_before_limit(
+    client, admin_auth_headers, db
+):
+    base_time = datetime(2026, 1, 1, 0, 0, 0)
+    target = KnowledgeAsset(
+        title="Target industry evidence",
+        source_type="resume_project",
+        raw_text="target evidence",
+        industry_tags=["target-industry"],
+        business_topic_tags=["target-topic"],
+        evidence_type_tags=["target-evidence"],
+        created_at=base_time,
+        updated_at=base_time,
+    )
+    db.add(target)
+    for index in range(520):
+        created_at = base_time + timedelta(minutes=index + 1)
+        db.add(
+            KnowledgeAsset(
+                title=f"Other evidence {index}",
+                source_type="resume_project",
+                raw_text="other evidence",
+                industry_tags=["other-industry"],
+                business_topic_tags=["other-topic"],
+                evidence_type_tags=["other-evidence"],
+                created_at=created_at,
+                updated_at=created_at,
+            )
+        )
+    db.commit()
+
+    all_response = client.get(
+        "/api/knowledge-assets",
+        headers=admin_auth_headers,
+        params={"limit": 100000},
+    )
+    filtered_response = client.get(
+        "/api/knowledge-assets",
+        headers=admin_auth_headers,
+        params={"industry": "target-industry", "limit": 100000},
+    )
+
+    assert all_response.status_code == 200
+    assert all_response.json()["total"] == 521
+    assert filtered_response.status_code == 200
+    filtered = filtered_response.json()
+    assert filtered["total"] == 1
+    assert filtered["items"][0]["id"] == str(target.id)
 
 
 def test_upload_knowledge_asset_file_returns_chunk_provenance(

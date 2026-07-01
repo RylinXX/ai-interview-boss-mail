@@ -27,7 +27,7 @@ const Login: React.FC = () => {
 
   React.useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate('/knowledge-assets', { replace: true });
     }
   }, [authLoading, isAuthenticated, navigate]);
 
@@ -47,7 +47,7 @@ const Login: React.FC = () => {
       
       await login((res as any).access_token);
       message.success('登录成功');
-      navigate('/dashboard', { replace: true });
+      navigate('/knowledge-assets', { replace: true });
     } catch (error) {
       message.error('登录失败，请检查账号密码');
     } finally {
@@ -73,9 +73,9 @@ const Login: React.FC = () => {
         </div>
         <div className="login-copy">
           <Text className="eyebrow">Business Transformation OS</Text>
-          <Title level={1}>证据驱动的方案 Agent 工作台</Title>
+          <Title level={1}>知识资产与能力样本库</Title>
           <Text>
-            从资料入库、证据检索到方案案卷和 AI 执行，把外部报告、内部经验和客户材料转成可复核的业务解决方案。
+            集中管理简历样本、行业经验和可复用项目证据，让新读取的样本持续沉淀，不覆盖历史资产。
           </Text>
         </div>
 
@@ -87,9 +87,9 @@ const Login: React.FC = () => {
           </div>
           <div className="preview-grid">
             <div className="preview-kpi">
-              <span>客户案卷</span>
+              <span>知识资产</span>
               <strong>128</strong>
-              <em>持续交付</em>
+              <em>持续沉淀</em>
             </div>
             <div className="preview-kpi accent">
               <span>能力样本</span>
@@ -106,7 +106,7 @@ const Login: React.FC = () => {
             <i style={{ height: '82%' }} />
           </div>
           <div className="preview-pipeline">
-            {['客户诊断', '方案设计', 'AI 执行', '交付复盘'].map((item, index) => (
+            {['样本导入', '结构解析', '资产同步', '数据复核'].map((item, index) => (
               <div key={item}>
                 <span>{index + 1}</span>
                 <strong>{item}</strong>
@@ -117,8 +117,8 @@ const Login: React.FC = () => {
 
         <div className="login-trust-row">
           <span><SafetyCertificateOutlined /> 证据资产背书</span>
-          <span><LineChartOutlined /> 方案诊断</span>
-          <span><ClusterOutlined /> AI 执行交付</span>
+          <span><LineChartOutlined /> 样本数据看板</span>
+          <span><ClusterOutlined /> 知识资产同步</span>
         </div>
       </section>
 

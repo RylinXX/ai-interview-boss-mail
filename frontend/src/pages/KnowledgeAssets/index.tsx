@@ -5,7 +5,6 @@ import {
   DatabaseOutlined,
   EyeOutlined,
   FileSearchOutlined,
-  PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   TagsOutlined,
@@ -126,7 +125,7 @@ const KnowledgeAssetsPage: React.FC = () => {
           evidence_type: evidenceType,
           review_status: reviewStatus,
           source_type: sourceType,
-          limit: 200,
+          limit: 100000,
         },
       }) as KnowledgeAssetListResponse;
       setAssets(res.items || []);
@@ -184,9 +183,6 @@ const KnowledgeAssetsPage: React.FC = () => {
         </div>
         <Space wrap className="workbench-module-actions">
           <Button icon={<ReloadOutlined />} onClick={fetchAssets} loading={loading}>刷新</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
-            新增资料
-          </Button>
         </Space>
         <div className="workbench-module-steps" aria-label="行业知识资产库工作步骤">
           <span><strong>01</strong> 来源归档</span>

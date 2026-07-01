@@ -5,14 +5,10 @@ import AppLayout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = lazy(() => import('../pages/Login'));
-const Dashboard = lazy(() => import('../pages/Dashboard'));
-const CustomerProjectsList = lazy(() => import('../pages/CustomerProjects/List'));
-const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detail'));
-const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
 const KnowledgeAssets = lazy(() => import('../pages/KnowledgeAssets'));
-const KnowledgeAssetIntake = lazy(() => import('../pages/KnowledgeAssets/Intake'));
 const KnowledgeAssetDetail = lazy(() => import('../pages/KnowledgeAssets/Detail'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
+const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
 const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
 const UsersList = lazy(() => import('../pages/Settings/Users'));
 const ProfileSettings = lazy(() => import('../pages/Settings/Profile'));
@@ -64,31 +60,31 @@ const router = createBrowserRouter([
     children: [
       {
         path: '/',
-        element: <Navigate to="/dashboard" replace />,
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'dashboard',
-        element: lazyPage(<Dashboard />),
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'industry-agent',
-        element: <Navigate to="/ai-employees" replace />,
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'customer-projects',
-        element: lazyPage(<CustomerProjectsList />),
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'customer-projects/:id',
-        element: lazyPage(<CustomerProjectDetail />),
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'ai-employees',
-        element: lazyPage(<AIEmployeesList />),
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'ai-product-manager',
-        element: <Navigate to="/ai-employees" replace />,
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'knowledge-assets',
@@ -96,7 +92,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'knowledge-assets/intake',
-        element: lazyPage(<KnowledgeAssetIntake />),
+        element: <Navigate to="/knowledge-assets" replace />,
       },
       {
         path: 'knowledge-assets/:id',
@@ -108,7 +104,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'resumes/upload',
-        element: <Navigate to="/knowledge-assets/intake" replace />,
+        element: lazyPage(<ResumeUpload />),
       },
       {
         path: 'resumes/:id',

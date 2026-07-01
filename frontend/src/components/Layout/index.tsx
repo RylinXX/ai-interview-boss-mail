@@ -26,9 +26,9 @@ const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
 const shellProductLine = 'Business Transformation OS';
-const shellModuleLine = '证据驱动方案交付';
-const headerSubtitle = '资料入库、证据检索、方案 Agent 与客户案卷统一推进';
-const headerTag = 'Consulting Workbench';
+const shellModuleLine = '知识资产与能力样本';
+const headerSubtitle = '简历样本、结构化解析、知识资产同步与数据复核';
+const headerTag = 'Data Workbench';
 
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success';
 
@@ -95,7 +95,7 @@ const AppLayout: React.FC = () => {
       addNotification(nextItems, {
         key: 'system-api-key',
         title: '模型 API Key 未配置',
-        description: '资料解析、方案 Agent 和执行草稿会不可用',
+        description: '能力样本解析和知识资产同步会不可用',
         count: systemSettings && !systemSettings.llm_api_key_set ? 1 : 0,
         path: '/settings/system',
         tone: 'danger',
@@ -123,7 +123,7 @@ const AppLayout: React.FC = () => {
       addNotification(nextItems, {
         key: 'resume-analyzed',
         title: '邮箱样本已完成',
-        description: '已同步为能力证据，可进入知识资产和方案引用',
+        description: '已同步为能力证据，可进入知识资产库复核',
         count: resumes.filter(item => item.parse_status === 'success').length,
         path: '/resumes',
         tone: 'success',
@@ -228,32 +228,10 @@ const AppLayout: React.FC = () => {
 
   const menuItems = [
     {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: '方案工作台',
-    },
-    {
-      key: '/customer-projects',
-      icon: <SolutionOutlined />,
-      label: '客户案卷',
-    },
-    {
-      key: '/ai-employees',
-      icon: <RobotOutlined />,
-      label: '方案 Agent',
-    },
-    {
-      key: '/knowledge-assets/intake',
-      icon: <UploadOutlined />,
-      label: '资料入库',
-      roles: ['admin', 'hr'],
-      className: 'workflow-nav-item workflow-nav-item-first',
-    },
-    {
       key: '/knowledge-assets',
       icon: <AppstoreOutlined />,
       label: '知识资产库',
-      className: 'workflow-nav-item',
+      className: 'workflow-nav-item workflow-nav-item-first',
     },
     {
       key: '/resumes',
@@ -276,14 +254,14 @@ const AppLayout: React.FC = () => {
 
   const selectedKey = [...filteredMenuItems].sort((a, b) => b.key.length - a.key.length).find(item =>
     location.pathname === item.key || location.pathname.startsWith(`${item.key}/`)
-  )?.key || '/dashboard';
+  )?.key || '/knowledge-assets';
 
   const pageTitle =
     location.pathname.startsWith('/settings/profile')
       ? '个人设置'
       : location.pathname.startsWith('/settings/system')
         ? '系统设置'
-        : menuItems.find(item => item.key === selectedKey)?.label || 'AI 业务优化工作台';
+        : menuItems.find(item => item.key === selectedKey)?.label || '数据资产工作台';
 
   const userMenuItems: any[] = [
     {
@@ -348,7 +326,7 @@ const AppLayout: React.FC = () => {
             <span className="status-dot" />
             <div>
               <strong>{shellModuleLine}</strong>
-              <span>证据链路与交付推进</span>
+              <span>样本数据与资产沉淀</span>
             </div>
           </div>
         )}

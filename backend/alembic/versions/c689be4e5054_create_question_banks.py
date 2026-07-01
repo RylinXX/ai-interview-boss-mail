@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(), nullable=False),
     sa.Column('category', sa.Enum('TECHNICAL', 'MANAGEMENT', 'HR', 'OTHER', name='questioncategory'), nullable=True),
     sa.Column('difficulty', sa.Enum('JUNIOR', 'INTERMEDIATE', 'SENIOR', name='questiondifficulty'), nullable=True),
-    sa.Column('tags', postgresql.ARRAY(sa.String()), nullable=True),
+    sa.Column('tags', sa.JSON() if op.get_bind().dialect.name == 'sqlite' else postgresql.ARRAY(sa.String()), nullable=True),
     sa.Column('questions', sa.JSON(), nullable=True),
     sa.Column('source_file', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),

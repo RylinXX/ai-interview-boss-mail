@@ -38,7 +38,7 @@ router = APIRouter(
 @router.get("", response_model=List[ResumeResponse])
 def get_resumes_route(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 10000,
     candidate_name: str = None,
     status: str = None,
     position_id: Optional[UUID] = None,
