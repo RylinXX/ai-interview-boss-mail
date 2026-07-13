@@ -562,7 +562,7 @@ const Dashboard: React.FC = () => {
       </section>
 
       {/* 精准且支持互动的核心卡片区 */}
-      <div className="consulting-metric-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
+      <div className="consulting-metric-grid">
         <Card
           className="consulting-metric-card"
           hoverable

@@ -162,6 +162,23 @@ def _is_pdf_file(file_path: str) -> bool:
     return os.path.splitext(file_path or "")[1].lower() == ".pdf"
 
 
+def public_resume_parse_error(error: Any, resume_id: Any = None) -> str:
+    """Map internal parser/database failures to safe, actionable user-facing text."""
+    value = str(error or "")
+    if re.search(r"(?:\x00|\bnul\b|control character|控制字符)", value, re.IGNORECASE):
+        message = "文件包含不支持的控制字符，请清理文件后重新导入"
+    elif re.search(r"(?:timeout|timed out|超时)", value, re.IGNORECASE):
+        message = "样本分析超时，请稍后重新提交"
+    elif re.search(r"(?:decode|encoding|unsupported|pdf|docx|无法读取|文件格式)", value, re.IGNORECASE):
+        message = "文件内容无法读取，请确认文件完整且格式受支持"
+    else:
+        message = "样本分析失败，请重新提交"
+
+    if resume_id:
+        message = f"{message}（编号 {str(resume_id)[:8]}）"
+    return message
+
+
 def _raw_text_from_direct_analysis(parsed_data: Dict[str, Any]) -> str:
     raw_text = parsed_data.get("raw_text") or parsed_data.get("resume_text")
     if raw_text:
@@ -404,14 +421,17 @@ def process_resume_task(payload: Dict[str, Any]):
         db.commit()
 
     except Exception as e:
+        print(f"[ResumeParse] Failed resume {resume_id}: {type(e).__name__}: {e}")
         try:
+            db.rollback()
             resume = db.query(Resume).filter(Resume.id == resume_id).first()
             if resume:
                 resume.parse_status = "failed"
-                resume.parse_error = str(e)[:500]
+                resume.parse_error = public_resume_parse_error(e, resume_id)
                 db.commit()
-        finally:
-            pass
+        except Exception as update_error:
+            db.rollback()
+            print(f"[ResumeParse] Failed to persist error state for {resume_id}: {update_error}")
     finally:
         db.close()
 
@@ -423,7 +443,7 @@ def on_resume_parse_failure(payload: Dict[str, Any], error: str):
         resume = db.query(Resume).filter(Resume.id == resume_id).first()
         if resume:
             resume.parse_status = "failed"
-            resume.parse_error = f"解析失败（重试后）: {error[:400]}"
+            resume.parse_error = public_resume_parse_error(error, resume_id)
             resume.candidate_name = "解析失败"
             db.commit()
             print(f"[TaskQueue] Updated resume {resume_id} status to failed")

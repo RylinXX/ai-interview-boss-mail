@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, message, Tag, Modal, Form, Input, Select, Card, Typography, Popconfirm, Tooltip } from 'antd';
+import { Table, Button, Checkbox, Space, message, Tag, Modal, Form, Input, Select, Card, Typography, Popconfirm, Tooltip } from 'antd';
 import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, StopOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader, ResponsiveDataView } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface User {
   id: string;
@@ -18,6 +19,7 @@ interface User {
 const UsersList: React.FC = () => {
   const [data, setData] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditModal, setIsEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -27,11 +29,14 @@ const UsersList: React.FC = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await request.get('/auth/users');
       setData(res);
     } catch (error) {
-      message.error('获取用户列表失败（权限不足？）');
+      const errorMessage = getApiErrorMessage(error, '获取用户列表失败，请确认访问权限后重试');
+      setLoadError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -82,7 +87,7 @@ const UsersList: React.FC = () => {
       setIsModalVisible(false);
       fetchUsers();
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.detail || (isEditModal ? '更新用户失败' : '创建用户失败');
+      const errorMsg = getApiErrorMessage(error, isEditModal ? '更新用户失败' : '创建用户失败');
       message.error(errorMsg);
     } finally {
       setSubmitting(false);
@@ -95,7 +100,7 @@ const UsersList: React.FC = () => {
       message.success(res.is_active ? '用户已启用' : '用户已禁用');
       fetchUsers();
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.detail || '操作失败';
+      const errorMsg = getApiErrorMessage(error, '操作失败');
       message.error(errorMsg);
     }
   };
@@ -106,7 +111,7 @@ const UsersList: React.FC = () => {
       message.success('用户已删除');
       fetchUsers();
     } catch (error: any) {
-      const errorMsg = error?.response?.data?.detail || '删除失败';
+      const errorMsg = getApiErrorMessage(error, '删除失败');
       message.error(errorMsg);
     }
   };
@@ -210,37 +215,86 @@ const UsersList: React.FC = () => {
 
   return (
     <div className="settings-users-page workbench-page">
-      <section className="consulting-hero">
-        <div className="consulting-hero-copy">
-          <span className="dossier-code">Access Control</span>
-          <Title level={1}>用户管理</Title>
-          <Text>管理内部顾问、管理员和方案审核成员，控制客户案卷与能力样本访问权限。</Text>
-        </div>
-        <Space className="consulting-hero-actions">
+      <ModulePageHeader
+        eyebrow="访问控制"
+        title="用户管理"
+        description="管理内部顾问、管理员和方案审核成员，控制客户案卷与能力样本访问权限。"
+        actions={<>
           {selectedRowKeys.length > 0 && (
             <>
-              <span style={{ lineHeight: '32px' }}>已选 {selectedRowKeys.length} 项</span>
+              <Text type="secondary">已选 {selectedRowKeys.length} 项</Text>
               <Button danger onClick={handleBatchDelete}>批量删除</Button>
               <Button onClick={() => setSelectedRowKeys([])}>取消选择</Button>
             </>
           )}
           <Button icon={<ReloadOutlined />} onClick={fetchUsers}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增用户</Button>
-        </Space>
-      </section>
+        </>}
+      />
 
       <Card className="consulting-table-card" title="内部成员">
-        <Table
-          columns={columns}
-          dataSource={data}
-          loading={loading}
-          rowKey="id"
-          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-          rowSelection={{
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys),
-          }}
-        />
+        <AsyncState loading={loading} error={loadError} onRetry={fetchUsers} empty={!data.length} emptyDescription="暂无内部成员">
+          <ResponsiveDataView
+            desktop={(
+              <Table
+                columns={columns}
+                dataSource={data}
+                rowKey="id"
+                scroll={{ x: 900 }}
+                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                rowSelection={{
+                  selectedRowKeys,
+                  onChange: (keys) => setSelectedRowKeys(keys),
+                }}
+              />
+            )}
+            mobile={(
+              <div className="mobile-record-grid">
+                {data.map(record => {
+                  const selected = selectedRowKeys.includes(record.id);
+                  return (
+                    <article className="mobile-record-card" key={record.id}>
+                      <div className="mobile-record-head">
+                        <Checkbox
+                          checked={selected}
+                          onChange={() => setSelectedRowKeys(keys => selected ? keys.filter(key => key !== record.id) : [...keys, record.id])}
+                          aria-label={`选择用户 ${record.full_name}`}
+                        />
+                        <div className="mobile-record-title">
+                          <strong>{record.full_name}</strong>
+                          <span>{record.email}</span>
+                        </div>
+                        <Tag color={record.is_active ? 'success' : 'error'}>{record.is_active ? '启用' : '禁用'}</Tag>
+                      </div>
+                      <div className="mobile-record-meta">
+                        {getRoleTag(record.role)}
+                        <span>创建于 {record.created_at ? new Date(record.created_at).toLocaleDateString('zh-CN') : '-'}</span>
+                      </div>
+                      <div className="mobile-record-actions">
+                        <Button icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
+                        <Button
+                          icon={record.is_active ? <StopOutlined /> : <CheckCircleOutlined />}
+                          onClick={() => handleToggleStatus(record)}
+                        >
+                          {record.is_active ? '禁用' : '启用'}
+                        </Button>
+                        <Popconfirm
+                          title="确定删除该用户吗？"
+                          description="此操作不可恢复"
+                          onConfirm={() => handleDelete(record.id)}
+                          okText="确定"
+                          cancelText="取消"
+                        >
+                          <Button danger icon={<DeleteOutlined />} aria-label="删除用户" />
+                        </Popconfirm>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          />
+        </AsyncState>
       </Card>
 
       <Modal

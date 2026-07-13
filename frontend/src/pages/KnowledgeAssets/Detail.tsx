@@ -180,7 +180,7 @@ const KnowledgeAssetDetailPage: React.FC = () => {
           <Text type="secondary">{sourceTypeLabel[asset.source_type] || asset.source_type}</Text>
         </div>
         <Space wrap>
-          {asset.source_resume_id ? (
+          {asset.source_resume_id && asset.source_confidentiality !== 'anonymized' ? (
             <Button icon={<FileTextOutlined />} onClick={() => navigate(`/resumes/${asset.source_resume_id}`)}>
               来源简历
             </Button>
@@ -213,14 +213,20 @@ const KnowledgeAssetDetailPage: React.FC = () => {
           <Card className="consulting-table-card" title="来源信息">
             <Descriptions column={2} bordered size="small">
               <Descriptions.Item label="来源类型">{sourceTypeLabel[asset.source_type] || asset.source_type}</Descriptions.Item>
-              <Descriptions.Item label="来源名称">{asset.source_name || '-'}</Descriptions.Item>
+              <Descriptions.Item label="来源名称">
+                {asset.source_confidentiality === 'anonymized' ? '已匿名化来源' : asset.source_name || '-'}
+              </Descriptions.Item>
               <Descriptions.Item label="保密级别">{asset.source_confidentiality}</Descriptions.Item>
               <Descriptions.Item label="创建时间">{compactDateTime(asset.created_at)}</Descriptions.Item>
               <Descriptions.Item label="更新时间">{compactDateTime(asset.updated_at)}</Descriptions.Item>
               <Descriptions.Item label="来源链接">
-                {asset.source_url ? <Link href={asset.source_url} target="_blank">{asset.source_url}</Link> : '-'}
+                {asset.source_confidentiality === 'anonymized'
+                  ? '已隐藏'
+                  : asset.source_url ? <Link href={asset.source_url} target="_blank">{asset.source_url}</Link> : '-'}
               </Descriptions.Item>
-              <Descriptions.Item label="文件路径" span={2}>{asset.source_file_path || '-'}</Descriptions.Item>
+              <Descriptions.Item label="文件路径" span={2}>
+                {asset.source_confidentiality === 'anonymized' ? '已隐藏' : asset.source_file_path || '-'}
+              </Descriptions.Item>
             </Descriptions>
           </Card>
         </div>

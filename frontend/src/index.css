@@ -323,10 +323,12 @@ code {
 }
 
 .app-main {
+  min-width: 0;
   transition: margin-left 0.2s ease;
 }
 
 .app-content {
+  min-width: 0;
   margin: 28px 32px 40px;
   min-height: 280px;
 }
@@ -439,6 +441,48 @@ code {
   justify-content: space-between;
   align-items: center;
   gap: 18px;
+}
+
+.mobile-nav-button {
+  display: none;
+  flex: 0 0 auto;
+}
+
+.app-header-actions {
+  flex: 0 0 auto;
+}
+
+.mobile-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mobile-brand-lockup img {
+  width: 42px;
+  height: 42px;
+}
+
+.mobile-brand-lockup div,
+.mobile-brand-lockup strong,
+.mobile-brand-lockup span {
+  display: block;
+}
+
+.mobile-brand-lockup strong {
+  color: var(--text-primary);
+}
+
+.mobile-brand-lockup span {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.mobile-sidebar-menu {
+  padding: 12px 8px;
+  border-inline-end: 0 !important;
 }
 
 .page-title-group {
@@ -2370,7 +2414,7 @@ html[data-theme='dark'] .agent-solution-item h5 {
   }
 
   .app-content {
-    margin: 18px 14px 28px;
+    margin: 14px 12px 24px;
   }
 
   .ant-layout-header {
@@ -2381,6 +2425,35 @@ html[data-theme='dark'] .agent-solution-item h5 {
   .env-tag,
   .user-copy {
     display: none;
+  }
+
+  .mobile-nav-button {
+    display: inline-flex;
+  }
+
+  .page-title-group h2 {
+    max-width: 42vw;
+    font-size: 17px;
+  }
+
+  .app-header {
+    gap: 6px;
+  }
+
+  .app-header-actions {
+    gap: 4px !important;
+  }
+
+  .theme-toggle-button {
+    display: none;
+  }
+
+  .user-trigger {
+    padding-inline: 2px;
+  }
+
+  .notification-panel {
+    max-width: calc(100vw - 20px);
   }
 
   .login-copy h1 {

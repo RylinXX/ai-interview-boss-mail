@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Button, Avatar, Space, Dropdown, Badge, Tag, Popover, Spin, Empty, Typography, Modal, message } from 'antd';
+import { Layout, Menu, Button, Avatar, Space, Dropdown, Badge, Tag, Popover, Spin, Empty, Typography, Modal, message, Drawer } from 'antd';
 import {
   DashboardOutlined,
   UserOutlined,
@@ -16,6 +16,7 @@ import {
   RobotOutlined,
   SolutionOutlined,
   AppstoreOutlined,
+  MenuOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -27,8 +28,6 @@ const { Text } = Typography;
 
 const shellProductLine = 'Business Transformation OS';
 const shellModuleLine = '知识资产与能力样本';
-const headerSubtitle = '简历样本、结构化解析、知识资产同步与数据复核';
-const headerTag = 'Data Workbench';
 
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success';
 
@@ -49,6 +48,7 @@ const AppLayout: React.FC = () => {
   const { logout, user } = useAuth();
   const { isDark, toggleTheme } = useThemeMode();
   const [collapsed, setCollapsed] = React.useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   const [notificationOpen, setNotificationOpen] = React.useState(false);
   const [notificationLoading, setNotificationLoading] = React.useState(false);
   const [notificationItems, setNotificationItems] = React.useState<NotificationItem[]>([]);
@@ -153,7 +153,9 @@ const AppLayout: React.FC = () => {
     return () => window.clearInterval(timer);
   }, [fetchNotifications, user]);
 
-  const notificationCount = notificationItems.reduce((sum, item) => sum + item.count, 0);
+  const notificationCount = notificationItems
+    .filter(item => item.tone === 'danger' || item.tone === 'warning')
+    .reduce((sum, item) => sum + item.count, 0);
 
   const handleNotificationClick = React.useCallback((item: NotificationItem) => {
     if (item.action === 'reparse-failed-resumes') {
@@ -231,33 +233,45 @@ const AppLayout: React.FC = () => {
       key: '/dashboard',
       icon: <DashboardOutlined />,
       label: '业务总览',
+      description: '经营指标、异常提醒与近期业务变化',
+      tag: '经营总览',
       className: 'workflow-nav-item workflow-nav-item-first',
     },
     {
       key: '/knowledge-assets',
       icon: <AppstoreOutlined />,
       label: '知识资产库',
+      description: '资产检索、证据质量与人工复核',
+      tag: '知识治理',
     },
     {
       key: '/resumes',
       icon: <FileTextOutlined />,
-      label: '邮箱样本',
+      label: '人才样本',
+      description: '导入、解析状态与匿名能力档案',
+      tag: '能力样本',
     },
     {
       key: '/customer-projects',
       icon: <SolutionOutlined />,
       label: '客户项目',
+      description: '客户需求、项目方案与交付进度',
+      tag: '项目交付',
     },
     {
       key: '/ai-employees',
       icon: <RobotOutlined />,
       label: 'AI 员工',
+      description: 'AI 角色、任务编排与执行状态',
+      tag: '智能协作',
       className: 'workflow-nav-item workflow-nav-item-last',
     },
     {
       key: '/settings/users',
       icon: <SettingOutlined />,
       label: '用户管理',
+      description: '内部成员、角色与访问权限',
+      tag: '访问控制',
       roles: ['admin'],
     },
   ];
@@ -271,12 +285,23 @@ const AppLayout: React.FC = () => {
     location.pathname === item.key || location.pathname.startsWith(`${item.key}/`)
   )?.key || '/dashboard';
 
-  const pageTitle =
-    location.pathname.startsWith('/settings/profile')
-      ? '个人设置'
-      : location.pathname.startsWith('/settings/system')
-        ? '系统设置'
-        : menuItems.find(item => item.key === selectedKey)?.label || '数据资产工作台';
+  const selectedMenuItem = menuItems.find(item => item.key === selectedKey);
+  const pageMeta = location.pathname.startsWith('/settings/profile')
+    ? { title: '个人设置', description: '账号信息与个人偏好', tag: '个人中心' }
+    : location.pathname.startsWith('/settings/system')
+      ? { title: '系统设置', description: '模型、邮箱导入与系统运行配置', tag: '系统配置' }
+      : {
+          title: selectedMenuItem?.label || '数据资产工作台',
+          description: selectedMenuItem?.description || '业务数据与知识资产协同管理',
+          tag: selectedMenuItem?.tag || '业务工作台',
+        };
+
+  const renderedMenuItems = filteredMenuItems.map(({ key, icon, label, className }) => ({
+    key,
+    icon,
+    label,
+    className,
+  }));
 
   const userMenuItems: any[] = [
     {
@@ -308,6 +333,30 @@ const AppLayout: React.FC = () => {
 
   return (
     <Layout className="app-shell" style={{ minHeight: '100vh' }}>
+      <Drawer
+        title="业务导航"
+        placement="left"
+        width={280}
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        className="mobile-nav-drawer"
+        styles={{ body: { padding: 0 } }}
+      >
+        <div className="mobile-brand-lockup">
+          <img src="/logo.svg" alt="Qylin Intelligence" />
+          <div><strong>QylinIntel</strong><span>{shellProductLine}</span></div>
+        </div>
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={renderedMenuItems}
+          onClick={({ key }) => {
+            navigate(key);
+            setMobileNavOpen(false);
+          }}
+          className="mobile-sidebar-menu"
+        />
+      </Drawer>
       <Sider
         collapsible
         collapsed={collapsed}
@@ -332,7 +381,7 @@ const AppLayout: React.FC = () => {
           theme="light"
           mode="inline"
           selectedKeys={[selectedKey]}
-          items={filteredMenuItems}
+          items={renderedMenuItems}
           onClick={({ key }) => navigate(key)}
           className="sidebar-menu"
         />
@@ -348,14 +397,21 @@ const AppLayout: React.FC = () => {
       </Sider>
       <Layout className="app-main" style={{ marginLeft: collapsed ? 76 : 240 }}>
         <Header className="app-header">
+          <Button
+            type="text"
+            className="header-icon-button mobile-nav-button"
+            icon={<MenuOutlined />}
+            onClick={() => setMobileNavOpen(true)}
+            aria-label="打开业务导航"
+          />
           <Space size="middle" className="page-title-group">
             <div>
-              <h2>{pageTitle}</h2>
-              <span>{headerSubtitle}</span>
+              <h2>{pageMeta.title}</h2>
+              <span>{pageMeta.description}</span>
             </div>
-            <Tag color="processing" className="env-tag">{headerTag}</Tag>
+            <Tag color="processing" className="env-tag">{pageMeta.tag}</Tag>
           </Space>
-          <Space size="large">
+          <Space size="large" className="app-header-actions">
             <Button
               type="text"
               className="header-icon-button theme-toggle-button"
@@ -374,7 +430,7 @@ const AppLayout: React.FC = () => {
               content={notificationPanel}
               overlayClassName="notification-popover"
             >
-              <Badge count={notificationCount} size="small" offset={[-4, 4]}>
+              <Badge count={notificationCount} overflowCount={9} size="small" offset={[-4, 4]}>
                 <Button
                   type="text"
                   className="header-icon-button"

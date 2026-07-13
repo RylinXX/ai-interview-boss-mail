@@ -1,6 +1,30 @@
 from uuid import uuid4
 
 from app.models.models import Resume, ResumeStatus, ScreeningResult
+from app.services.resume_service import public_resume_parse_error
+
+
+def test_public_resume_parse_error_hides_internal_details():
+    resume_id = uuid4()
+
+    nul_error = public_resume_parse_error(
+        "sqlalchemy.exc.PendingRollbackError: A string literal cannot contain NUL (0x00) characters",
+        resume_id,
+    )
+    database_error = public_resume_parse_error(
+        "psycopg.errors.InFailedSqlTransaction: current transaction is aborted",
+        resume_id,
+    )
+
+    assert "控制字符" in nul_error
+    assert str(resume_id)[:8] in nul_error
+    assert "sqlalchemy" not in nul_error.lower()
+    assert database_error == f"样本分析失败，请重新提交（编号 {str(resume_id)[:8]}）"
+
+
+def test_public_resume_parse_error_gives_actionable_file_and_timeout_messages():
+    assert public_resume_parse_error("PDF decode failed") == "文件内容无法读取，请确认文件完整且格式受支持"
+    assert public_resume_parse_error("upstream request timed out") == "样本分析超时，请稍后重新提交"
 
 
 def test_reparse_failed_resumes_requeues_failed_only(

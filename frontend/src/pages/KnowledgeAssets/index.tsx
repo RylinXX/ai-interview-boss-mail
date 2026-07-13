@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Empty, Input, Pagination, Progress, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Input, Pagination, Progress, Select, Space, Tag, Typography } from 'antd';
 import {
   AuditOutlined,
   DatabaseOutlined,
@@ -11,9 +11,10 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 type ReviewStatus = 'unreviewed' | 'reviewed' | 'needs_revision';
 
@@ -95,10 +96,17 @@ const scoreColor = (value: number) => {
   return '#cf1322';
 };
 
+const getSourceLabel = (record: KnowledgeAsset) => (
+  record.source_confidentiality === 'anonymized'
+    ? '已匿名化来源'
+    : record.source_name || record.source_confidentiality || '内部资料'
+);
+
 const KnowledgeAssetsPage: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [assets, setAssets] = useState<KnowledgeAsset[]>([]);
   const [taxonomy, setTaxonomy] = useState({
     industry_tags: [] as string[],
@@ -116,6 +124,7 @@ const KnowledgeAssetsPage: React.FC = () => {
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await request.get('/knowledge-assets', {
         params: {
@@ -136,7 +145,9 @@ const KnowledgeAssetsPage: React.FC = () => {
       });
       setCurrentPage(1);
     } catch (error) {
-      message.error(getApiErrorMessage(error, '获取知识资产失败'));
+      const errorMessage = getApiErrorMessage(error, '获取知识资产失败，请稍后重试');
+      setLoadError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -175,35 +186,27 @@ const KnowledgeAssetsPage: React.FC = () => {
 
   return (
     <div className="knowledge-assets-page workbench-page">
-      <section className="workbench-module-hero">
-        <div className="workbench-module-copy">
-          <span className="module-eyebrow"><DatabaseOutlined /> 数据资产控制台</span>
-          <Title level={2}>知识资产库</Title>
-          <Text type="secondary">按来源、标签、证据边界和复核状态管理可被方案 Agent 引用的行业资料。</Text>
-        </div>
-        <Space wrap className="workbench-module-actions">
-          <Button icon={<ReloadOutlined />} onClick={fetchAssets} loading={loading}>刷新</Button>
-        </Space>
-        <div className="workbench-module-steps" aria-label="行业知识资产库工作步骤">
-          <span><strong>01</strong> 来源归档</span>
-          <span><strong>02</strong> 标签分层</span>
-          <span><strong>03</strong> 证据评分</span>
-          <span><strong>04</strong> 方案引用</span>
-        </div>
-      </section>
+      <ModulePageHeader
+        eyebrow={<><DatabaseOutlined /> 数据资产控制台</>}
+        title="知识资产库"
+        description="按来源、标签、证据边界和复核状态管理可被方案 Agent 引用的行业资料。"
+        actions={<Button icon={<ReloadOutlined />} onClick={fetchAssets} loading={loading}>刷新</Button>}
+        steps={['来源归档', '标签分层', '证据评分', '方案引用']}
+      />
 
-      <div className="consulting-metric-grid knowledge-metric-grid">
-        {metrics.map(metric => (
-          <Card className="consulting-metric-card" key={metric.label}>
-            <span className="metric-icon">{metric.icon}</span>
-            <Text type="secondary">{metric.label}</Text>
-            <strong>{metric.value}</strong>
-            <span>{metric.hint}</span>
-          </Card>
-        ))}
-      </div>
+      <AsyncState loading={loading} error={loadError} onRetry={fetchAssets}>
+        <div className="consulting-metric-grid knowledge-metric-grid">
+          {metrics.map(metric => (
+            <Card className="consulting-metric-card" key={metric.label}>
+              <span className="metric-icon">{metric.icon}</span>
+              <Text type="secondary">{metric.label}</Text>
+              <strong>{metric.value}</strong>
+              <span>{metric.hint}</span>
+            </Card>
+          ))}
+        </div>
 
-      <Card className="consulting-table-card" title="资产检索">
+        <Card className="consulting-table-card" title="资产检索">
         <div className="knowledge-assets-toolbar">
           <Input
             allowClear
@@ -302,7 +305,7 @@ const KnowledgeAssetsPage: React.FC = () => {
                     </section>
                     <section>
                       <span>来源</span>
-                      <Text>{record.source_name || record.source_confidentiality || '内部资料'}</Text>
+                      <Text>{getSourceLabel(record)}</Text>
                     </section>
                   </div>
 
@@ -346,10 +349,11 @@ const KnowledgeAssetsPage: React.FC = () => {
               />
             </div>
           </>
-        ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={loading ? '正在加载知识资产' : '暂无知识资产'} />
-        )}
-      </Card>
+          ) : (
+            <AsyncState empty emptyDescription="暂无符合条件的知识资产"><span /></AsyncState>
+          )}
+        </Card>
+      </AsyncState>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Card, Dropdown, Input, message, Modal, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Card, Checkbox, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   DeleteOutlined,
@@ -15,10 +15,11 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import request, { getApiErrorMessage } from '../../utils/request';
+import request, { getApiErrorMessage, getResumeParseErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader, ResponsiveDataView, SensitiveField } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 const STATUS_MAP: Record<string, { text: string; color: string }> = {
   processing: { text: '分析中', color: 'processing' },
@@ -37,9 +38,15 @@ const getQuestionCount = (record: any) => {
   return (Array.isArray(questions) ? questions.length : 0) + (Array.isArray(business) ? business.length : 0);
 };
 
+const getResumeSummary = (record: any) => (
+  record.parsed_data?.experience_summary
+  || (record.parse_status === 'failed' ? getResumeParseErrorMessage(record.parse_error) : '等待模型分析')
+);
+
 const ResumesList: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [searchName, setSearchName] = useState('');
@@ -48,19 +55,26 @@ const ResumesList: React.FC = () => {
   const [reparsingFailed, setReparsingFailed] = useState(false);
   const [batchReparsing, setBatchReparsing] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [mobilePage, setMobilePage] = useState(1);
   const navigate = useNavigate();
 
   const fetchResumes = async (silent = false) => {
     if (!silent) setLoading(true);
+    if (!silent) setLoadError(null);
     try {
       const params: any = { limit: 10000 };
       if (searchName) params.candidate_name = searchName;
       const res = await request.get('/resumes', { params }) as any[];
       const filtered = parseStatus ? res.filter(item => item.parse_status === parseStatus) : res;
       setData(filtered);
+      setMobilePage(1);
       setPollingEnabled(res.some(item => item.parse_status === 'processing'));
     } catch (error) {
-      if (!silent) message.error('获取能力样本列表失败');
+      if (!silent) {
+        const errorMessage = getApiErrorMessage(error, '获取人才样本失败，请稍后重试');
+        setLoadError(errorMessage);
+        message.error(errorMessage);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -261,9 +275,15 @@ const ResumesList: React.FC = () => {
       width: 180,
       render: (text: string, record: any) => (
         <div>
-          <Text strong>{text || '未识别'}</Text>
+          <Text strong><SensitiveField value={text} kind="name" /></Text>
           <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.email || record.contact || '暂无联系方式'}</Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            <SensitiveField
+              value={record.email || record.contact}
+              kind={record.email ? 'email' : 'phone'}
+              fallback="暂无联系方式"
+            />
+          </Text>
         </div>
       ),
     },
@@ -300,8 +320,8 @@ const ResumesList: React.FC = () => {
       key: 'summary',
       ellipsis: true,
       render: (_: any, record: any) => (
-        <Tooltip title={record.parsed_data?.experience_summary || record.parse_error || '等待模型分析'}>
-          <span>{record.parsed_data?.experience_summary || record.parse_error || '等待模型分析'}</span>
+        <Tooltip title={getResumeSummary(record)}>
+          <span>{getResumeSummary(record)}</span>
         </Tooltip>
       ),
     },
@@ -346,52 +366,51 @@ const ResumesList: React.FC = () => {
 
   return (
     <div className="resume-list-page workbench-page">
-      <section className="consulting-hero">
-        <div className="consulting-hero-copy">
-          <span className="dossier-code">Capability Evidence</span>
-          <Title level={1}>高级人才能力样本库</Title>
-          <Text>集中管理高级白领履历样本，沉淀行业、职能、项目经验和可复用业务方法。</Text>
-        </div>
-        <Space className="consulting-hero-actions">
+      <ModulePageHeader
+        eyebrow={<><FileTextOutlined /> 能力证据</>}
+        title="人才样本"
+        description="集中管理履历样本，沉淀行业、职能、项目经验和可复用业务方法。"
+        actions={<>
           <Dropdown menu={{ items: headerActions }} trigger={['click']}>
             <Button icon={<MoreOutlined />}>更多操作</Button>
           </Dropdown>
           <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/resumes/upload')}>
             导入样本
           </Button>
-        </Space>
-      </section>
+        </>}
+      />
 
-      <div className="consulting-metric-grid">
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><FileTextOutlined /></span>
-          <Text type="secondary">样本总数</Text>
-          <strong>{data.length}</strong>
-          <span>已入库能力样本</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><TrophyOutlined /></span>
-          <Text type="secondary">已分析</Text>
-          <strong>{analyzedCount}</strong>
-          <span>模型完成结构化解析</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><ProjectOutlined /></span>
-          <Text type="secondary">项目经历</Text>
-          <strong>{projectCount}</strong>
-          <span>可复用项目素材</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><QuestionCircleOutlined /></span>
-          <Text type="secondary">待处理失败</Text>
-          <strong>{failedCount}</strong>
-          <span>{questionCount} 个追问已生成</span>
-        </Card>
-      </div>
+      <AsyncState loading={loading} error={loadError} onRetry={() => fetchResumes()}>
+        <div className="consulting-metric-grid">
+          <Card className="consulting-metric-card">
+            <span className="metric-icon"><FileTextOutlined /></span>
+            <Text type="secondary">样本总数</Text>
+            <strong>{data.length}</strong>
+            <span>已入库能力样本</span>
+          </Card>
+          <Card className="consulting-metric-card">
+            <span className="metric-icon"><TrophyOutlined /></span>
+            <Text type="secondary">已分析</Text>
+            <strong>{analyzedCount}</strong>
+            <span>模型完成结构化解析</span>
+          </Card>
+          <Card className="consulting-metric-card">
+            <span className="metric-icon"><ProjectOutlined /></span>
+            <Text type="secondary">项目经历</Text>
+            <strong>{projectCount}</strong>
+            <span>可复用项目素材</span>
+          </Card>
+          <Card className="consulting-metric-card">
+            <span className="metric-icon"><QuestionCircleOutlined /></span>
+            <Text type="secondary">待处理失败</Text>
+            <strong>{failedCount}</strong>
+            <span>{questionCount} 个追问已生成</span>
+          </Card>
+        </div>
 
-      <Card className="consulting-table-card" title="能力样本列表">
-        <Space style={{ marginBottom: 16, width: '100%', justifyContent: 'space-between' }}>
-          <Space>
+        <Card className="consulting-table-card" title="人才样本列表">
+          <div className="data-toolbar">
+            <div className="data-toolbar-group">
             <Input
               placeholder="搜索人才样本"
               prefix={<SearchOutlined />}
@@ -419,8 +438,8 @@ const ResumesList: React.FC = () => {
               setParseStatus(undefined);
               fetchResumes();
             }}>重置</Button>
-          </Space>
-          <Space>
+            </div>
+            <div className="data-toolbar-group">
             {!!selectedRowKeys.length && <Text type="secondary">已选 {selectedRowKeys.length} 份</Text>}
             <Text type="secondary">已生成问题 {questionCount} 个</Text>
             <Button
@@ -434,23 +453,77 @@ const ResumesList: React.FC = () => {
             <Button danger disabled={!selectedRowKeys.length} onClick={handleBatchDelete}>
               批量删除
             </Button>
-          </Space>
-        </Space>
+            </div>
+          </div>
 
-        <Table
-          className="resume-intelligence-table"
-          rowKey="id"
-          loading={loading}
-          dataSource={data}
-          columns={columns}
-          rowSelection={{
-            columnWidth: 64,
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-          }}
-          pagination={{ pageSize: 10 }}
-        />
-      </Card>
+          <ResponsiveDataView
+            desktop={(
+              <Table
+                className="resume-intelligence-table"
+                rowKey="id"
+                dataSource={data}
+                columns={columns}
+                scroll={{ x: 1180 }}
+                rowSelection={{
+                  columnWidth: 64,
+                  selectedRowKeys,
+                  onChange: setSelectedRowKeys,
+                }}
+                pagination={{ pageSize: 10 }}
+              />
+            )}
+            mobile={(
+              <>
+                <div className="mobile-record-grid">
+                  {data.slice((mobilePage - 1) * 10, mobilePage * 10).map(record => {
+                    const status = STATUS_MAP[record.parse_status] || { text: '待处理', color: 'default' };
+                    const selected = selectedRowKeys.includes(record.id);
+                    return (
+                      <article className="mobile-record-card" key={record.id}>
+                        <div className="mobile-record-head">
+                          <Checkbox
+                            checked={selected}
+                            onChange={() => setSelectedRowKeys(keys => selected ? keys.filter(key => key !== record.id) : [...keys, record.id])}
+                            aria-label={`选择样本 ${record.id}`}
+                          />
+                          <div className="mobile-record-title">
+                            <strong><SensitiveField value={record.candidate_name} kind="name" /></strong>
+                            <span><SensitiveField value={record.email || record.contact} kind={record.email ? 'email' : 'phone'} fallback="暂无联系方式" /></span>
+                          </div>
+                          <Tag color={status.color}>{status.text}</Tag>
+                        </div>
+                        <p className="mobile-record-summary">{getResumeSummary(record)}</p>
+                        <div className="mobile-record-meta">
+                          <span>评分 {record.match_score ?? '-'}</span>
+                          <span>项目 {getProjectCount(record)}</span>
+                          <span>问题 {getQuestionCount(record)}</span>
+                          <span>{record.created_at ? new Date(record.created_at).toLocaleDateString('zh-CN') : '-'}</span>
+                        </div>
+                        <div className="mobile-record-actions">
+                          <Button icon={<EyeOutlined />} onClick={() => navigate(`/resumes/${record.id}`)} aria-label="查看分析">查看</Button>
+                          <Button icon={<ReloadOutlined />} onClick={() => handleReparse(record)} disabled={record.parse_status === 'processing'} aria-label="重新分析" />
+                          <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} aria-label="删除样本" />
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                {data.length > 10 ? (
+                  <Pagination
+                    className="mobile-data-pagination"
+                    simple
+                    current={mobilePage}
+                    pageSize={10}
+                    total={data.length}
+                    onChange={setMobilePage}
+                  />
+                ) : null}
+              </>
+            )}
+          />
+          {!data.length ? <AsyncState empty emptyDescription="暂无符合条件的人才样本"><span /></AsyncState> : null}
+        </Card>
+      </AsyncState>
     </div>
   );
 };
