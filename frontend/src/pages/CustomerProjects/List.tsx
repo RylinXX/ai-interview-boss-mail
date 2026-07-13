@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Form, Input, Modal, Space, Table, Tag, Typography } from 'antd';
-import { ApartmentOutlined, FileDoneOutlined, FileTextOutlined, PlusOutlined, ProjectOutlined, ReloadOutlined } from '@ant-design/icons';
+import { App, Button, Card, Form, Input, Modal, Pagination, Space, Table, Tag, Typography } from 'antd';
+import { ApartmentOutlined, EyeOutlined, FileDoneOutlined, FileTextOutlined, PlusOutlined, ProjectOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader, ResponsiveDataView } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 type CustomerProject = {
   id: string;
@@ -43,16 +44,21 @@ const CustomerProjectsList: React.FC = () => {
   const [form] = Form.useForm();
   const [projects, setProjects] = useState<CustomerProject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [mobilePage, setMobilePage] = useState(1);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await request.get('/customer-projects');
       setProjects(res as CustomerProject[]);
     } catch (error) {
-      message.error(getApiErrorMessage(error, '获取客户项目失败'));
+      const errorMessage = getApiErrorMessage(error, '获取客户项目失败');
+      setLoadError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -113,46 +119,43 @@ const CustomerProjectsList: React.FC = () => {
 
   return (
     <div className="customer-projects-page workbench-page">
-      <section className="consulting-hero">
-        <div className="consulting-hero-copy">
-          <span className="dossier-code">Engagement Portfolio</span>
-          <Title level={1}>客户项目案卷</Title>
-          <Text>
-            每个项目都是一次业务优化交付：客户背景、诊断、方案、执行任务和 AI 员工产出统一沉淀。
-          </Text>
-        </div>
-        <Space className="consulting-hero-actions">
+      <ModulePageHeader
+        eyebrow={<><ProjectOutlined /> 交付项目组合</>}
+        title="客户项目案卷"
+        description="把客户背景、问题诊断、方案文档、执行任务与 AI 员工产出沉淀到同一案卷。"
+        actions={<>
           <Button icon={<ReloadOutlined />} onClick={fetchProjects} loading={loading}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>启动新交付</Button>
-        </Space>
-      </section>
+        </>}
+        steps={['建立案卷', '业务诊断', '方案设计', '交付归档']}
+      />
 
-      <div className="workbench-summary-strip">
-        <ProjectOutlined />
-        <span>{summary}</span>
-      </div>
+      <AsyncState loading={loading} error={loadError} onRetry={fetchProjects}>
+        <>
+          <div className="workbench-summary-strip">
+            <ProjectOutlined />
+            <span>{summary}</span>
+          </div>
 
-      <div className="consulting-metric-grid">
-        {metrics.map(metric => (
-          <Card className="consulting-metric-card" key={metric.label}>
-            <span className="metric-icon">{metric.icon}</span>
-            <Text type="secondary">{metric.label}</Text>
-            <strong>{metric.value}</strong>
-            <span>{metric.hint}</span>
-          </Card>
-        ))}
-      </div>
+          <div className="consulting-metric-grid">
+            {metrics.map(metric => (
+              <Card className="consulting-metric-card" key={metric.label}>
+                <span className="metric-icon">{metric.icon}</span>
+                <Text type="secondary">{metric.label}</Text>
+                <strong>{metric.value}</strong>
+                <span>{metric.hint}</span>
+              </Card>
+            ))}
+          </div>
 
-      <Card className="consulting-table-card" title="交付案卷列表">
-        <Table
-          rowKey="id"
-          loading={loading}
-          dataSource={projects}
-          pagination={{ pageSize: 10 }}
-          onRow={(record) => ({
-            onClick: () => navigate(`/customer-projects/${record.id}`),
-          })}
-          columns={[
+          <Card className="consulting-table-card" title="交付案卷列表">
+            {projects.length ? <ResponsiveDataView
+              desktop={<Table
+                rowKey="id"
+                dataSource={projects}
+                pagination={{ pageSize: 10 }}
+                scroll={{ x: 1040 }}
+                columns={[
             {
               title: '项目案卷',
               dataIndex: 'name',
@@ -200,9 +203,44 @@ const CustomerProjectsList: React.FC = () => {
               width: 120,
               render: (value: string) => <Tag color="processing">{statusLabel[value] || value}</Tag>,
             },
-          ]}
-        />
-      </Card>
+            {
+              title: '操作',
+              key: 'action',
+              width: 100,
+              render: (_: unknown, record) => <Button icon={<EyeOutlined />} onClick={() => navigate(`/customer-projects/${record.id}`)}>查看</Button>,
+            },
+                ]}
+              />}
+              mobile={(
+                <>
+                  <div className="mobile-record-grid">
+                    {projects.slice((mobilePage - 1) * 10, mobilePage * 10).map(record => (
+                      <article className="mobile-record-card" key={record.id}>
+                        <div className="mobile-record-head">
+                          <div className="mobile-record-title">
+                            <span className="dossier-code">{formatDossierCode(record.created_at)}</span>
+                            <strong>{record.name}</strong>
+                            <span>{record.solution_document?.title || '待生成方案文档'}</span>
+                          </div>
+                          <Tag color="processing">{statusLabel[record.status] || record.status}</Tag>
+                        </div>
+                        <p className="mobile-record-summary">{record.business_model || record.pain_points?.[0] || '业务背景待补充'}</p>
+                        <div className="mobile-record-meta">
+                          <span>{record.industry || '行业待补充'}</span>
+                          <span>痛点 {record.pain_points?.length || 0}</span>
+                          <span>目标 {record.goals?.length || 0}</span>
+                        </div>
+                        <div className="mobile-record-actions"><Button type="primary" icon={<EyeOutlined />} onClick={() => navigate(`/customer-projects/${record.id}`)}>进入案卷</Button></div>
+                      </article>
+                    ))}
+                  </div>
+                  {projects.length > 10 ? <Pagination simple current={mobilePage} pageSize={10} total={projects.length} onChange={setMobilePage} /> : null}
+                </>
+              )}
+            /> : <AsyncState empty emptyDescription="暂无客户项目，先启动一个新交付"><span /></AsyncState>}
+          </Card>
+        </>
+      </AsyncState>
 
       <Modal
         title="启动新交付"

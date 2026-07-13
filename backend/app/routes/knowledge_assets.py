@@ -37,10 +37,21 @@ def list_knowledge_assets_route(
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
     limit: int = Query(default=100000, ge=1, le=100000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.list_assets(db, query, industry, topic, evidence_type, review_status, source_type, limit)
+    return service.list_assets(
+        db,
+        query,
+        industry,
+        topic,
+        evidence_type,
+        review_status,
+        source_type,
+        limit,
+        offset,
+    )
 
 
 @router.post("/knowledge-assets/intake", response_model=KnowledgeAssetResponse)

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Checkbox, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
@@ -43,32 +43,47 @@ const getResumeSummary = (record: any) => (
   || (record.parse_status === 'failed' ? getResumeParseErrorMessage(record.parse_error) : '等待模型分析')
 );
 
+const EMPTY_METRICS = { total: 0, success: 0, processing: 0, failed: 0, pending: 0 };
+
 const ResumesList: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [metrics, setMetrics] = useState(EMPTY_METRICS);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [searchName, setSearchName] = useState('');
   const [parseStatus, setParseStatus] = useState<string | undefined>(undefined);
+  const [activeSearchName, setActiveSearchName] = useState('');
+  const [activeParseStatus, setActiveParseStatus] = useState<string | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [mailSyncing, setMailSyncing] = useState(false);
   const [reparsingFailed, setReparsingFailed] = useState(false);
   const [batchReparsing, setBatchReparsing] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [mobilePage, setMobilePage] = useState(1);
   const navigate = useNavigate();
 
-  const fetchResumes = async (silent = false) => {
+  const fetchResumes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     if (!silent) setLoadError(null);
     try {
-      const params: any = { limit: 10000 };
-      if (searchName) params.candidate_name = searchName;
-      const res = await request.get('/resumes', { params }) as any[];
-      const filtered = parseStatus ? res.filter(item => item.parse_status === parseStatus) : res;
-      setData(filtered);
-      setMobilePage(1);
-      setPollingEnabled(res.some(item => item.parse_status === 'processing'));
+      const params: any = {
+        skip: (currentPage - 1) * pageSize,
+        limit: pageSize,
+      };
+      if (activeSearchName) params.candidate_name = activeSearchName;
+      if (activeParseStatus) params.parse_status = activeParseStatus;
+      const res = await request.get('/resumes/page', { params }) as {
+        items: any[];
+        total: number;
+        metrics: typeof EMPTY_METRICS;
+      };
+      setData(res.items || []);
+      setTotal(res.total || 0);
+      setMetrics(res.metrics || EMPTY_METRICS);
+      setPollingEnabled((res.metrics?.processing || 0) > 0);
     } catch (error) {
       if (!silent) {
         const errorMessage = getApiErrorMessage(error, '获取人才样本失败，请稍后重试');
@@ -78,11 +93,11 @@ const ResumesList: React.FC = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [activeParseStatus, activeSearchName, currentPage, pageSize]);
 
   useEffect(() => {
     fetchResumes();
-  }, []);
+  }, [fetchResumes]);
 
   useEffect(() => {
     if (pollingEnabled) {
@@ -98,13 +113,13 @@ const ResumesList: React.FC = () => {
         pollingRef.current = null;
       }
     };
-  }, [pollingEnabled, searchName, parseStatus]);
+  }, [fetchResumes, pollingEnabled]);
 
   const handleSyncResumeMail = async () => {
     setMailSyncing(true);
     try {
       const res = (await request.post('/resume-mail-import/sync', undefined, {
-        params: { limit: 1000 },
+        params: { limit: 200 },
         timeout: 240000,
       })) as any;
       const summary = `扫描 ${res.scanned_messages ?? 0}，导入 ${res.imported ?? 0}，跳过 ${res.skipped ?? 0}，失败 ${res.failed ?? 0}`;
@@ -140,7 +155,7 @@ const ResumesList: React.FC = () => {
   };
 
   const handleReparseFailed = () => {
-    const failedCount = data.filter(item => item.parse_status === 'failed').length;
+    const failedCount = metrics.failed;
     if (!failedCount) {
       message.info('当前没有失败的能力样本');
       return;
@@ -154,7 +169,7 @@ const ResumesList: React.FC = () => {
         setReparsingFailed(true);
         try {
           const res = await request.post('/resumes/reparse-failed', undefined, {
-            params: { limit: failedCount },
+            params: { limit: Math.min(failedCount, 100) },
           }) as any;
           message.success(`已提交 ${res.queued_count || 0} 份能力样本重新分析`);
           await fetchResumes();
@@ -246,10 +261,20 @@ const ResumesList: React.FC = () => {
     });
   };
 
-  const analyzedCount = data.filter(item => item.parse_status === 'success').length;
-  const failedCount = data.filter(item => item.parse_status === 'failed').length;
+  const analyzedCount = metrics.success;
+  const failedCount = metrics.failed;
   const projectCount = data.reduce((sum, item) => sum + getProjectCount(item), 0);
   const questionCount = data.reduce((sum, item) => sum + getQuestionCount(item), 0);
+  const applyFilters = () => {
+    const nextSearchName = searchName.trim();
+    if (currentPage === 1 && nextSearchName === activeSearchName && parseStatus === activeParseStatus) {
+      fetchResumes();
+      return;
+    }
+    setCurrentPage(1);
+    setActiveSearchName(nextSearchName);
+    setActiveParseStatus(parseStatus);
+  };
   const headerActions: MenuProps['items'] = [
     {
       key: 'sync-mail',
@@ -385,7 +410,7 @@ const ResumesList: React.FC = () => {
           <Card className="consulting-metric-card">
             <span className="metric-icon"><FileTextOutlined /></span>
             <Text type="secondary">样本总数</Text>
-            <strong>{data.length}</strong>
+            <strong>{metrics.total}</strong>
             <span>已入库能力样本</span>
           </Card>
           <Card className="consulting-metric-card">
@@ -398,13 +423,13 @@ const ResumesList: React.FC = () => {
             <span className="metric-icon"><ProjectOutlined /></span>
             <Text type="secondary">项目经历</Text>
             <strong>{projectCount}</strong>
-            <span>可复用项目素材</span>
+            <span>当前页可复用素材</span>
           </Card>
           <Card className="consulting-metric-card">
             <span className="metric-icon"><QuestionCircleOutlined /></span>
             <Text type="secondary">待处理失败</Text>
             <strong>{failedCount}</strong>
-            <span>{questionCount} 个追问已生成</span>
+            <span>当前页生成 {questionCount} 个追问</span>
           </Card>
         </div>
 
@@ -416,7 +441,7 @@ const ResumesList: React.FC = () => {
               prefix={<SearchOutlined />}
               value={searchName}
               onChange={event => setSearchName(event.target.value)}
-              onPressEnter={() => fetchResumes()}
+              onPressEnter={applyFilters}
               allowClear
               style={{ width: 220 }}
             />
@@ -432,16 +457,18 @@ const ResumesList: React.FC = () => {
                 { value: 'failed', label: '失败' },
               ]}
             />
-            <Button type="primary" onClick={() => fetchResumes()}>查询</Button>
+            <Button type="primary" onClick={applyFilters}>查询</Button>
             <Button onClick={() => {
               setSearchName('');
               setParseStatus(undefined);
-              fetchResumes();
+              setCurrentPage(1);
+              setActiveSearchName('');
+              setActiveParseStatus(undefined);
             }}>重置</Button>
             </div>
             <div className="data-toolbar-group">
             {!!selectedRowKeys.length && <Text type="secondary">已选 {selectedRowKeys.length} 份</Text>}
-            <Text type="secondary">已生成问题 {questionCount} 个</Text>
+            <Text type="secondary">当前页已生成问题 {questionCount} 个</Text>
             <Button
               icon={<ReloadOutlined />}
               loading={batchReparsing}
@@ -469,13 +496,24 @@ const ResumesList: React.FC = () => {
                   selectedRowKeys,
                   onChange: setSelectedRowKeys,
                 }}
-                pagination={{ pageSize: 10 }}
+                pagination={{
+                  current: currentPage,
+                  pageSize,
+                  total,
+                  showSizeChanger: true,
+                  pageSizeOptions: [10, 20, 50],
+                  onChange: (page, size) => {
+                    setCurrentPage(page);
+                    setPageSize(size);
+                    setSelectedRowKeys([]);
+                  },
+                }}
               />
             )}
             mobile={(
               <>
                 <div className="mobile-record-grid">
-                  {data.slice((mobilePage - 1) * 10, mobilePage * 10).map(record => {
+                  {data.map(record => {
                     const status = STATUS_MAP[record.parse_status] || { text: '待处理', color: 'default' };
                     const selected = selectedRowKeys.includes(record.id);
                     return (
@@ -508,14 +546,17 @@ const ResumesList: React.FC = () => {
                     );
                   })}
                 </div>
-                {data.length > 10 ? (
+                {total > pageSize ? (
                   <Pagination
                     className="mobile-data-pagination"
                     simple
-                    current={mobilePage}
-                    pageSize={10}
-                    total={data.length}
-                    onChange={setMobilePage}
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={total}
+                    onChange={page => {
+                      setCurrentPage(page);
+                      setSelectedRowKeys([]);
+                    }}
                   />
                 ) : null}
               </>

@@ -6,7 +6,7 @@ import {
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined
 } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -110,7 +110,7 @@ const OfferTemplates: React.FC = () => {
       setModalVisible(false);
       fetchTemplates();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '操作失败');
+      message.error(getApiErrorMessage(error, '操作失败'));
     }
   };
 
@@ -120,7 +120,7 @@ const OfferTemplates: React.FC = () => {
       message.success('模板删除成功');
       fetchTemplates();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '删除失败');
+      message.error(getApiErrorMessage(error, '删除失败'));
     }
   };
 

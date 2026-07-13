@@ -63,7 +63,7 @@ const splitLines = (value?: string) => {
     .filter(Boolean);
 };
 
-const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[\.\)、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
+const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[.、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
 
 const safeFileName = (value: string) => value.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80);
 

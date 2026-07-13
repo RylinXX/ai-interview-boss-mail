@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Empty, Input, Row, Segmented, Select, Space, Spin, Table, Tag, Typography, Tabs, Drawer, Form } from 'antd';
-import { ApartmentOutlined, BulbOutlined, FileTextOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined, DatabaseOutlined, EditOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import { App, Button, Card, Col, Empty, Input, Pagination, Row, Segmented, Space, Spin, Table, Tag, Typography, Tabs, Drawer, Form } from 'antd';
+import { ApartmentOutlined, BulbOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined, DatabaseOutlined, EditOutlined } from '@ant-design/icons';
+import request, { getApiErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader, ResponsiveDataView, SensitiveField } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text, Paragraph } = Typography;
+const { Text, Paragraph } = Typography;
 
 type ExperienceSummary = {
   resume_count: number;
@@ -29,6 +30,22 @@ type IndustrySummary = {
   project_count: number;
   work_count?: number;
   company_count?: number;
+};
+
+type ResumeMetrics = {
+  total: number;
+  success: number;
+  processing: number;
+  failed: number;
+  pending: number;
+};
+
+const EMPTY_RESUME_METRICS: ResumeMetrics = {
+  total: 0,
+  success: 0,
+  processing: 0,
+  failed: 0,
+  pending: 0,
 };
 
 const projectHasBusinessGap = (project: any) => {
@@ -63,10 +80,11 @@ const itemMatchesIndustry = (item: any, industryKey: string) => {
 
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
-  const [resumes, setResumes] = useState<any[]>([]);
+  const [resumeMetrics, setResumeMetrics] = useState<ResumeMetrics>(EMPTY_RESUME_METRICS);
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
   const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
@@ -74,11 +92,16 @@ const Dashboard: React.FC = () => {
   const [candidateKeyword, setCandidateKeyword] = useState('');
   const [workKeyword, setWorkKeyword] = useState('');
   const [activeTab, setActiveTab] = useState('projects');
+  const [projectMobilePage, setProjectMobilePage] = useState(1);
+  const [capabilityMobilePage, setCapabilityMobilePage] = useState(1);
+  const [workMobilePage, setWorkMobilePage] = useState(1);
 
   // 人机协同微标注 State
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [editType, setEditType] = useState<'project' | 'capability' | 'work' | null>(null);
   const [selectedResumeId, setSelectedResumeId] = useState<string | null>(null);
+  const [selectedResume, setSelectedResume] = useState<any | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
   const [editingProjectIndex, setEditingProjectIndex] = useState<number>(-1);
   const [editingWorkIndex, setEditingWorkIndex] = useState<number>(-1);
   const [aiLoading, setAiLoading] = useState(false);
@@ -90,20 +113,23 @@ const Dashboard: React.FC = () => {
   const fetchData = useCallback(async (initialLoad = false) => {
     if (initialLoad) {
       setLoading(true);
+      setLoadError(null);
     } else {
       setRefreshing(true);
     }
     try {
       const [resumeRes, summaryRes, projectRes] = await Promise.all([
-        request.get('/resumes'),
+        request.get('/resumes/metrics'),
         request.get('/resumes/experience-summary'),
         request.get('/resumes/project-library'),
       ]);
-      setResumes(resumeRes as any[]);
+      setResumeMetrics(resumeRes as ResumeMetrics);
       setSummary(summaryRes as ExperienceSummary);
       setProjectLibrary(projectRes as ProjectLibrary);
     } catch (error) {
-      message.error('获取方案工作台失败');
+      const errorMessage = getApiErrorMessage(error, '获取方案工作台失败，请稍后重试');
+      setLoadError(errorMessage);
+      message.error(errorMessage);
     } finally {
       if (initialLoad) {
         setLoading(false);
@@ -117,25 +143,17 @@ const Dashboard: React.FC = () => {
     fetchData(true);
   }, [fetchData]);
 
-  const projects = projectLibrary?.projects || [];
+  const projects = useMemo(() => projectLibrary?.projects || [], [projectLibrary?.projects]);
   const industrySummary = summary?.industry_summary || projectLibrary?.industry_summary || [];
   const activeIndustry = industrySummary.find(item => item.industry_key === industryScope);
   const normalizedKeyword = projectKeyword.trim().toLowerCase();
   const normalizedCandidateKeyword = candidateKeyword.trim().toLowerCase();
   const normalizedWorkKeyword = workKeyword.trim().toLowerCase();
   const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
-  const analyzed = resumes.filter(item => item.parse_status === 'success').length;
-  const processing = resumes.filter(item => item.parse_status === 'processing').length;
-  const failed = resumes.filter(item => item.parse_status === 'failed').length;
-  const completionRate = resumes.length ? Math.round((analyzed / resumes.length) * 100) : 0;
-
-  const industryOptions = useMemo(() => [
-    { label: `全部行业（${industrySummary.length || '不限'}）`, value: 'all' },
-    ...industrySummary.map(item => ({
-      label: `${item.industry_label}（${item.resume_count}人 / ${item.project_count}项目）`,
-      value: item.industry_key,
-    })),
-  ], [industrySummary]);
+  const analyzed = resumeMetrics.success;
+  const processing = resumeMetrics.processing;
+  const failed = resumeMetrics.failed;
+  const completionRate = resumeMetrics.total ? Math.round((analyzed / resumeMetrics.total) * 100) : 0;
 
   const filteredProjects = useMemo(
     () => projects
@@ -172,14 +190,6 @@ const Dashboard: React.FC = () => {
     [industryScope, normalizedWorkKeyword, summary?.work_experiences],
   );
 
-  if (loading) {
-    return (
-      <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
   const handleMetricCardClick = (tabKey: string, scope?: 'all' | 'gaps') => {
     setActiveTab(tabKey);
     if (scope) {
@@ -188,15 +198,19 @@ const Dashboard: React.FC = () => {
   };
 
   // 触发微标注编辑
-  const startEditProject = (record: any) => {
+  const startEditProject = async (record: any) => {
     setSelectedResumeId(record.resume_id);
+    setSelectedResume(null);
     setEditType('project');
     setAiResult('');
     setAiQuestion('');
 
-    const candidateResume = resumes.find(r => String(r.id) === String(record.resume_id));
-    if (candidateResume && candidateResume.parsed_data) {
-      const projs = candidateResume.parsed_data.project_experiences || [];
+    setDrawerVisible(true);
+    setDrawerLoading(true);
+    try {
+      const candidateResume = await request.get(`/resumes/${record.resume_id}`) as any;
+      setSelectedResume(candidateResume);
+      const projs = candidateResume.parsed_data?.project_experiences || [];
       const idx = projs.findIndex((p: any) => p.name === record.name);
       setEditingProjectIndex(idx);
 
@@ -206,12 +220,17 @@ const Dashboard: React.FC = () => {
         landing_ideas: Array.isArray(record.landing_ideas) ? record.landing_ideas.join('\n') : '',
         missing_evidence: Array.isArray(record.missing_evidence) ? record.missing_evidence.join(', ') : '',
       });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '读取人才样本详情失败'));
+      setDrawerVisible(false);
+    } finally {
+      setDrawerLoading(false);
     }
-    setDrawerVisible(true);
   };
 
-  const startEditCapability = (record: any) => {
+  const startEditCapability = async (record: any) => {
     setSelectedResumeId(record.resume_id);
+    setSelectedResume(null);
     setEditType('capability');
     setAiResult('');
     setAiQuestion('');
@@ -219,17 +238,30 @@ const Dashboard: React.FC = () => {
       logic_analysis: record.analysis || '',
     });
     setDrawerVisible(true);
+    setDrawerLoading(true);
+    try {
+      setSelectedResume(await request.get(`/resumes/${record.resume_id}`));
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '读取人才样本详情失败'));
+      setDrawerVisible(false);
+    } finally {
+      setDrawerLoading(false);
+    }
   };
 
-  const startEditWork = (record: any) => {
+  const startEditWork = async (record: any) => {
     setSelectedResumeId(record.resume_id);
+    setSelectedResume(null);
     setEditType('work');
     setAiResult('');
     setAiQuestion('');
 
-    const candidateResume = resumes.find(r => String(r.id) === String(record.resume_id));
-    if (candidateResume && candidateResume.parsed_data) {
-      const works = candidateResume.parsed_data.work_experiences || [];
+    setDrawerVisible(true);
+    setDrawerLoading(true);
+    try {
+      const candidateResume = await request.get(`/resumes/${record.resume_id}`) as any;
+      setSelectedResume(candidateResume);
+      const works = candidateResume.parsed_data?.work_experiences || [];
       const idx = works.findIndex((w: any) => w.company === record.company && w.role === record.role);
       setEditingWorkIndex(idx);
 
@@ -239,8 +271,12 @@ const Dashboard: React.FC = () => {
         summary: record.summary || '',
         capabilities: Array.isArray(record.capabilities) ? record.capabilities.join(', ') : '',
       });
+    } catch (error) {
+      message.error(getApiErrorMessage(error, '读取人才样本详情失败'));
+      setDrawerVisible(false);
+    } finally {
+      setDrawerLoading(false);
     }
-    setDrawerVisible(true);
   };
 
   // 调用 AI 智能增补
@@ -268,7 +304,7 @@ const Dashboard: React.FC = () => {
       } else {
         message.error('AI 补充生成失败，请重试');
       }
-    } catch (err) {
+    } catch {
       message.error('大语言模型接口调用失败');
     } finally {
       setAiLoading(false);
@@ -306,7 +342,7 @@ const Dashboard: React.FC = () => {
 
     try {
       const values = await form.validateFields();
-      const candidateResume = resumes.find(r => String(r.id) === String(selectedResumeId));
+      const candidateResume = selectedResume;
       if (!candidateResume) return;
 
       const parsedData = { ...(candidateResume.parsed_data || {}) };
@@ -346,7 +382,7 @@ const Dashboard: React.FC = () => {
         setDrawerVisible(false);
         fetchData(false);
       }
-    } catch (err) {
+    } catch {
       message.error('保存数据失败，请检查输入格式');
     }
   };
@@ -412,7 +448,7 @@ const Dashboard: React.FC = () => {
           <Text strong style={{ fontSize: '15px' }}>{text || '未命名项目'}</Text>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
             <Tag color={record.industry_color || 'default'} style={{ margin: 0 }}>{record.industry_label || '通用业务'}</Tag>
-            <Tag color="blue" style={{ margin: 0 }}>{record.candidate_name || '未识别样本'}</Tag>
+            <Tag color="blue" style={{ margin: 0 }}><SensitiveField value={record.candidate_name} /></Tag>
             {record.role && <Tag style={{ margin: 0 }}>{record.role}</Tag>}
           </div>
         </div>
@@ -460,7 +496,7 @@ const Dashboard: React.FC = () => {
       width: '25%',
       render: (value: string, record: any) => (
         <Space direction="vertical" size={4}>
-          <Text strong style={{ fontSize: '15px' }}>{value || '未识别样本'}</Text>
+          <Text strong style={{ fontSize: '15px' }}><SensitiveField value={value} /></Text>
           <Tag color={record.industry_color || 'default'} style={{ margin: 0 }}>{record.industry_label || '通用业务'}</Tag>
         </Space>
       ),
@@ -494,7 +530,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'candidate_name',
       key: 'candidate_name',
       width: '15%',
-      render: (value: string) => <Text strong>{value || '未识别样本'}</Text>,
+      render: (value: string) => <Text strong><SensitiveField value={value} /></Text>,
     },
     {
       title: '任职公司与角色',
@@ -545,21 +581,22 @@ const Dashboard: React.FC = () => {
     }
   ];
 
+  const projectMobileCurrent = Math.min(projectMobilePage, Math.max(1, Math.ceil(filteredProjects.length / 6)));
+  const capabilityMobileCurrent = Math.min(capabilityMobilePage, Math.max(1, Math.ceil(candidateRows.length / 6)));
+  const workMobileCurrent = Math.min(workMobilePage, Math.max(1, Math.ceil(workRows.length / 6)));
+
   return (
-    <div className="workbench-page dashboard-page" style={{ padding: '24px' }}>
-      {/* 头部精简 Hero 区 */}
-      <section className="consulting-hero" style={{ padding: '20px 24px', marginBottom: 20 }}>
-        <div className="consulting-hero-copy">
-          <span className="dossier-code" style={{ letterSpacing: '0.1em' }}>CONTROL CENTER</span>
-          <Title level={2} style={{ color: '#f7f2e8', margin: '4px 0 8px 0' }}>业务总览</Title>
-          <Text style={{ color: 'rgba(247, 242, 232, 0.85)', fontSize: '13px' }}>从邮箱候选人样本中智能化提取的项目打法、企业任职经历和能力逻辑，辅助跨行业分析。</Text>
-        </div>
-        <Space className="consulting-hero-actions">
-          <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)} style={{ background: 'transparent', color: '#f7f2e8', border: '1px solid rgba(247, 242, 232, 0.4)' }}>
-            刷新数据
-          </Button>
-        </Space>
-      </section>
+    <div className="workbench-page dashboard-page">
+      <ModulePageHeader
+        eyebrow={<><DatabaseOutlined /> 业务控制台</>}
+        title="业务总览"
+        description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
+        actions={<Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新数据</Button>}
+        steps={['样本入库', '结构解析', '证据补齐', '能力复用']}
+      />
+
+      <AsyncState loading={loading} error={loadError} onRetry={() => fetchData(true)}>
+        <>
 
       {/* 精准且支持互动的核心卡片区 */}
       <div className="consulting-metric-grid">
@@ -571,8 +608,8 @@ const Dashboard: React.FC = () => {
         >
           <span className="metric-icon" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff' }}><DatabaseOutlined /></span>
           <Text type="secondary">能力样本数</Text>
-          <strong>{resumes.length}</strong>
-          <span style={{ fontSize: '12px' }}>已入库的高级人才档案</span>
+          <strong>{resumeMetrics.total}</strong>
+          <span style={{ fontSize: '12px' }}>已入库的能力样本</span>
         </Card>
 
         <Card
@@ -603,7 +640,7 @@ const Dashboard: React.FC = () => {
           className="consulting-metric-card"
         >
           <span className="metric-icon" style={{ background: 'rgba(114, 46, 209, 0.1)', color: '#722ed1' }}><BulbOutlined /></span>
-          <Text type="secondary">简历解析成功率</Text>
+          <Text type="secondary">样本解析成功率</Text>
           <strong>{completionRate}%</strong>
           <span style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
             成功 <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{analyzed}</span> ·
@@ -613,7 +650,6 @@ const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      {/* 行业标签快捷胶囊过滤器 */}
       {industrySummary.length > 0 && (
         <Card style={{ marginBottom: 20, borderRadius: '8px' }} bodyStyle={{ padding: '12px 18px' }}>
           <Space align="center" style={{ display: 'flex', flexWrap: 'wrap' }} size={[8, 12]}>
@@ -698,17 +734,48 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {filteredProjects.length ? (
-                    <Table
-                      rowKey={(record) => record._rowKey}
-                      dataSource={filteredProjects}
-                      columns={projectColumns}
-                      expandable={{
-                        expandedRowRender: renderProjectDetail,
-                        rowExpandable: () => true,
-                      }}
-                      pagination={{ pageSize: 6, showSizeChanger: false }}
-                      tableLayout="fixed"
-                      size="middle"
+                    <ResponsiveDataView
+                      desktop={(
+                        <Table
+                          rowKey={(record) => record._rowKey}
+                          dataSource={filteredProjects}
+                          columns={projectColumns}
+                          expandable={{
+                            expandedRowRender: renderProjectDetail,
+                            rowExpandable: () => true,
+                          }}
+                          pagination={{ pageSize: 6, showSizeChanger: false }}
+                          tableLayout="fixed"
+                          scroll={{ x: 980 }}
+                          size="middle"
+                        />
+                      )}
+                      mobile={(
+                        <>
+                          <div className="mobile-record-grid">
+                            {filteredProjects.slice((projectMobileCurrent - 1) * 6, projectMobileCurrent * 6).map(record => (
+                              <article className="mobile-record-card" key={record._rowKey}>
+                                <div className="mobile-record-head">
+                                  <div className="mobile-record-title">
+                                    <strong>{record.name || '未命名项目'}</strong>
+                                    <span><SensitiveField value={record.candidate_name} /> · {record.role || '角色待补充'}</span>
+                                  </div>
+                                  <Tag color={record.industry_color || 'default'}>{record.industry_label || '通用业务'}</Tag>
+                                </div>
+                                <p className="mobile-record-summary">{record.business_model || record.problem || '商业模式待追问'}</p>
+                                <div className="mobile-record-meta">
+                                  <span>缺失证据 {record.missing_evidence?.length || 0}</span>
+                                  <span>落地方向 {record.landing_ideas?.length || 0}</span>
+                                </div>
+                                <div className="mobile-record-actions">
+                                  <Button icon={<EditOutlined />} onClick={() => startEditProject(record)}>修正与增补</Button>
+                                </div>
+                              </article>
+                            ))}
+                          </div>
+                          {filteredProjects.length > 6 ? <Pagination simple current={projectMobileCurrent} pageSize={6} total={filteredProjects.length} onChange={setProjectMobilePage} /> : null}
+                        </>
+                      )}
                     />
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={projects.length ? '没有匹配的行业或关键字项目' : '暂无项目经历'} />
@@ -733,19 +800,37 @@ const Dashboard: React.FC = () => {
                       prefix={<SearchOutlined />}
                       placeholder="搜索样本人选、底层商业逻辑..."
                       value={candidateKeyword}
-                      onChange={(event) => setCandidateKeyword(event.target.value)}
+                      onChange={(event) => {
+                        setCandidateKeyword(event.target.value);
+                        setCapabilityMobilePage(1);
+                      }}
                       style={{ width: 300 }}
                     />
                     <Text type="secondary" style={{ fontSize: '13px' }}><BulbOutlined /> 基于 AI 对简历样本提取的核心交付与论证能力链路</Text>
                   </div>
 
                   {candidateRows.length ? (
-                    <Table
-                      rowKey={(record) => record._rowKey}
-                      dataSource={candidateRows}
-                      columns={candidateColumns}
-                      pagination={{ pageSize: 6, showSizeChanger: false }}
-                      size="middle"
+                    <ResponsiveDataView
+                      desktop={<Table rowKey={(record) => record._rowKey} dataSource={candidateRows} columns={candidateColumns} pagination={{ pageSize: 6, showSizeChanger: false }} scroll={{ x: 820 }} size="middle" />}
+                      mobile={(
+                        <>
+                          <div className="mobile-record-grid">
+                            {candidateRows.slice((capabilityMobileCurrent - 1) * 6, capabilityMobileCurrent * 6).map(record => (
+                              <article className="mobile-record-card" key={record._rowKey}>
+                                <div className="mobile-record-head">
+                                  <div className="mobile-record-title">
+                                    <strong><SensitiveField value={record.candidate_name} /></strong>
+                                    <span>{record.industry_label || '通用业务'}</span>
+                                  </div>
+                                </div>
+                                <p className="mobile-record-summary">{record.analysis || '暂无逻辑分析'}</p>
+                                <div className="mobile-record-actions"><Button icon={<EditOutlined />} onClick={() => startEditCapability(record)}>修正逻辑</Button></div>
+                              </article>
+                            ))}
+                          </div>
+                          {candidateRows.length > 6 ? <Pagination simple current={capabilityMobileCurrent} pageSize={6} total={candidateRows.length} onChange={setCapabilityMobilePage} /> : null}
+                        </>
+                      )}
                     />
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无匹配的人才能力逻辑" />
@@ -770,19 +855,39 @@ const Dashboard: React.FC = () => {
                       prefix={<SearchOutlined />}
                       placeholder="搜索样本、公司、职位、行业经验、技术栈等..."
                       value={workKeyword}
-                      onChange={(event) => setWorkKeyword(event.target.value)}
+                      onChange={(event) => {
+                        setWorkKeyword(event.target.value);
+                        setWorkMobilePage(1);
+                      }}
                       style={{ width: 320 }}
                     />
                     <Text type="secondary" style={{ fontSize: '13px' }}>提炼多位高管及骨干经历，证明“做过类似业务，有过类似产出”</Text>
                   </div>
 
                   {workRows.length ? (
-                    <Table
-                      rowKey={(record) => record._rowKey}
-                      dataSource={workRows}
-                      columns={workColumns}
-                      pagination={{ pageSize: 6, showSizeChanger: false }}
-                      size="middle"
+                    <ResponsiveDataView
+                      desktop={<Table rowKey={(record) => record._rowKey} dataSource={workRows} columns={workColumns} pagination={{ pageSize: 6, showSizeChanger: false }} scroll={{ x: 980 }} size="middle" />}
+                      mobile={(
+                        <>
+                          <div className="mobile-record-grid">
+                            {workRows.slice((workMobileCurrent - 1) * 6, workMobileCurrent * 6).map(record => (
+                              <article className="mobile-record-card" key={record._rowKey}>
+                                <div className="mobile-record-head">
+                                  <div className="mobile-record-title">
+                                    <strong>{record.company || '未命名公司'}</strong>
+                                    <span><SensitiveField value={record.candidate_name} /> · {record.role || '角色待补充'}</span>
+                                  </div>
+                                  <Tag color={record.industry_color || 'default'}>{record.industry_label || '通用业务'}</Tag>
+                                </div>
+                                <p className="mobile-record-summary">{record.summary || '暂无概要'}</p>
+                                <div className="mobile-record-meta"><span>能力标签 {record.capabilities?.length || 0}</span></div>
+                                <div className="mobile-record-actions"><Button icon={<EditOutlined />} onClick={() => startEditWork(record)}>修正经历</Button></div>
+                              </article>
+                            ))}
+                          </div>
+                          {workRows.length > 6 ? <Pagination simple current={workMobileCurrent} pageSize={6} total={workRows.length} onChange={setWorkMobilePage} /> : null}
+                        </>
+                      )}
                     />
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无匹配的公司任职经验" />
@@ -793,6 +898,8 @@ const Dashboard: React.FC = () => {
           ]}
         />
       </Card>
+        </>
+      </AsyncState>
 
       {/* 人机协同微标注侧边抽屉 */}
       <Drawer
@@ -816,6 +923,7 @@ const Dashboard: React.FC = () => {
           </Space>
         }
       >
+        <Spin spinning={drawerLoading}>
         <Form form={form} layout="vertical" requiredMark={false}>
           {editType === 'project' && (
             <>
@@ -900,6 +1008,7 @@ const Dashboard: React.FC = () => {
             )}
           </Card>
         )}
+        </Spin>
       </Drawer>
     </div>
   );

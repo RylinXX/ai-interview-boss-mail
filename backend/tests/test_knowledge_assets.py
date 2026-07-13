@@ -55,6 +55,47 @@ def test_list_knowledge_assets_returns_all_requested_assets_and_filters_before_l
     assert filtered["items"][0]["id"] == str(target.id)
 
 
+def test_list_knowledge_assets_paginates_and_returns_filter_metrics(
+    client, admin_auth_headers, db
+):
+    base_time = datetime(2026, 2, 1, 0, 0, 0)
+    for index in range(5):
+        db.add(
+            KnowledgeAsset(
+                title=f"Paged evidence {index}",
+                source_type="company_case",
+                raw_text="verified evidence",
+                industry_tags=["manufacturing"],
+                business_topic_tags=["operations"],
+                evidence_type_tags=["case"],
+                evidence_strength_score=80 if index < 3 else 30,
+                confidence_score=85 if index < 2 else 40,
+                manual_review_status="reviewed" if index < 4 else "unreviewed",
+                created_at=base_time + timedelta(minutes=index),
+                updated_at=base_time + timedelta(minutes=index),
+            )
+        )
+    db.commit()
+
+    response = client.get(
+        "/api/knowledge-assets",
+        headers=admin_auth_headers,
+        params={"industry": "manufacturing", "limit": 2, "offset": 2},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 5
+    assert len(payload["items"]) == 2
+    assert payload["items"][0]["title"] == "Paged evidence 2"
+    assert payload["metrics"] == {
+        "asset_total": 5,
+        "reviewed": 4,
+        "evidence_ready": 3,
+        "high_confidence": 2,
+    }
+
+
 def test_upload_knowledge_asset_file_returns_chunk_provenance(
     client, admin_auth_headers, monkeypatch
 ):

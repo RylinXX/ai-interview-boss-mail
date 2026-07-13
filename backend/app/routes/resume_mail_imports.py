@@ -16,7 +16,10 @@ def sync_resume_mail_import(
     db: Session = Depends(get_db),
     _current_user=Depends(check_roles([UserRole.ADMIN, UserRole.HR])),
 ):
-    safe_limit = min(max(int(limit or 1000), 1), 10000)
+    # A mailbox sync is intentionally bounded so a manual action cannot hold a
+    # web worker for an unbounded amount of time. Larger backfills should be
+    # processed by the scheduled importer in multiple batches.
+    safe_limit = min(max(int(limit or 100), 1), 200)
     try:
         summary = ResumeMailImportService().sync_once(db, limit=safe_limit, require_enabled=False)
     except ValueError as exc:

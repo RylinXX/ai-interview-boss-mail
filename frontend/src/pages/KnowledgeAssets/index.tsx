@@ -52,6 +52,21 @@ type KnowledgeAssetListResponse = {
   industry_tags: string[];
   business_topic_tags: string[];
   evidence_type_tags: string[];
+  metrics?: {
+    asset_total: number;
+    reviewed: number;
+    evidence_ready: number;
+    high_confidence: number;
+  };
+};
+
+type AssetFilters = {
+  query?: string;
+  industry?: string;
+  topic?: string;
+  evidenceType?: string;
+  reviewStatus?: string;
+  sourceType?: string;
 };
 
 const reviewStatusMeta: Record<ReviewStatus, { label: string; color: string }> = {
@@ -108,6 +123,13 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assets, setAssets] = useState<KnowledgeAsset[]>([]);
+  const [total, setTotal] = useState(0);
+  const [serverMetrics, setServerMetrics] = useState({
+    asset_total: 0,
+    reviewed: 0,
+    evidence_ready: 0,
+    high_confidence: 0,
+  });
   const [taxonomy, setTaxonomy] = useState({
     industry_tags: [] as string[],
     business_topic_tags: [] as string[],
@@ -119,6 +141,7 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [evidenceType, setEvidenceType] = useState<string>();
   const [reviewStatus, setReviewStatus] = useState<string>();
   const [sourceType, setSourceType] = useState<string>();
+  const [activeFilters, setActiveFilters] = useState<AssetFilters>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
 
@@ -128,22 +151,29 @@ const KnowledgeAssetsPage: React.FC = () => {
     try {
       const res = await request.get('/knowledge-assets', {
         params: {
-          query: query || undefined,
-          industry,
-          topic,
-          evidence_type: evidenceType,
-          review_status: reviewStatus,
-          source_type: sourceType,
-          limit: 100000,
+          query: activeFilters.query || undefined,
+          industry: activeFilters.industry,
+          topic: activeFilters.topic,
+          evidence_type: activeFilters.evidenceType,
+          review_status: activeFilters.reviewStatus,
+          source_type: activeFilters.sourceType,
+          limit: pageSize,
+          offset: (currentPage - 1) * pageSize,
         },
       }) as KnowledgeAssetListResponse;
       setAssets(res.items || []);
+      setTotal(res.total || 0);
+      setServerMetrics(res.metrics || {
+        asset_total: res.total || 0,
+        reviewed: 0,
+        evidence_ready: 0,
+        high_confidence: 0,
+      });
       setTaxonomy({
         industry_tags: res.industry_tags || [],
         business_topic_tags: res.business_topic_tags || [],
         evidence_type_tags: res.evidence_type_tags || [],
       });
-      setCurrentPage(1);
     } catch (error) {
       const errorMessage = getApiErrorMessage(error, '获取知识资产失败，请稍后重试');
       setLoadError(errorMessage);
@@ -151,28 +181,37 @@ const KnowledgeAssetsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [evidenceType, industry, message, query, reviewStatus, sourceType, topic]);
+  }, [activeFilters, currentPage, message, pageSize]);
 
   useEffect(() => {
     fetchAssets();
   }, [fetchAssets]);
 
   const metrics = useMemo(() => {
-    const reviewed = assets.filter(item => item.manual_review_status === 'reviewed').length;
-    const highConfidence = assets.filter(item => (item.confidence_score || 0) >= 70).length;
-    const evidenceReady = assets.filter(item => (item.evidence_strength_score || 0) >= 60).length;
     return [
-      { label: '资产总量', value: assets.length, hint: '当前筛选结果', icon: <DatabaseOutlined /> },
-      { label: '已复核', value: reviewed, hint: '可优先引用', icon: <AuditOutlined /> },
-      { label: '强证据', value: evidenceReady, hint: '证据评分不低于60', icon: <SafetyCertificateOutlined /> },
-      { label: '高置信', value: highConfidence, hint: '置信度不低于70', icon: <TagsOutlined /> },
+      { label: '资产总量', value: serverMetrics.asset_total, hint: '当前筛选结果', icon: <DatabaseOutlined /> },
+      { label: '已复核', value: serverMetrics.reviewed, hint: '可优先引用', icon: <AuditOutlined /> },
+      { label: '强证据', value: serverMetrics.evidence_ready, hint: '证据评分不低于60', icon: <SafetyCertificateOutlined /> },
+      { label: '高置信', value: serverMetrics.high_confidence, hint: '置信度不低于70', icon: <TagsOutlined /> },
     ];
-  }, [assets]);
+  }, [serverMetrics]);
 
-  const visibleAssets = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return assets.slice(start, start + pageSize);
-  }, [assets, currentPage, pageSize]);
+  const applyFilters = () => {
+    const nextFilters = {
+      query: query.trim() || undefined,
+      industry,
+      topic,
+      evidenceType,
+      reviewStatus,
+      sourceType,
+    };
+    if (currentPage === 1 && JSON.stringify(nextFilters) === JSON.stringify(activeFilters)) {
+      fetchAssets();
+      return;
+    }
+    setCurrentPage(1);
+    setActiveFilters(nextFilters);
+  };
 
   const resetFilters = () => {
     setQuery('');
@@ -182,7 +221,17 @@ const KnowledgeAssetsPage: React.FC = () => {
     setReviewStatus(undefined);
     setSourceType(undefined);
     setCurrentPage(1);
+    setActiveFilters({});
   };
+
+  const selectedFilters = [
+    activeFilters.query ? `关键词：${activeFilters.query}` : null,
+    activeFilters.industry ? `行业：${activeFilters.industry}` : null,
+    activeFilters.topic ? `主题：${activeFilters.topic}` : null,
+    activeFilters.evidenceType ? `证据：${activeFilters.evidenceType}` : null,
+    activeFilters.reviewStatus ? `复核：${reviewStatusMeta[activeFilters.reviewStatus as ReviewStatus]?.label || activeFilters.reviewStatus}` : null,
+    activeFilters.sourceType ? `来源：${sourceTypeLabel[activeFilters.sourceType] || activeFilters.sourceType}` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="knowledge-assets-page workbench-page">
@@ -214,7 +263,7 @@ const KnowledgeAssetsPage: React.FC = () => {
             placeholder="搜索标题、摘要或原文"
             value={query}
             onChange={event => setQuery(event.target.value)}
-            onPressEnter={fetchAssets}
+            onPressEnter={applyFilters}
           />
           <Select
             allowClear
@@ -255,15 +304,22 @@ const KnowledgeAssetsPage: React.FC = () => {
             onChange={setSourceType}
           />
           <Space>
-            <Button type="primary" icon={<FileSearchOutlined />} onClick={fetchAssets}>检索</Button>
+            <Button type="primary" icon={<FileSearchOutlined />} onClick={applyFilters}>检索</Button>
             <Button onClick={resetFilters}>重置</Button>
           </Space>
         </div>
 
+        {selectedFilters.length ? (
+          <div className="knowledge-selected-filters" aria-label="当前筛选条件">
+            <Text type="secondary">已选条件</Text>
+            <Space wrap size={[4, 4]}>{selectedFilters.map(item => <Tag key={item}>{item}</Tag>)}</Space>
+          </div>
+        ) : null}
+
         {assets.length ? (
           <>
             <div className="knowledge-asset-card-grid" aria-busy={loading}>
-              {visibleAssets.map(record => (
+              {assets.map(record => (
                 <button
                   type="button"
                   className="knowledge-asset-tile"
@@ -339,7 +395,7 @@ const KnowledgeAssetsPage: React.FC = () => {
               <Pagination
                 current={currentPage}
                 pageSize={pageSize}
-                total={assets.length}
+                total={total}
                 showSizeChanger
                 pageSizeOptions={[6, 9, 12, 18]}
                 onChange={(page, size) => {

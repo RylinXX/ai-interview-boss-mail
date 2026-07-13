@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Card, Button, Result, Spin, Descriptions, Input, Modal, DatePicker, message, Typography, Divider, Tag } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined, MailOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -65,7 +65,7 @@ const OfferConfirm: React.FC = () => {
         setAcceptedSalary(response.salary_monthly);
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || '获取Offer信息失败');
+      setError(getApiErrorMessage(err, '获取 Offer 信息失败'));
     } finally {
       setLoading(false);
     }
@@ -94,7 +94,7 @@ const OfferConfirm: React.FC = () => {
         message: response.message
       });
     } catch (err: any) {
-      message.error(err.response?.data?.detail || '操作失败，请稍后重试');
+      message.error(getApiErrorMessage(err, '操作失败，请稍后重试'));
     } finally {
       setSubmitting(false);
     }

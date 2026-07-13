@@ -122,3 +122,67 @@ def test_reparse_failed_resumes_requeues_without_position(
 
     db.refresh(failed_resume)
     assert failed_resume.parse_status == "processing"
+
+
+def test_resume_page_and_metrics_apply_server_side_filters(
+    client, admin_auth_headers, db, test_position
+):
+    resumes = [
+        Resume(
+            id=uuid4(),
+            candidate_name="产品经理甲",
+            position_id=test_position.id,
+            file_path="uploads/resumes/pm-a.pdf",
+            parse_status="success",
+            status=ResumeStatus.PENDING_REVIEW,
+            screening_result=ScreeningResult.PASSED,
+        ),
+        Resume(
+            id=uuid4(),
+            candidate_name="产品经理乙",
+            position_id=test_position.id,
+            file_path="uploads/resumes/pm-b.pdf",
+            parse_status="failed",
+            status=ResumeStatus.PENDING_SCREENING,
+            screening_result=ScreeningResult.PENDING,
+        ),
+        Resume(
+            id=uuid4(),
+            candidate_name="销售顾问",
+            position_id=test_position.id,
+            file_path="uploads/resumes/sales.pdf",
+            parse_status="processing",
+            status=ResumeStatus.PENDING_SCREENING,
+            screening_result=ScreeningResult.PENDING,
+        ),
+    ]
+    db.add_all(resumes)
+    db.commit()
+
+    page_response = client.get(
+        "/api/resumes/page",
+        headers=admin_auth_headers,
+        params={"candidate_name": "产品经理", "parse_status": "failed", "limit": 1},
+    )
+    metrics_response = client.get(
+        "/api/resumes/metrics",
+        headers=admin_auth_headers,
+    )
+
+    assert page_response.status_code == 200
+    page = page_response.json()
+    assert page["total"] == 1
+    assert len(page["items"]) == 1
+    assert page["items"][0]["candidate_name"] == "产品经理乙"
+    assert page["metrics"]["total"] == 2
+    assert page["metrics"]["success"] == 1
+    assert page["metrics"]["failed"] == 1
+
+    assert metrics_response.status_code == 200
+    assert metrics_response.json() == {
+        "total": 3,
+        "success": 1,
+        "processing": 1,
+        "failed": 1,
+        "pending": 0,
+    }

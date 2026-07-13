@@ -79,14 +79,14 @@ const AppLayout: React.FC = () => {
     setNotificationLoading(true);
     try {
       const [resumesResult, systemResult, mailResult] = await Promise.allSettled([
-        request.get('/resumes'),
+        request.get('/resumes/metrics'),
         role === 'admin' ? request.get('/settings/system') : Promise.resolve(null),
         role === 'admin' ? request.get('/settings/mail') : Promise.resolve(null),
       ]);
 
-      const resumes = resumesResult.status === 'fulfilled' && Array.isArray(resumesResult.value)
-        ? resumesResult.value as any[]
-        : [];
+      const resumeMetrics = resumesResult.status === 'fulfilled'
+        ? resumesResult.value as { success?: number; processing?: number; failed?: number }
+        : {};
       const systemSettings = systemResult.status === 'fulfilled' ? systemResult.value as any : null;
       const mailSettings = mailResult.status === 'fulfilled' ? mailResult.value as any : null;
 
@@ -105,7 +105,7 @@ const AppLayout: React.FC = () => {
         key: 'resume-parse-failed',
         title: '能力样本解析失败',
         description: '点击批量重新提交到模型解析队列',
-        count: resumes.filter(item => item.parse_status === 'failed').length,
+        count: resumeMetrics.failed || 0,
         path: '/resumes',
         tone: 'danger',
         icon: <WarningOutlined />,
@@ -115,7 +115,7 @@ const AppLayout: React.FC = () => {
         key: 'resume-processing',
         title: '能力样本分析中',
         description: '模型正在读取文件并整理行业、项目和方法论',
-        count: resumes.filter(item => item.parse_status === 'processing').length,
+        count: resumeMetrics.processing || 0,
         path: '/resumes',
         tone: 'info',
         icon: <ReloadOutlined />,
@@ -124,7 +124,7 @@ const AppLayout: React.FC = () => {
         key: 'resume-analyzed',
         title: '邮箱样本已完成',
         description: '已同步为能力证据，可进入知识资产库复核',
-        count: resumes.filter(item => item.parse_status === 'success').length,
+        count: resumeMetrics.success || 0,
         path: '/resumes',
         tone: 'success',
         icon: <CheckCircleOutlined />,
@@ -168,7 +168,7 @@ const AppLayout: React.FC = () => {
         onOk: async () => {
           try {
             const res = await request.post('/resumes/reparse-failed', undefined, {
-              params: { limit: item.count },
+              params: { limit: Math.min(item.count, 100) },
             }) as any;
             message.success(`已提交 ${res.queued_count || 0} 份能力样本重新解析`);
             navigate('/resumes');

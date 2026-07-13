@@ -18,7 +18,7 @@ import ReactFlow, {
 } from 'reactflow';
 import type { Node, Edge, Connection, NodeProps } from 'reactflow';
 import 'reactflow/dist/style.css';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -307,7 +307,7 @@ const WorkflowEditor: React.FC = () => {
         message.error('执行失败');
       }
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '执行失败');
+      message.error(getApiErrorMessage(e, '执行失败'));
     } finally {
       setExecuting(false);
     }

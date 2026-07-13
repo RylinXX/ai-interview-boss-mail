@@ -1407,6 +1407,50 @@ def get_resumes(db: Session, skip: int = 0, limit: int = 100, candidate_name: st
 
     return query.offset(skip).limit(limit).all()
 
+
+def get_resume_metrics(db: Session, candidate_name: str = None) -> Dict[str, int]:
+    query = db.query(Resume)
+    if candidate_name:
+        query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
+
+    counts = {
+        str(parse_status or "pending"): int(count)
+        for parse_status, count in query.with_entities(
+            Resume.parse_status,
+            func.count(Resume.id),
+        ).group_by(Resume.parse_status).all()
+    }
+    total = sum(counts.values())
+    return {
+        "total": total,
+        "success": counts.get("success", 0),
+        "processing": counts.get("processing", 0),
+        "failed": counts.get("failed", 0),
+        "pending": counts.get("pending", 0),
+    }
+
+
+def get_resume_page(
+    db: Session,
+    skip: int = 0,
+    limit: int = 20,
+    candidate_name: str = None,
+    parse_status: str = None,
+) -> Dict[str, Any]:
+    query = db.query(Resume).options(joinedload(Resume.position))
+    if candidate_name:
+        query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
+    if parse_status:
+        query = query.filter(Resume.parse_status == parse_status)
+
+    total = query.count()
+    items = query.order_by(Resume.created_at.desc()).offset(max(skip, 0)).limit(limit).all()
+    return {
+        "items": items,
+        "total": total,
+        "metrics": get_resume_metrics(db, candidate_name=candidate_name),
+    }
+
 def get_resume(db: Session, resume_id: UUID):
     return db.query(Resume).options(joinedload(Resume.position)).filter(Resume.id == resume_id).first()
 

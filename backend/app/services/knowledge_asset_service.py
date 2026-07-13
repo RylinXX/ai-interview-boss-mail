@@ -633,8 +633,10 @@ def list_assets(
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
     limit: int = 100,
+    offset: int = 0,
 ) -> Dict[str, Any]:
     safe_limit = max(1, min(int(limit or MAX_KNOWLEDGE_ASSET_LIST_LIMIT), MAX_KNOWLEDGE_ASSET_LIST_LIMIT))
+    safe_offset = max(int(offset or 0), 0)
     q = db.query(KnowledgeAsset)
     if source_type:
         q = q.filter(KnowledgeAsset.source_type == source_type)
@@ -643,25 +645,63 @@ def list_assets(
     if query:
         like = f"%{query}%"
         q = q.filter(or_(KnowledgeAsset.title.ilike(like), KnowledgeAsset.summary.ilike(like), KnowledgeAsset.raw_text.ilike(like)))
+    taxonomy_rows = q.with_entities(
+        KnowledgeAsset.industry_tags,
+        KnowledgeAsset.business_topic_tags,
+        KnowledgeAsset.evidence_type_tags,
+    ).all()
+    industry_tags = _unique(tag for row in taxonomy_rows for tag in (row[0] or []))
+    business_topic_tags = _unique(tag for row in taxonomy_rows for tag in (row[1] or []))
+    evidence_type_tags = _unique(tag for row in taxonomy_rows for tag in (row[2] or []))
+
     needs_tag_filter = bool(industry or topic or evidence_type)
-    query_limit = MAX_KNOWLEDGE_ASSET_LIST_LIMIT if needs_tag_filter else safe_limit
-    rows = q.order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc()).limit(query_limit).all()
-    filtered = []
-    for row in rows:
-        if industry and industry not in (row.industry_tags or []):
-            continue
-        if topic and topic not in (row.business_topic_tags or []):
-            continue
-        if evidence_type and evidence_type not in (row.evidence_type_tags or []):
-            continue
-        filtered.append(row)
-    filtered = filtered[:safe_limit]
+    if needs_tag_filter:
+        # The tag columns are JSON on both SQLite and PostgreSQL. Filtering in
+        # Python keeps the semantics identical across both databases; only the
+        # requested page is returned to the client.
+        candidates = q.order_by(
+            KnowledgeAsset.updated_at.desc(),
+            KnowledgeAsset.created_at.desc(),
+        ).limit(MAX_KNOWLEDGE_ASSET_LIST_LIMIT).all()
+        filtered = []
+        for row in candidates:
+            if industry and industry not in (row.industry_tags or []):
+                continue
+            if topic and topic not in (row.business_topic_tags or []):
+                continue
+            if evidence_type and evidence_type not in (row.evidence_type_tags or []):
+                continue
+            filtered.append(row)
+        total = len(filtered)
+        metric_rows = filtered
+        items = filtered[safe_offset:safe_offset + safe_limit]
+        reviewed = sum(1 for row in metric_rows if row.manual_review_status == KnowledgeAssetReviewStatus.REVIEWED)
+        evidence_ready = sum(1 for row in metric_rows if float(row.evidence_strength_score or 0) >= 60)
+        high_confidence = sum(1 for row in metric_rows if float(row.confidence_score or 0) >= 70)
+    else:
+        total = q.count()
+        reviewed = q.filter(
+            KnowledgeAsset.manual_review_status == KnowledgeAssetReviewStatus.REVIEWED
+        ).count()
+        evidence_ready = q.filter(KnowledgeAsset.evidence_strength_score >= 60).count()
+        high_confidence = q.filter(KnowledgeAsset.confidence_score >= 70).count()
+        items = q.order_by(
+            KnowledgeAsset.updated_at.desc(),
+            KnowledgeAsset.created_at.desc(),
+        ).offset(safe_offset).limit(safe_limit).all()
+
     return {
-        "items": filtered,
-        "total": len(filtered),
-        "industry_tags": _unique(tag for item in filtered for tag in (item.industry_tags or [])),
-        "business_topic_tags": _unique(tag for item in filtered for tag in (item.business_topic_tags or [])),
-        "evidence_type_tags": _unique(tag for item in filtered for tag in (item.evidence_type_tags or [])),
+        "items": items,
+        "total": total,
+        "industry_tags": industry_tags,
+        "business_topic_tags": business_topic_tags,
+        "evidence_type_tags": evidence_type_tags,
+        "metrics": {
+            "asset_total": total,
+            "reviewed": reviewed,
+            "evidence_ready": evidence_ready,
+            "high_confidence": high_confidence,
+        },
     }
 
 

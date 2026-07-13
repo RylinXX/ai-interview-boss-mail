@@ -6,7 +6,7 @@ import {
 import {
   CheckCircleOutlined, CloseCircleOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -63,7 +63,7 @@ const PublicReview: React.FC = () => {
         setComment(res.existing_review.comment || '');
       }
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '获取简历信息失败');
+      message.error(getApiErrorMessage(e, '获取简历信息失败'));
     } finally {
       setLoading(false);
     }
@@ -88,7 +88,7 @@ const PublicReview: React.FC = () => {
       message.success('审核已提交');
       fetchResume();
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '提交失败');
+      message.error(getApiErrorMessage(e, '提交失败'));
     } finally {
       setSubmitting(false);
     }

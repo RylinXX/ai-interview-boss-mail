@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, Descriptions, Button, InputNumber, Form, Input, Row, Col, Typography, message, Divider, Tag, Space, Spin, Modal, Popconfirm, Select, Collapse, Tooltip, List, Avatar, Progress } from 'antd';
 import { useParams, useNavigate } from 'react-router-dom';
 import { EditOutlined, DeleteOutlined, PlusOutlined, SaveOutlined, CloseOutlined, DownloadOutlined, FilePdfOutlined, FileWordOutlined, LeftOutlined, RightOutlined, CheckCircleOutlined, CheckCircleFilled, CaretRightOutlined, AudioOutlined, LoadingOutlined, ExpandOutlined, CompressOutlined, PlayCircleOutlined, UserOutlined, StopOutlined, ClockCircleOutlined } from '@ant-design/icons';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
 import { getMaximizedPdfPreviewUrl } from '../../utils/pdfPreview';
 
@@ -221,7 +221,7 @@ const InterviewScore: React.FC = () => {
       message.success('面试已开始');
       fetchInterview(id, true);
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '开始面试失败');
+      message.error(getApiErrorMessage(error, '开始面试失败'));
     } finally {
       setStartingInterview(false);
     }
@@ -244,7 +244,7 @@ const InterviewScore: React.FC = () => {
       setCancelReason('');
       navigate('/interviews');
     } catch (error: any) {
-      message.error(error?.response?.data?.detail || '取消面试失败');
+      message.error(getApiErrorMessage(error, '取消面试失败'));
     } finally {
       setCancelling(false);
     }

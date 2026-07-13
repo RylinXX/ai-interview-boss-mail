@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.models import KnowledgeAssetReviewStatus
 
@@ -109,6 +109,7 @@ class KnowledgeAssetListResponse(BaseModel):
     industry_tags: List[str] = []
     business_topic_tags: List[str] = []
     evidence_type_tags: List[str] = []
+    metrics: Dict[str, int] = Field(default_factory=dict)
 
 
 class KnowledgeAssetSearchRequest(BaseModel):

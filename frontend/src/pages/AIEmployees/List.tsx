@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { ModulePageHeader } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -184,11 +185,17 @@ const agentStageLabel: Record<string, string> = {
 };
 
 const agentRoleLabel: Record<string, string> = {
-  requirement_analyst: '需求分析 Agent',
-  evidence_researcher: '证据检索 Agent',
-  evidence_critic: '证据批评 Agent',
-  solution_writer: '方案撰写 Agent',
-  delivery_task_designer: '交付拆解 Agent',
+  requirement_analyst: '需求分析智能体',
+  evidence_researcher: '证据检索智能体',
+  evidence_critic: '证据审查智能体',
+  solution_writer: '方案撰写智能体',
+  delivery_task_designer: '交付拆解智能体',
+};
+
+const evidenceCheckStatusLabel: Record<string, string> = {
+  passed: '检查通过',
+  needs_review: '需要复核',
+  blocked: '证据不足',
 };
 
 const agentStepStatus = (status: string): 'wait' | 'process' | 'finish' | 'error' => {
@@ -383,23 +390,20 @@ const AIEmployeesList: React.FC = () => {
 
   return (
     <div className="ai-employees-page workbench-page">
-      <section className="consulting-hero employee-hero ai-chat-hero">
-        <div className="consulting-hero-copy">
-          <span className="dossier-code">Solution Agent</span>
-          <Title level={1}>方案 Agent</Title>
-          <Text>
-            输入客户真实需求，系统会从知识资产库检索报告、案例、样本和客户资料，生成带证据边界的方案，再拆出本次交付需要的 AI 执行员工和人工决策点。
-          </Text>
-        </div>
-        <Space className="consulting-hero-actions">
+      <ModulePageHeader
+        eyebrow={<><RobotOutlined /> 方案智能体</>}
+        title="方案 Agent"
+        description="输入客户真实需求，从知识资产库检索报告、案例、样本和客户资料，生成有证据边界的方案与执行任务。"
+        actions={<>
           <Button icon={<FileTextOutlined />} onClick={() => navigate('/customer-projects')}>
             客户案卷
           </Button>
           <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
             资料入库
           </Button>
-        </Space>
-      </section>
+        </>}
+        steps={['澄清需求', '检索证据', '生成方案', '人工复核']}
+      />
 
       <div className="consulting-metric-grid employee-metric-grid">
         <Card className="consulting-metric-card">
@@ -442,7 +446,7 @@ const AIEmployeesList: React.FC = () => {
             <div className="agent-history-strip">
               <Space wrap>
                 <Button size="small" type={!activeConversationId ? 'primary' : 'default'} onClick={startNewConversation}>
-                  New
+                  新对话
                 </Button>
                 {conversations.slice(0, 6).map(item => (
                   <Button
@@ -451,7 +455,7 @@ const AIEmployeesList: React.FC = () => {
                     type={activeConversationId === item.id ? 'primary' : 'default'}
                     onClick={() => openConversation(item.id)}
                   >
-                    {item.title || 'Conversation'}
+                    {item.title || '历史对话'}
                   </Button>
                 ))}
               </Space>
@@ -595,41 +599,41 @@ const AIEmployeesList: React.FC = () => {
               )}
             </Card>
 
-            <Card className="agent-self-check-card ai-side-card" title="Evidence self-check">
+            <Card className="agent-self-check-card ai-side-card" title="证据自检">
               {chatResult?.evidence_self_check ? (
                 <div className="agent-self-check">
                   <Space wrap>
                     <Tag color={chatResult.evidence_self_check.status === 'passed' ? 'green' : 'orange'}>
-                      {chatResult.evidence_self_check.status || 'needs_review'}
+                      {evidenceCheckStatusLabel[chatResult.evidence_self_check.status || 'needs_review'] || chatResult.evidence_self_check.status}
                     </Tag>
-                    <Tag>{chatResult.evidence_self_check.cited_solution_count ?? 0} cited</Tag>
-                    <Tag>{chatResult.evidence_self_check.uncited_solution_count ?? 0} uncited</Tag>
+                    <Tag>已引用 {chatResult.evidence_self_check.cited_solution_count ?? 0}</Tag>
+                    <Tag>未引用 {chatResult.evidence_self_check.uncited_solution_count ?? 0}</Tag>
                   </Space>
                   {(chatResult.unsupported_claims || []).length ? (
                     <div className="unsupported-claim-list">
                       {(chatResult.unsupported_claims || []).map((claim, index) => (
                         <section key={`${claim.name || index}`}>
-                          <Text strong>{claim.name || `Claim ${index + 1}`}</Text>
+                          <Text strong>{claim.name || `待核声明 ${index + 1}`}</Text>
                           <Paragraph>{claim.reason || claim.value || claim.scenario}</Paragraph>
                         </section>
                       ))}
                     </div>
                   ) : (
-                    <Text type="secondary">All solution directions are linked to retrieved evidence.</Text>
+                    <Text type="secondary">所有方案方向均已关联检索证据。</Text>
                   )}
                 </div>
               ) : (
-                <Text type="secondary">After generation, uncited solution claims will be listed here for review.</Text>
+                <Text type="secondary">生成方案后，未引用证据的声明会列在这里等待复核。</Text>
               )}
             </Card>
 
-            <Card className="agent-retrieval-card ai-side-card" title="RAG retrieval log">
+            <Card className="agent-retrieval-card ai-side-card" title="检索过程日志">
               {chatResult?.retrieval_log ? (
                 <div className="agent-retrieval-log">
                   <Space wrap>
-                    <Tag color="purple">{chatResult.retrieval_log.retrieval_mode || 'retrieval'}</Tag>
-                    <Tag>returned {chatResult.retrieval_log.returned_count ?? 0}</Tag>
-                    <Tag>compressed {chatResult.retrieval_log.context_compression?.total_chars ?? 0} chars</Tag>
+                    <Tag color="purple">模式：{chatResult.retrieval_log.retrieval_mode || '知识检索'}</Tag>
+                    <Tag>返回 {chatResult.retrieval_log.returned_count ?? 0} 条</Tag>
+                    <Tag>压缩后 {chatResult.retrieval_log.context_compression?.total_chars ?? 0} 字符</Tag>
                   </Space>
                   <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto', marginTop: 12 }}>
                     {JSON.stringify({

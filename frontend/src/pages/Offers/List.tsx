@@ -11,7 +11,7 @@ import {
   RedoOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -214,7 +214,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '创建失败');
+      message.error(getApiErrorMessage(error, '创建失败'));
     }
   };
 
@@ -232,7 +232,7 @@ const OffersList: React.FC = () => {
       editForm.resetFields();
       fetchOffers();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '更新失败');
+      message.error(getApiErrorMessage(error, '更新失败'));
     }
   };
 
@@ -246,7 +246,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '发送失败');
+      message.error(getApiErrorMessage(error, '发送失败'));
     }
   };
 
@@ -264,7 +264,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '操作失败');
+      message.error(getApiErrorMessage(error, '操作失败'));
     }
   };
 
@@ -278,7 +278,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '操作失败');
+      message.error(getApiErrorMessage(error, '操作失败'));
     }
   };
 
@@ -289,7 +289,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '撤回失败');
+      message.error(getApiErrorMessage(error, '撤回失败'));
     }
   };
 
@@ -300,7 +300,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '重新打开失败');
+      message.error(getApiErrorMessage(error, '重新打开失败'));
     }
   };
 
@@ -311,7 +311,7 @@ const OffersList: React.FC = () => {
       fetchOffers();
       fetchStats();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || '删除失败');
+      message.error(getApiErrorMessage(error, '删除失败'));
     }
   };
 

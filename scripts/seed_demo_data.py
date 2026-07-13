@@ -624,6 +624,9 @@ def seed_knowledge_assets(db, user_id, resumes: list[Resume]):
 
     assets: list[KnowledgeAsset] = []
     for index, (title, source_type, industries, topics, scenarios, capabilities, strength) in enumerate(asset_specs, start=1):
+        # Knowledge-asset scores are stored on the 0-100 scale used by the API
+        # and progress components, not as 0-1 ratios.
+        strength_score = round(strength * 100, 1)
         asset = KnowledgeAsset(
             title=f"{DEMO_PREFIX}{title}",
             source_type=source_type,
@@ -651,11 +654,11 @@ def seed_knowledge_assets(db, user_id, resumes: list[Resume]):
             does_not_prove=["不代表真实客户背书", "不替代正式验收数据"],
             applicable_conditions=["已有基础文档或历史记录", "客户愿意配合流程访谈"],
             migration_risks=["数据口径不一致会影响自动化效果", "历史材料质量不足时需要人工补齐"],
-            evidence_strength_score=strength,
-            data_verification_score=max(0.72, strength - 0.08),
-            commercial_value_score=max(0.76, strength - 0.03),
-            relevance_score=strength,
-            confidence_score=max(0.74, strength - 0.05),
+            evidence_strength_score=strength_score,
+            data_verification_score=round(max(0.72, strength - 0.08) * 100, 1),
+            commercial_value_score=round(max(0.76, strength - 0.03) * 100, 1),
+            relevance_score=strength_score,
+            confidence_score=round(max(0.74, strength - 0.05) * 100, 1),
             confidence_reason="演示数据，字段完整度高，适合检验页面布局和检索效果。",
             manual_review_status=KnowledgeAssetReviewStatus.REVIEWED
             if index <= 6

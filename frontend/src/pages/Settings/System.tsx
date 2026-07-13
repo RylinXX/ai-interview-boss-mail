@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Button, Card, Form, Input, Space, Typography, message, Result, Switch, InputNumber, Divider, Tabs, Alert, Tag, Tooltip, Select, Table } from 'antd';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
 import '../BusinessWorkbench.css';
 
@@ -208,7 +208,7 @@ const SystemSettingsPage: React.FC = () => {
       await fetchResumeMailSettings();
       message.success('能力样本邮箱导入配置已保存');
     } catch (e) {
-      message.error((e as any)?.response?.data?.detail || '保存能力样本邮箱导入配置失败');
+      message.error(getApiErrorMessage(e, '保存能力样本邮箱导入配置失败'));
     } finally {
       setResumeMailSaving(false);
     }
@@ -220,7 +220,7 @@ const SystemSettingsPage: React.FC = () => {
       await request.post('/settings/resume-mail-import/test');
       message.success('邮箱连接成功');
     } catch (e) {
-      message.error((e as any)?.response?.data?.detail || '邮箱连接失败');
+      message.error(getApiErrorMessage(e, '邮箱连接失败'));
     } finally {
       setResumeMailTesting(false);
     }
@@ -325,7 +325,7 @@ const SystemSettingsPage: React.FC = () => {
       } else if (status === 403) {
         message.error('无权限保存系统设置');
       } else if (status === 400) {
-        message.error((e as any)?.response?.data?.detail || '参数不合法');
+        message.error(getApiErrorMessage(e, '参数不合法'));
       } else {
         message.error('保存失败');
       }
@@ -361,7 +361,7 @@ const SystemSettingsPage: React.FC = () => {
       } else if (status === 403) {
         message.error('无权限保存邮件设置');
       } else if (status === 400) {
-        message.error((e as any)?.response?.data?.detail || '参数不合法');
+        message.error(getApiErrorMessage(e, '参数不合法'));
       } else {
         message.error('保存失败');
       }
@@ -416,7 +416,7 @@ const SystemSettingsPage: React.FC = () => {
     } catch (e) {
       const status = (e as any)?.response?.status;
       if (status === 400) {
-        message.error((e as any)?.response?.data?.detail || '邮件配置不完整或未启用');
+        message.error(getApiErrorMessage(e, '邮件配置不完整或未启用'));
       } else {
         message.error('测试失败');
       }

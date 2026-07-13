@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { App, Button, Card, Descriptions, Empty, Form, Input, InputNumber, Progress, Select, Space, Spin, Tag, Typography } from 'antd';
+import { App, Button, Card, Descriptions, Form, Input, InputNumber, Progress, Select, Space, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, FileTextOutlined, ReloadOutlined, SaveOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { AsyncState, ModulePageHeader } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Title, Text, Paragraph, Link } = Typography;
+const { Text, Paragraph, Link } = Typography;
 const { TextArea } = Input;
 
 type ReviewStatus = 'unreviewed' | 'reviewed' | 'needs_revision';
@@ -103,17 +104,21 @@ const KnowledgeAssetDetailPage: React.FC = () => {
   const [form] = Form.useForm();
   const [asset, setAsset] = useState<KnowledgeAsset | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const fetchAsset = useCallback(async () => {
     if (!id) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await request.get(`/knowledge-assets/${id}`) as KnowledgeAsset;
       setAsset(res);
       form.setFieldsValue(res);
     } catch (error) {
-      message.error(getApiErrorMessage(error, '获取知识资产详情失败'));
+      const errorMessage = getApiErrorMessage(error, '获取知识资产详情失败');
+      setLoadError(errorMessage);
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -156,41 +161,41 @@ const KnowledgeAssetDetailPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div style={{ display: 'grid', placeItems: 'center', height: '70vh' }}>
-        <Spin size="large" />
+      <div className="knowledge-assets-page workbench-page">
+        <ModulePageHeader eyebrow="知识资产复核" title="知识资产详情" description="正在读取资产正文、证据边界与来源信息。" />
+        <AsyncState loading><span /></AsyncState>
       </div>
     );
   }
 
   if (!asset) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="知识资产不存在" />;
+    return (
+      <div className="knowledge-assets-page workbench-page">
+        <ModulePageHeader eyebrow="知识资产复核" title="知识资产详情" description="当前资产无法读取。" actions={<Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/knowledge-assets')}>返回资产库</Button>} />
+        <AsyncState error={loadError} empty={!loadError} emptyDescription="知识资产不存在" onRetry={fetchAsset}><span /></AsyncState>
+      </div>
+    );
   }
 
   return (
     <div className="knowledge-assets-page workbench-page">
-      <section className="page-header">
-        <div>
-          <Button className="dossier-back" type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/knowledge-assets')} />
-          <Space wrap>
-            <Title level={2}>{asset.title}</Title>
-            <Tag color={reviewStatusMeta[asset.manual_review_status]?.color || 'default'}>
-              {reviewStatusMeta[asset.manual_review_status]?.label || asset.manual_review_status}
-            </Tag>
-          </Space>
-          <Text type="secondary">{sourceTypeLabel[asset.source_type] || asset.source_type}</Text>
-        </div>
-        <Space wrap>
+      <ModulePageHeader
+        eyebrow={<><SafetyCertificateOutlined /> 知识资产复核</>}
+        title={asset.title}
+        description={<Space wrap><span>{sourceTypeLabel[asset.source_type] || asset.source_type}</span><Tag color={reviewStatusMeta[asset.manual_review_status]?.color || 'default'}>{reviewStatusMeta[asset.manual_review_status]?.label || asset.manual_review_status}</Tag></Space>}
+        actions={<>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/knowledge-assets')}>返回资产库</Button>
           {asset.source_resume_id && asset.source_confidentiality !== 'anonymized' ? (
             <Button icon={<FileTextOutlined />} onClick={() => navigate(`/resumes/${asset.source_resume_id}`)}>
-              来源简历
+              来源样本
             </Button>
           ) : null}
           <Button icon={<ReloadOutlined />} onClick={fetchAsset} loading={loading}>刷新</Button>
           <Button type="primary" icon={<SaveOutlined />} onClick={saveReview} loading={saving}>
             保存复核
           </Button>
-        </Space>
-      </section>
+        </>}
+      />
 
       <div className="knowledge-detail-grid">
         <div className="knowledge-detail-main">
@@ -211,7 +216,7 @@ const KnowledgeAssetDetailPage: React.FC = () => {
           </Card>
 
           <Card className="consulting-table-card" title="来源信息">
-            <Descriptions column={2} bordered size="small">
+            <Descriptions column={{ xs: 1, sm: 1, md: 2 }} bordered size="small">
               <Descriptions.Item label="来源类型">{sourceTypeLabel[asset.source_type] || asset.source_type}</Descriptions.Item>
               <Descriptions.Item label="来源名称">
                 {asset.source_confidentiality === 'anonymized' ? '已匿名化来源' : asset.source_name || '-'}
@@ -224,7 +229,7 @@ const KnowledgeAssetDetailPage: React.FC = () => {
                   ? '已隐藏'
                   : asset.source_url ? <Link href={asset.source_url} target="_blank">{asset.source_url}</Link> : '-'}
               </Descriptions.Item>
-              <Descriptions.Item label="文件路径" span={2}>
+              <Descriptions.Item label="文件路径">
                 {asset.source_confidentiality === 'anonymized' ? '已隐藏' : asset.source_file_path || '-'}
               </Descriptions.Item>
             </Descriptions>

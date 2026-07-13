@@ -8,7 +8,7 @@ import {
   CopyOutlined, CheckCircleOutlined, SettingOutlined
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import request from '../../utils/request';
+import request, { getApiErrorMessage } from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
 
 const { Title, Text } = Typography;
@@ -76,7 +76,7 @@ const WorkflowsList: React.FC = () => {
       navigate(`/workflows/${res.id}`);
     } catch (e: any) {
       if (e?.errorFields) return;
-      message.error(e?.response?.data?.detail || '创建失败');
+      message.error(getApiErrorMessage(e, '创建失败'));
     }
   };
 
@@ -116,7 +116,7 @@ const WorkflowsList: React.FC = () => {
         });
       }
     } catch (e: any) {
-      message.error(e?.response?.data?.detail || '执行失败');
+      message.error(getApiErrorMessage(e, '执行失败'));
     }
   };
 

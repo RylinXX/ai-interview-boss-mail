@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.config.database import get_db
@@ -11,7 +11,7 @@ from app.schemas.resume import (
     ResumeParsedDataUpdate, ResumeAIAugmentRequest
 )
 from app.services.resume_service import (
-    upload_resume, get_resumes, get_resume, update_resume, delete_resume,
+    upload_resume, get_resumes, get_resume, get_resume_metrics, get_resume_page, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
     summarize_resume_experiences, summarize_resume_projects, summarize_industry_solution_agent,
     create_industry_solution_draft, generate_industry_solution_from_agent,
@@ -48,6 +48,33 @@ def get_resumes_route(
     current_user: User = Depends(get_current_user)
 ):
     return get_resumes(db, skip=skip, limit=limit, candidate_name=candidate_name, status=status, position_id=position_id, reviewer_id=reviewer_id)
+
+
+@router.get("/page")
+def get_resume_page_route(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=20, ge=1, le=100),
+    candidate_name: str = None,
+    parse_status: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_resume_page(
+        db,
+        skip=skip,
+        limit=limit,
+        candidate_name=candidate_name,
+        parse_status=parse_status,
+    )
+
+
+@router.get("/metrics")
+def get_resume_metrics_route(
+    candidate_name: str = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_resume_metrics(db, candidate_name=candidate_name)
 
 # ==================== 简历查重 ====================
 
