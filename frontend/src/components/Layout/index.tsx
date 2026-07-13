@@ -228,15 +228,30 @@ const AppLayout: React.FC = () => {
 
   const menuItems = [
     {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: '业务总览',
+      className: 'workflow-nav-item workflow-nav-item-first',
+    },
+    {
       key: '/knowledge-assets',
       icon: <AppstoreOutlined />,
       label: '知识资产库',
-      className: 'workflow-nav-item workflow-nav-item-first',
     },
     {
       key: '/resumes',
       icon: <FileTextOutlined />,
       label: '邮箱样本',
+    },
+    {
+      key: '/customer-projects',
+      icon: <SolutionOutlined />,
+      label: '客户项目',
+    },
+    {
+      key: '/ai-employees',
+      icon: <RobotOutlined />,
+      label: 'AI 员工',
       className: 'workflow-nav-item workflow-nav-item-last',
     },
     {
@@ -254,7 +269,7 @@ const AppLayout: React.FC = () => {
 
   const selectedKey = [...filteredMenuItems].sort((a, b) => b.key.length - a.key.length).find(item =>
     location.pathname === item.key || location.pathname.startsWith(`${item.key}/`)
-  )?.key || '/knowledge-assets';
+  )?.key || '/dashboard';
 
   const pageTitle =
     location.pathname.startsWith('/settings/profile')

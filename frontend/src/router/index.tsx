@@ -5,7 +5,12 @@ import AppLayout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 
 const Login = lazy(() => import('../pages/Login'));
+const Dashboard = lazy(() => import('../pages/Dashboard'));
+const CustomerProjectsList = lazy(() => import('../pages/CustomerProjects/List'));
+const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detail'));
+const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
 const KnowledgeAssets = lazy(() => import('../pages/KnowledgeAssets'));
+const KnowledgeAssetIntake = lazy(() => import('../pages/KnowledgeAssets/Intake'));
 const KnowledgeAssetDetail = lazy(() => import('../pages/KnowledgeAssets/Detail'));
 const ResumesList = lazy(() => import('../pages/Resumes/List'));
 const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
@@ -60,31 +65,31 @@ const router = createBrowserRouter([
     children: [
       {
         path: '/',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: <Navigate to="/dashboard" replace />,
       },
       {
         path: 'dashboard',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: lazyPage(<Dashboard />),
       },
       {
         path: 'industry-agent',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: <Navigate to="/ai-employees" replace />,
       },
       {
         path: 'customer-projects',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: lazyPage(<CustomerProjectsList />),
       },
       {
         path: 'customer-projects/:id',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: lazyPage(<CustomerProjectDetail />),
       },
       {
         path: 'ai-employees',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: lazyPage(<AIEmployeesList />),
       },
       {
         path: 'ai-product-manager',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: <Navigate to="/ai-employees" replace />,
       },
       {
         path: 'knowledge-assets',
@@ -92,7 +97,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'knowledge-assets/intake',
-        element: <Navigate to="/knowledge-assets" replace />,
+        element: lazyPage(<KnowledgeAssetIntake />),
       },
       {
         path: 'knowledge-assets/:id',

@@ -67,13 +67,13 @@ class KnowledgeAssetResponse(BaseModel):
     source_resume_id: Optional[UUID] = None
     source_confidentiality: str = "internal"
     source_document_id: Optional[str] = None
-    chunk_index: int = 0
-    chunk_total: int = 1
+    chunk_index: Optional[int] = 0
+    chunk_total: Optional[int] = 1
     source_page: Optional[int] = None
     source_section: Optional[str] = None
     source_locator: Optional[str] = None
     source_excerpt: Optional[str] = None
-    retrieval_metadata: Dict[str, Any] = {}
+    retrieval_metadata: Optional[Dict[str, Any]] = {}
     citation_id: Optional[str] = None
     source_payload: Dict[str, Any] = {}
     raw_text: Optional[str] = None

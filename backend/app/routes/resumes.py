@@ -7,7 +7,8 @@ from app.schemas.resume import (
     DepartmentReviewCreate, DepartmentReviewUpdate, DepartmentReviewResponse,
     HRDecisionCreate, HRDecisionResponse, IndustryAgentSolutionRequest,
     IndustryAgentSolutionDraftResponse, IndustryAgentSolutionResponse,
-    DuplicateCheckRequest, DuplicateCheckResponse, DepartmentReviewSummary
+    DuplicateCheckRequest, DuplicateCheckResponse, DepartmentReviewSummary,
+    ResumeParsedDataUpdate, ResumeAIAugmentRequest
 )
 from app.services.resume_service import (
     upload_resume, get_resumes, get_resume, update_resume, delete_resume,
@@ -346,7 +347,7 @@ def confirm_rejection_route(
     except ValueError:
         valid_values = [e.value for e in RejectReasonCategory]
         raise HTTPException(status_code=400, detail=f"无效的淘汰原因，有效值为: {valid_values}")
-    
+
     hr_id = current_user.id
     return confirm_rejection(db, resume_id, hr_id, reason_category_enum, reason_detail)
 
@@ -432,3 +433,66 @@ def fix_stuck_resumes(
         "fixed_count": fixed_count,
         "queue_stats": queue_stats
     }
+
+
+@router.put("/{resume_id}/parsed-data")
+def update_resume_parsed_data_route(
+    resume_id: UUID,
+    payload: ResumeParsedDataUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    resume = db.query(Resume).filter(Resume.id == resume_id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+
+    # 深度更新 parsed_data
+    parsed_data = dict(resume.parsed_data or {})
+
+    if payload.project_experiences is not None:
+        parsed_data["project_experiences"] = payload.project_experiences
+    if payload.logic_analysis is not None:
+        parsed_data["logic_analysis"] = payload.logic_analysis
+    if payload.startup_landing_ideas is not None:
+        parsed_data["startup_landing_ideas"] = payload.startup_landing_ideas
+    if payload.work_experiences is not None:
+        parsed_data["work_experiences"] = payload.work_experiences
+
+    resume.parsed_data = parsed_data
+    db.commit()
+    db.refresh(resume)
+    return {"status": "success", "parsed_data": resume.parsed_data}
+
+
+@router.post("/{resume_id}/ai-augment")
+def ai_augment_resume_field_route(
+    resume_id: UUID,
+    payload: ResumeAIAugmentRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    resume = db.query(Resume).filter(Resume.id == resume_id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="简历不存在")
+
+    from app.services.ai_service import generate_text
+
+    prompt = f"""你是一个资深的商业分析顾问专家。
+当前我们正在分析一名候选人的简历样本，并沉淀该项目的商业打法和商业模式。
+
+候选人姓名：{resume.candidate_name or "未识别"}
+项目名称：{payload.project_name}
+当前上下文内容：{payload.current_value or "暂无"}
+
+现在，顾问对该项目的商业模式或落地细节发起了追问，请针对该追问，结合候选人的技术能力、公司职级以及任职背景，智能且客观地进行合理分析并给出详细补充。
+顾问追问问题：{payload.question}
+
+请注意：
+1. 你的回答需要专业、切中商业落地的本质，语言要凝练、富有咨询顾问的客观感。
+2. 直接返回增补或解答的 Markdown 内容段落，不要包含多余的问候语或“好的，收到”等废话。
+"""
+    try:
+        reply = generate_text(prompt)
+        return {"status": "success", "suggestion": reply}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"大模型增补失败: {str(e)}")

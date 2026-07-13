@@ -47,7 +47,7 @@ class ResumeBase(BaseModel):
     @classmethod
     def normalize_email(cls, v):
         return _normalize_email(v)
-    
+
 class ResumeCreate(ResumeBase):
     pass
 
@@ -232,3 +232,16 @@ class DepartmentReviewSummary(BaseModel):
 
 # Resolve forward references
 ResumeResponse.model_rebuild()
+
+
+class ResumeParsedDataUpdate(BaseModel):
+    project_experiences: Optional[List[Dict[str, Any]]] = None
+    logic_analysis: Optional[str] = None
+    startup_landing_ideas: Optional[List[str]] = None
+    work_experiences: Optional[List[Dict[str, Any]]] = None
+
+
+class ResumeAIAugmentRequest(BaseModel):
+    project_name: str
+    question: str
+    current_value: Optional[str] = None
