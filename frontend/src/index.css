@@ -1079,6 +1079,8 @@ code {
 }
 
 .login-product-panel {
+  --login-panel-text: #F8FAFC;
+  --login-panel-muted: #CBD5E1;
   position: relative;
   display: flex;
   min-height: 100vh;
@@ -1087,6 +1089,14 @@ code {
   padding: 56px 72px;
   overflow: hidden;
   border-right: 1px solid var(--border-color);
+}
+
+.login-brand-mark {
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  box-sizing: border-box;
 }
 
 .login-product-panel::before {
@@ -1111,7 +1121,7 @@ code {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: var(--text-primary);
+  color: var(--login-panel-text);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1135,7 +1145,7 @@ code {
 .login-copy h1 {
   margin: 0 0 18px;
   max-width: 780px;
-  color: var(--text-primary);
+  color: var(--login-panel-text) !important;
   font-size: 48px;
   font-weight: 760;
   line-height: 1.12;
@@ -1144,7 +1154,7 @@ code {
 .login-copy .ant-typography:last-child {
   display: block;
   max-width: 600px;
-  color: var(--text-secondary);
+  color: var(--login-panel-muted);
   font-size: 16px;
   line-height: 28px;
 }

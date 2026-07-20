@@ -343,7 +343,7 @@ const AppLayout: React.FC = () => {
         styles={{ body: { padding: 0 } }}
       >
         <div className="mobile-brand-lockup">
-          <img src="/logo.svg" alt="Qylin Intelligence" />
+          <img src="/logo.png" alt="Qylin Intelligence" />
           <div><strong>QylinIntel</strong><span>{shellProductLine}</span></div>
         </div>
         <Menu
@@ -368,7 +368,7 @@ const AppLayout: React.FC = () => {
       >
         <div className="brand-lockup">
           <div className="brand-mark">
-            <img src="/logo.svg" alt="Qylin Intelligence" />
+            <img src="/logo.png" alt="Qylin Intelligence" />
           </div>
           {!collapsed && (
             <div className="brand-copy">

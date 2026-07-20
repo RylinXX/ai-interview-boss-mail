@@ -67,7 +67,7 @@ const Login: React.FC = () => {
       <section className="login-product-panel">
         <div className="login-brand-line">
           <div className="login-brand-mark">
-            <img src="/logo.svg" alt="Qylin Intelligence" />
+            <img src="/logo.png" alt="Qylin Intelligence" />
           </div>
           <span>Qylin Intelligence</span>
         </div>
