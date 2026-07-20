@@ -3,7 +3,8 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.config.database import get_db
 from app.schemas.resume import (
-    ResumeResponse, ResumeCreate, ResumeUpdate,
+    ResumeResponse, ResumeCreate, ResumeUpdate, ResumeMetricsResponse,
+    ResumeOptionResponse, ResumePageResponse,
     DepartmentReviewCreate, DepartmentReviewUpdate, DepartmentReviewResponse,
     HRDecisionCreate, HRDecisionResponse, IndustryAgentSolutionRequest,
     IndustryAgentSolutionDraftResponse, IndustryAgentSolutionResponse,
@@ -11,7 +12,7 @@ from app.schemas.resume import (
     ResumeParsedDataUpdate, ResumeAIAugmentRequest
 )
 from app.services.resume_service import (
-    upload_resume, get_resumes, get_resume, get_resume_metrics, get_resume_page, update_resume, delete_resume,
+    upload_resume, get_resumes, get_resume, get_resume_metrics, get_resume_options, get_resume_page, update_resume, delete_resume,
     batch_upload_resumes, reparse_resume, reparse_failed_resumes,
     summarize_resume_experiences, summarize_resume_projects, summarize_industry_solution_agent,
     create_industry_solution_draft, generate_industry_solution_from_agent,
@@ -38,8 +39,8 @@ router = APIRouter(
 
 @router.get("", response_model=List[ResumeResponse])
 def get_resumes_route(
-    skip: int = 0,
-    limit: int = 10000,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
     candidate_name: str = None,
     status: str = None,
     position_id: Optional[UUID] = None,
@@ -50,7 +51,25 @@ def get_resumes_route(
     return get_resumes(db, skip=skip, limit=limit, candidate_name=candidate_name, status=status, position_id=position_id, reviewer_id=reviewer_id)
 
 
-@router.get("/page")
+@router.get("/options", response_model=List[ResumeOptionResponse])
+def get_resume_options_route(
+    status: str = None,
+    statuses: str = None,
+    limit: int = Query(default=200, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    status_values = [value.strip() for value in (statuses or "").split(",") if value.strip()]
+    if status:
+        status_values.append(status)
+    try:
+        status_values = [ResumeStatus(value).value for value in status_values]
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="无效的样本状态") from exc
+    return get_resume_options(db, statuses=status_values, limit=limit)
+
+
+@router.get("/page", response_model=ResumePageResponse)
 def get_resume_page_route(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
@@ -68,7 +87,7 @@ def get_resume_page_route(
     )
 
 
-@router.get("/metrics")
+@router.get("/metrics", response_model=ResumeMetricsResponse)
 def get_resume_metrics_route(
     candidate_name: str = None,
     db: Session = Depends(get_db),

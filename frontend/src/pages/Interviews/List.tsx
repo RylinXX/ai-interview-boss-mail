@@ -142,7 +142,7 @@ const InterviewsList: React.FC = () => {
     setLoadingResumes(true);
     setSelectResumeModalVisible(true);
     try {
-      const res = await request.get('/resumes', { params: { status: 'pending_interview', limit: 100 } });
+      const res = await request.get('/resumes/options', { params: { status: 'pending_interview', limit: 100 } });
       setPendingInterviewResumes(res || []);
     } catch (error) {
       message.error('获取简历列表失败');

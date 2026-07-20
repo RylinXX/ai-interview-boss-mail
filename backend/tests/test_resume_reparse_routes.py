@@ -143,6 +143,13 @@ def test_resume_page_and_metrics_apply_server_side_filters(
             position_id=test_position.id,
             file_path="uploads/resumes/pm-b.pdf",
             parse_status="failed",
+            parse_error="sqlalchemy PendingRollbackError: NUL character",
+            parsed_data={
+                "experience_summary": "产品规划与落地",
+                "project_experiences": [{"name": "项目一"}, {"name": "项目二"}],
+                "interview_questions": ["问题一"],
+                "business_model_questions": ["问题二", "问题三"],
+            },
             status=ResumeStatus.PENDING_SCREENING,
             screening_result=ScreeningResult.PENDING,
         ),
@@ -174,6 +181,11 @@ def test_resume_page_and_metrics_apply_server_side_filters(
     assert page["total"] == 1
     assert len(page["items"]) == 1
     assert page["items"][0]["candidate_name"] == "产品经理乙"
+    assert page["items"][0]["experience_summary"] == "产品规划与落地"
+    assert page["items"][0]["project_count"] == 2
+    assert page["items"][0]["question_count"] == 3
+    assert "parsed_data" not in page["items"][0]
+    assert "sqlalchemy" not in page["items"][0]["parse_error"].lower()
     assert page["metrics"]["total"] == 2
     assert page["metrics"]["success"] == 1
     assert page["metrics"]["failed"] == 1
@@ -186,3 +198,14 @@ def test_resume_page_and_metrics_apply_server_side_filters(
         "failed": 1,
         "pending": 0,
     }
+
+    options_response = client.get(
+        "/api/resumes/options",
+        headers=admin_auth_headers,
+        params={"status": "pending_review"},
+    )
+    assert options_response.status_code == 200
+    options = options_response.json()
+    assert len(options) == 1
+    assert options[0]["candidate_name"] == "产品经理甲"
+    assert "parsed_data" not in options[0]

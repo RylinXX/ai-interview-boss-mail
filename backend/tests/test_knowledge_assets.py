@@ -39,20 +39,22 @@ def test_list_knowledge_assets_returns_all_requested_assets_and_filters_before_l
     all_response = client.get(
         "/api/knowledge-assets",
         headers=admin_auth_headers,
-        params={"limit": 100000},
+        params={"limit": 100},
     )
     filtered_response = client.get(
         "/api/knowledge-assets",
         headers=admin_auth_headers,
-        params={"industry": "target-industry", "limit": 100000},
+        params={"industry": "target-industry", "limit": 100},
     )
 
     assert all_response.status_code == 200
     assert all_response.json()["total"] == 521
+    assert len(all_response.json()["items"]) == 100
     assert filtered_response.status_code == 200
     filtered = filtered_response.json()
     assert filtered["total"] == 1
     assert filtered["items"][0]["id"] == str(target.id)
+    assert "raw_text" not in filtered["items"][0]
 
 
 def test_list_knowledge_assets_paginates_and_returns_filter_metrics(
@@ -94,6 +96,7 @@ def test_list_knowledge_assets_paginates_and_returns_filter_metrics(
         "evidence_ready": 3,
         "high_confidence": 2,
     }
+    assert "raw_text" not in payload["items"][0]
 
 
 def test_upload_knowledge_asset_file_returns_chunk_provenance(

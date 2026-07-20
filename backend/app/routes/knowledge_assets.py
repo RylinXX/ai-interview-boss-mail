@@ -15,6 +15,7 @@ from app.schemas.knowledge_assets import (
     AIProductManagerDraftResponse,
     KnowledgeAssetIntakeRequest,
     KnowledgeAssetListResponse,
+    KnowledgeAssetPageResponse,
     KnowledgeAssetResponse,
     KnowledgeAssetReviewUpdate,
     KnowledgeAssetSearchRequest,
@@ -28,7 +29,7 @@ from app.services import knowledge_asset_service as service
 router = APIRouter(tags=["knowledge-assets"])
 
 
-@router.get("/knowledge-assets", response_model=KnowledgeAssetListResponse)
+@router.get("/knowledge-assets", response_model=KnowledgeAssetPageResponse)
 def list_knowledge_assets_route(
     query: Optional[str] = None,
     industry: Optional[str] = None,
@@ -36,7 +37,7 @@ def list_knowledge_assets_route(
     evidence_type: Optional[str] = None,
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    limit: int = Query(default=100000, ge=1, le=100000),
+    limit: int = Query(default=24, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

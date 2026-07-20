@@ -95,6 +95,50 @@ class ResumeResponse(ResumeBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ResumeListItemResponse(BaseModel):
+    """Lightweight resume data used by paginated list views."""
+
+    id: UUID
+    candidate_name: Optional[str] = None
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    match_score: Optional[int] = None
+    parse_status: Optional[str] = None
+    parse_error: Optional[str] = None
+    experience_summary: Optional[str] = None
+    project_count: int = 0
+    question_count: int = 0
+    created_at: datetime
+
+
+class ResumeMetricsResponse(BaseModel):
+    total: int = 0
+    success: int = 0
+    processing: int = 0
+    failed: int = 0
+    pending: int = 0
+
+
+class ResumePageResponse(BaseModel):
+    items: List[ResumeListItemResponse]
+    total: int
+    metrics: ResumeMetricsResponse
+
+
+class ResumeOptionResponse(BaseModel):
+    """Small resume projection used by selection controls."""
+
+    id: UUID
+    candidate_name: Optional[str] = None
+    contact: Optional[str] = None
+    email: Optional[str] = None
+    position_id: Optional[UUID] = None
+    status: ResumeStatus
+    position: Optional[PositionResponse] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # 部门评审相关 Schema
 class DepartmentReviewBase(BaseModel):
     technical_score: Optional[int] = None  # 技术评分 1-10

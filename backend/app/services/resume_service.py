@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, load_only
 from app.models.models import (
     CodingSubmission, CodingTest, Resume, Position, Interview, InterviewPanel,
     DepartmentReview, User, Offer, ResumeMailImport,
@@ -1430,6 +1430,55 @@ def get_resume_metrics(db: Session, candidate_name: str = None) -> Dict[str, int
     }
 
 
+def get_resume_options(
+    db: Session,
+    statuses: Optional[List[str]] = None,
+    limit: int = 200,
+) -> List[Resume]:
+    query = db.query(Resume).options(
+        load_only(
+            Resume.id,
+            Resume.candidate_name,
+            Resume.contact,
+            Resume.email,
+            Resume.position_id,
+            Resume.status,
+        ),
+        joinedload(Resume.position),
+    )
+    if statuses:
+        query = query.filter(Resume.status.in_([ResumeStatus(value) for value in statuses]))
+    return query.order_by(Resume.created_at.desc()).limit(max(1, min(limit, 500))).all()
+
+
+def _resume_list_item(resume: Resume) -> Dict[str, Any]:
+    parsed_data = resume.parsed_data if isinstance(resume.parsed_data, dict) else {}
+    projects = parsed_data.get("project_experiences")
+    interview_questions = parsed_data.get("interview_questions")
+    business_questions = parsed_data.get("business_model_questions")
+    parse_error = (
+        public_resume_parse_error(resume.parse_error, resume.id)
+        if resume.parse_status == "failed" and resume.parse_error
+        else None
+    )
+    return {
+        "id": resume.id,
+        "candidate_name": resume.candidate_name,
+        "contact": resume.contact,
+        "email": resume.email,
+        "match_score": resume.match_score,
+        "parse_status": resume.parse_status,
+        "parse_error": parse_error,
+        "experience_summary": parsed_data.get("experience_summary"),
+        "project_count": len(projects) if isinstance(projects, list) else 0,
+        "question_count": (
+            (len(interview_questions) if isinstance(interview_questions, list) else 0)
+            + (len(business_questions) if isinstance(business_questions, list) else 0)
+        ),
+        "created_at": resume.created_at,
+    }
+
+
 def get_resume_page(
     db: Session,
     skip: int = 0,
@@ -1437,16 +1486,28 @@ def get_resume_page(
     candidate_name: str = None,
     parse_status: str = None,
 ) -> Dict[str, Any]:
-    query = db.query(Resume).options(joinedload(Resume.position))
+    query = db.query(Resume).options(
+        load_only(
+            Resume.id,
+            Resume.candidate_name,
+            Resume.contact,
+            Resume.email,
+            Resume.match_score,
+            Resume.parse_status,
+            Resume.parse_error,
+            Resume.parsed_data,
+            Resume.created_at,
+        )
+    )
     if candidate_name:
         query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
     if parse_status:
         query = query.filter(Resume.parse_status == parse_status)
 
     total = query.count()
-    items = query.order_by(Resume.created_at.desc()).offset(max(skip, 0)).limit(limit).all()
+    rows = query.order_by(Resume.created_at.desc()).offset(max(skip, 0)).limit(limit).all()
     return {
-        "items": items,
+        "items": [_resume_list_item(row) for row in rows],
         "total": total,
         "metrics": get_resume_metrics(db, candidate_name=candidate_name),
     }

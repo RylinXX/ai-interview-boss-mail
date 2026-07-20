@@ -10,8 +10,9 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import case, cast, func, or_
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Session, load_only
 
 from app.models.models import (
     KnowledgeAsset,
@@ -43,7 +44,28 @@ DEFAULT_CHUNK_OVERLAP = 180
 DEFAULT_RRF_K = 60
 DEFAULT_CONTEXT_CHAR_LIMIT = 900
 DEFAULT_SEMANTIC_VECTOR_DIM = 256
-MAX_KNOWLEDGE_ASSET_LIST_LIMIT = 100000
+MAX_KNOWLEDGE_ASSET_LIST_LIMIT = 100
+MAX_KNOWLEDGE_ASSET_FILTER_SCAN = 100000
+
+KNOWLEDGE_ASSET_LIST_COLUMNS = (
+    KnowledgeAsset.id,
+    KnowledgeAsset.title,
+    KnowledgeAsset.source_type,
+    KnowledgeAsset.source_name,
+    KnowledgeAsset.source_confidentiality,
+    KnowledgeAsset.summary,
+    KnowledgeAsset.industry_tags,
+    KnowledgeAsset.business_topic_tags,
+    KnowledgeAsset.evidence_type_tags,
+    KnowledgeAsset.proves,
+    KnowledgeAsset.evidence_strength_score,
+    KnowledgeAsset.data_verification_score,
+    KnowledgeAsset.commercial_value_score,
+    KnowledgeAsset.confidence_score,
+    KnowledgeAsset.manual_review_status,
+    KnowledgeAsset.created_at,
+    KnowledgeAsset.updated_at,
+)
 
 
 def _as_list(value: Any) -> List[str]:
@@ -632,7 +654,7 @@ def list_assets(
     evidence_type: Optional[str] = None,
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    limit: int = 100,
+    limit: int = 24,
     offset: int = 0,
 ) -> Dict[str, Any]:
     safe_limit = max(1, min(int(limit or MAX_KNOWLEDGE_ASSET_LIST_LIMIT), MAX_KNOWLEDGE_ASSET_LIST_LIMIT))
@@ -655,14 +677,32 @@ def list_assets(
     evidence_type_tags = _unique(tag for row in taxonomy_rows for tag in (row[2] or []))
 
     needs_tag_filter = bool(industry or topic or evidence_type)
-    if needs_tag_filter:
-        # The tag columns are JSON on both SQLite and PostgreSQL. Filtering in
-        # Python keeps the semantics identical across both databases; only the
-        # requested page is returned to the client.
-        candidates = q.order_by(
+    is_postgresql = db.get_bind().dialect.name == "postgresql"
+    if needs_tag_filter and is_postgresql:
+        if industry:
+            q = q.filter(cast(KnowledgeAsset.industry_tags, JSONB).contains([industry]))
+        if topic:
+            q = q.filter(cast(KnowledgeAsset.business_topic_tags, JSONB).contains([topic]))
+        if evidence_type:
+            q = q.filter(cast(KnowledgeAsset.evidence_type_tags, JSONB).contains([evidence_type]))
+
+        total, reviewed, evidence_ready, high_confidence = q.with_entities(
+            func.count(KnowledgeAsset.id),
+            func.sum(case((KnowledgeAsset.manual_review_status == KnowledgeAssetReviewStatus.REVIEWED, 1), else_=0)),
+            func.sum(case((KnowledgeAsset.evidence_strength_score >= 60, 1), else_=0)),
+            func.sum(case((KnowledgeAsset.confidence_score >= 70, 1), else_=0)),
+        ).one()
+        items = q.options(load_only(*KNOWLEDGE_ASSET_LIST_COLUMNS)).order_by(
             KnowledgeAsset.updated_at.desc(),
             KnowledgeAsset.created_at.desc(),
-        ).limit(MAX_KNOWLEDGE_ASSET_LIST_LIMIT).all()
+        ).offset(safe_offset).limit(safe_limit).all()
+    elif needs_tag_filter:
+        # The tag columns are JSON on both SQLite and PostgreSQL. Filtering in
+        # Python keeps test and development SQLite behavior aligned with PostgreSQL.
+        candidates = q.options(load_only(*KNOWLEDGE_ASSET_LIST_COLUMNS)).order_by(
+            KnowledgeAsset.updated_at.desc(),
+            KnowledgeAsset.created_at.desc(),
+        ).limit(MAX_KNOWLEDGE_ASSET_FILTER_SCAN).all()
         filtered = []
         for row in candidates:
             if industry and industry not in (row.industry_tags or []):
@@ -679,16 +719,21 @@ def list_assets(
         evidence_ready = sum(1 for row in metric_rows if float(row.evidence_strength_score or 0) >= 60)
         high_confidence = sum(1 for row in metric_rows if float(row.confidence_score or 0) >= 70)
     else:
-        total = q.count()
-        reviewed = q.filter(
-            KnowledgeAsset.manual_review_status == KnowledgeAssetReviewStatus.REVIEWED
-        ).count()
-        evidence_ready = q.filter(KnowledgeAsset.evidence_strength_score >= 60).count()
-        high_confidence = q.filter(KnowledgeAsset.confidence_score >= 70).count()
-        items = q.order_by(
+        total, reviewed, evidence_ready, high_confidence = q.with_entities(
+            func.count(KnowledgeAsset.id),
+            func.sum(case((KnowledgeAsset.manual_review_status == KnowledgeAssetReviewStatus.REVIEWED, 1), else_=0)),
+            func.sum(case((KnowledgeAsset.evidence_strength_score >= 60, 1), else_=0)),
+            func.sum(case((KnowledgeAsset.confidence_score >= 70, 1), else_=0)),
+        ).one()
+        items = q.options(load_only(*KNOWLEDGE_ASSET_LIST_COLUMNS)).order_by(
             KnowledgeAsset.updated_at.desc(),
             KnowledgeAsset.created_at.desc(),
         ).offset(safe_offset).limit(safe_limit).all()
+
+    total = int(total or 0)
+    reviewed = int(reviewed or 0)
+    evidence_ready = int(evidence_ready or 0)
+    high_confidence = int(high_confidence or 0)
 
     return {
         "items": items,

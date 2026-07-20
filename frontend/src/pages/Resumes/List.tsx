@@ -28,18 +28,21 @@ const STATUS_MAP: Record<string, { text: string; color: string }> = {
 };
 
 const getProjectCount = (record: any) => {
+  if (Number.isFinite(record.project_count)) return record.project_count;
   const projects = record.parsed_data?.project_experiences;
   return Array.isArray(projects) ? projects.length : 0;
 };
 
 const getQuestionCount = (record: any) => {
+  if (Number.isFinite(record.question_count)) return record.question_count;
   const questions = record.parsed_data?.interview_questions;
   const business = record.parsed_data?.business_model_questions;
   return (Array.isArray(questions) ? questions.length : 0) + (Array.isArray(business) ? business.length : 0);
 };
 
 const getResumeSummary = (record: any) => (
-  record.parsed_data?.experience_summary
+  record.experience_summary
+  || record.parsed_data?.experience_summary
   || (record.parse_status === 'failed' ? getResumeParseErrorMessage(record.parse_error) : '等待模型分析')
 );
 

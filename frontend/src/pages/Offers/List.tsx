@@ -152,12 +152,13 @@ const OffersList: React.FC = () => {
 
   const fetchPassedResumes = async () => {
     try {
-      const response = await request.get('/resumes?limit=500');
-      const eligibleStatuses = ['interview_passed', 'offer_pending', 'completed'];
-      const eligibleResumes = (response || []).filter((r: any) => 
-        eligibleStatuses.includes(r.status)
-      );
-      setResumes(eligibleResumes);
+      const response = await request.get('/resumes/options', {
+        params: {
+          statuses: 'interview_passed,offer_pending,completed',
+          limit: 500,
+        },
+      });
+      setResumes(response || []);
     } catch (error) {
       console.error('Failed to fetch resumes:', error);
     }

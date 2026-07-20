@@ -25,7 +25,6 @@ type KnowledgeAsset = {
   source_name?: string | null;
   source_url?: string | null;
   source_confidentiality: string;
-  raw_text?: string | null;
   summary?: string | null;
   industry_tags: string[];
   business_topic_tags: string[];
@@ -336,7 +335,7 @@ const KnowledgeAssetsPage: React.FC = () => {
                   </div>
                   <strong className="knowledge-asset-title">{record.title}</strong>
                   <Text type="secondary" className="knowledge-asset-summary">
-                    {record.summary || record.raw_text || '待补充摘要'}
+                    {record.summary || '待补充摘要'}
                   </Text>
 
                   <div className="knowledge-asset-taxonomy">

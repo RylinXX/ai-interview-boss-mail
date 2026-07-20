@@ -103,6 +103,39 @@ class KnowledgeAssetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class KnowledgeAssetListItemResponse(BaseModel):
+    """Compact knowledge asset projection for the card grid."""
+
+    id: UUID
+    title: str
+    source_type: str
+    source_name: Optional[str] = None
+    source_confidentiality: str = "internal"
+    summary: Optional[str] = None
+    industry_tags: List[str] = []
+    business_topic_tags: List[str] = []
+    evidence_type_tags: List[str] = []
+    proves: List[str] = []
+    evidence_strength_score: float = 0.0
+    data_verification_score: float = 0.0
+    commercial_value_score: float = 0.0
+    confidence_score: float = 0.0
+    manual_review_status: KnowledgeAssetReviewStatus
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class KnowledgeAssetPageResponse(BaseModel):
+    items: List[KnowledgeAssetListItemResponse]
+    total: int
+    industry_tags: List[str] = []
+    business_topic_tags: List[str] = []
+    evidence_type_tags: List[str] = []
+    metrics: Dict[str, int] = Field(default_factory=dict)
+
+
 class KnowledgeAssetListResponse(BaseModel):
     items: List[KnowledgeAssetResponse]
     total: int
