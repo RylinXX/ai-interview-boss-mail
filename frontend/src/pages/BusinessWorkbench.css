@@ -1084,7 +1084,7 @@ textarea.solution-document-editor {
   font-weight: 700;
 }
 
-.knowledge-detail-grid .ant-descriptions-item-content {
+.knowledge-detail-reading .ant-descriptions-item-content {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -1293,20 +1293,24 @@ textarea.solution-document-editor {
   background: #fffdf8;
 }
 
-.knowledge-detail-grid,
+.knowledge-detail-reading {
+  display: grid;
+  gap: 16px;
+}
+
+.knowledge-detail-score-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
 .ai-product-manager-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 460px;
+  grid-template-columns: 420px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-.ai-product-manager-grid {
-  grid-template-columns: 420px minmax(0, 1fr);
-}
-
-.knowledge-detail-main,
-.knowledge-detail-side,
 .ai-product-manager-result {
   display: grid;
   gap: 16px;
@@ -1337,8 +1341,17 @@ textarea.solution-document-editor {
 
 .knowledge-detail-score {
   display: grid;
-  gap: 4px;
-  margin-bottom: 10px;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #ece4d7;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.knowledge-review-form .knowledge-review-grid,
+.knowledge-review-form .knowledge-score-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .pm-section-grid section,
@@ -1503,6 +1516,7 @@ html[data-theme='dark'] .knowledge-asset-proof-grid,
 html[data-theme='dark'] .knowledge-asset-score-grid,
 html[data-theme='dark'] .knowledge-sample-list button,
 html[data-theme='dark'] .knowledge-intake-side-note,
+html[data-theme='dark'] .knowledge-detail-score,
 html[data-theme='dark'] .knowledge-raw-text,
 html[data-theme='dark'] .pm-section-grid section,
 html[data-theme='dark'] .pm-hypothesis-card,
@@ -1577,9 +1591,12 @@ html[data-theme='dark'] .task-output-preview {
   .employee-registry-grid,
   .ai-solution-head,
   .knowledge-intake-grid,
-  .knowledge-detail-grid,
   .ai-product-manager-grid {
     grid-template-columns: 1fr;
+  }
+
+  .knowledge-detail-score-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .consulting-metric-grid {
