@@ -313,13 +313,25 @@ const InterviewsList: React.FC = () => {
       title: '候选人',
       dataIndex: ['resume', 'candidate_name'],
       key: 'candidate_name',
-      render: (text: string) => <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text || '未知'}</span>
+      width: 150,
+      ellipsis: { showTitle: false },
+      render: (text: string) => (
+        <Tooltip title={text || '未知'}>
+          <span className="table-cell-ellipsis" style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{text || '未知'}</span>
+        </Tooltip>
+      )
     },
     {
       title: '岗位',
       dataIndex: ['position', 'title'],
       key: 'position',
-      render: (text: string) => <span style={{ color: 'var(--text-secondary)' }}>{text || '未知'}</span>
+      width: 180,
+      ellipsis: { showTitle: false },
+      render: (text: string) => (
+        <Tooltip title={text || '未知'}>
+          <span className="table-cell-ellipsis" style={{ color: 'var(--text-secondary)' }}>{text || '未知'}</span>
+        </Tooltip>
+      )
     },
     {
       title: '轮次',
@@ -335,6 +347,7 @@ const InterviewsList: React.FC = () => {
     {
       title: '面试官',
       key: 'interviewer',
+      width: 180,
       render: (_: any, record: any) => {
         const full = getInterviewerText(record);
         return (
@@ -359,6 +372,7 @@ const InterviewsList: React.FC = () => {
       title: '面试时间',
       dataIndex: 'interview_time',
       key: 'interview_time',
+      width: 170,
       sorter: (a: any, b: any) => {
         const at = a?.interview_time ? new Date(a.interview_time).getTime() : 0;
         const bt = b?.interview_time ? new Date(b.interview_time).getTime() : 0;
@@ -369,6 +383,7 @@ const InterviewsList: React.FC = () => {
     {
       title: '总分',
       key: 'total_score',
+      width: 80,
       render: (_, record: any) => {
         if (!record.scores) return '-';
         const values = Object.values(record.scores) as number[];
@@ -382,6 +397,7 @@ const InterviewsList: React.FC = () => {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (status: string) => {
         const map: Record<string, {text: string, color: string}> = {
           scheduled: { text: '待面试', color: 'blue' },
@@ -397,6 +413,9 @@ const InterviewsList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
+      width: 160,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_, record: any) => {
         // Check if interview is pending confirmation (has scores but status not completed)
         const isPendingConfirmation = record.status !== 'completed' &&
@@ -472,6 +491,8 @@ const InterviewsList: React.FC = () => {
         dataSource={filteredData}
         loading={loading}
         rowKey="id"
+        tableLayout="fixed"
+        scroll={{ x: 1120 }}
         pagination={{ pageSize: 10, showSizeChanger: true }}
         rowSelection={{
           selectedRowKeys,

@@ -385,8 +385,9 @@ const OffersList: React.FC = () => {
       title: '候选人',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
+      width: 180,
       render: (text: string, record: Offer) => (
-        <div>
+        <div className="table-cell-stack">
           <Text strong>{text}</Text>
           <br />
           <Text type="secondary" style={{ fontSize: 12 }}>{record.candidate_email}</Text>
@@ -397,8 +398,9 @@ const OffersList: React.FC = () => {
       title: '岗位',
       dataIndex: 'position_title',
       key: 'position_title',
+      width: 180,
       render: (text: string, record: Offer) => (
-        <div>
+        <div className="table-cell-stack">
           <Text>{text}</Text>
           {record.department && <><br /><Text type="secondary" style={{ fontSize: 12 }}>{record.department}</Text></>}
         </div>
@@ -407,6 +409,7 @@ const OffersList: React.FC = () => {
     {
       title: '薪资',
       key: 'salary',
+      width: 140,
       render: (_: any, record: Offer) => (
         <div>
           {record.salary_monthly && <Text>月薪 {record.salary_monthly.toLocaleString()}元</Text>}
@@ -419,12 +422,14 @@ const OffersList: React.FC = () => {
       title: '入职日期',
       dataIndex: 'onboard_date',
       key: 'onboard_date',
+      width: 120,
       render: (date: string) => date ? dayjs(date).format('YYYY-MM-DD') : <Text type="secondary">待定</Text>,
     },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
+      width: 100,
       render: (status: string) => {
         const config = statusConfig[status] || { color: 'default', text: status };
         return <Tag color={config.color}>{config.text}</Tag>;
@@ -434,13 +439,17 @@ const OffersList: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
+      width: 160,
       render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm'),
     },
     {
       title: '操作',
       key: 'action',
+      width: 196,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: Offer) => (
-        <Space size="small">
+        <Space className="dense-row-actions" size="small">
           <Tooltip title="查看详情">
             <Button type="text" icon={<EyeOutlined />} onClick={() => openDetailDrawer(record)} />
           </Tooltip>
@@ -584,6 +593,8 @@ const OffersList: React.FC = () => {
           dataSource={offers}
           rowKey="id"
           loading={loading}
+          tableLayout="fixed"
+          scroll={{ x: 1120 }}
           rowSelection={{
             selectedRowKeys,
             onChange: setSelectedRowKeys,

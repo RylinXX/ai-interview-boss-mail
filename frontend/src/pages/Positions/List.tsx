@@ -384,11 +384,11 @@ const PositionsList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 240,
+      width: 220,
       fixed: 'right' as const,
       className: 'actions-column',
       render: (_: any, record: Position) => (
-        <Space size="small">
+        <Space className="dense-row-actions" size="small">
           <Tooltip title="查看详情">
             <Button type="text" icon={<EyeOutlined style={{ color: '#3B82F6' }} />} onClick={() => handleView(record)} />
           </Tooltip>

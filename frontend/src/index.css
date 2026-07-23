@@ -241,6 +241,38 @@ code {
   padding-inline: 0;
 }
 
+.ant-table-thead > tr > th.actions-column,
+.ant-table-tbody > tr > td.actions-column {
+  padding-inline: 10px !important;
+}
+
+.dense-row-actions .ant-btn {
+  flex-basis: 30px;
+  width: 30px;
+  min-width: 30px;
+}
+
+.ant-table-wrapper {
+  max-width: 100%;
+}
+
+.table-cell-stack,
+.table-cell-ellipsis {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.table-cell-stack {
+  overflow-wrap: anywhere;
+}
+
+.table-cell-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Buttons */
 .ant-btn {
   border-radius: var(--border-radius-sm);

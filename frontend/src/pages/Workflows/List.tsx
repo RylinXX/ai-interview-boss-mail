@@ -139,8 +139,12 @@ const WorkflowsList: React.FC = () => {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      width: 180,
+      ellipsis: { showTitle: false },
       render: (text: string, record: Workflow) => (
-        <a onClick={() => navigate(`/workflows/${record.id}`)}>{text}</a>
+        <Tooltip title={text}>
+          <a className="table-cell-ellipsis" onClick={() => navigate(`/workflows/${record.id}`)}>{text}</a>
+        </Tooltip>
       ),
     },
     {
@@ -148,6 +152,7 @@ const WorkflowsList: React.FC = () => {
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
+      render: (text: string) => <Tooltip title={text}><span className="table-cell-ellipsis">{text || '-'}</span></Tooltip>,
     },
     {
       title: '状态',
@@ -177,15 +182,17 @@ const WorkflowsList: React.FC = () => {
       title: '更新时间',
       dataIndex: 'updated_at',
       key: 'updated_at',
-      width: 180,
+      width: 170,
       render: (date: string) => new Date(date).toLocaleString(),
     },
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 176,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: Workflow) => (
-        <Space size="small">
+        <Space className="dense-row-actions" size="small">
           <Tooltip title="编辑">
             <Button
               type="text"
@@ -260,6 +267,8 @@ const WorkflowsList: React.FC = () => {
           dataSource={workflows}
           rowKey="id"
           loading={loading}
+          tableLayout="fixed"
+          scroll={{ x: 960 }}
           pagination={{ pageSize: 10 }}
         />
       </Card>

@@ -151,8 +151,22 @@ const UsersList: React.FC = () => {
   };
 
   const columns = [
-    { title: '姓名', dataIndex: 'full_name', key: 'full_name', width: 150 },
-    { title: '邮箱', dataIndex: 'email', key: 'email', width: 200 },
+    {
+      title: '姓名',
+      dataIndex: 'full_name',
+      key: 'full_name',
+      width: 150,
+      ellipsis: { showTitle: false },
+      render: (name: string) => <Tooltip title={name}><span className="table-cell-ellipsis">{name}</span></Tooltip>,
+    },
+    {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
+      width: 200,
+      ellipsis: { showTitle: false },
+      render: (email: string) => <Tooltip title={email}><span className="table-cell-ellipsis">{email}</span></Tooltip>,
+    },
     {
       title: '角色',
       dataIndex: 'role',
@@ -179,7 +193,9 @@ const UsersList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 152,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: User) => (
         <Space size="small">
           <Tooltip title="编辑">
@@ -240,6 +256,7 @@ const UsersList: React.FC = () => {
                 columns={columns}
                 dataSource={data}
                 rowKey="id"
+                tableLayout="fixed"
                 scroll={{ x: 900 }}
                 pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
                 rowSelection={{
