@@ -10,6 +10,7 @@ type ModulePageHeaderProps = {
   description: React.ReactNode;
   actions?: React.ReactNode;
   steps?: string[];
+  compact?: boolean;
 };
 
 export const ModulePageHeader: React.FC<ModulePageHeaderProps> = ({
@@ -18,8 +19,9 @@ export const ModulePageHeader: React.FC<ModulePageHeaderProps> = ({
   description,
   actions,
   steps,
+  compact = false,
 }) => (
-  <section className="module-page-header">
+  <section className={`module-page-header${compact ? ' module-page-header-compact' : ''}`}>
     <div className="module-page-header-copy">
       <span className="module-page-eyebrow">{eyebrow}</span>
       <Title level={2}>{title}</Title>

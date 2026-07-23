@@ -226,12 +226,18 @@ code {
   justify-content: center;
 }
 
-.actions-column .ant-space {
-  gap: 4px !important;
+.actions-column .ant-space,
+.resume-row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px !important;
 }
 
-.actions-column .ant-btn {
-  width: 28px;
+.actions-column .ant-btn,
+.resume-row-actions .ant-btn {
+  flex: 0 0 36px;
+  width: 36px;
+  min-width: 36px;
   padding-inline: 0;
 }
 

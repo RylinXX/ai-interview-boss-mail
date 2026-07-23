@@ -1,3 +1,8 @@
+.workbench-page,
+.workbench-page * {
+  box-sizing: border-box;
+}
+
 .workbench-page .page-header {
   display: flex;
   justify-content: space-between;
@@ -27,6 +32,27 @@
   min-width: 0;
 }
 
+.module-page-header-copy,
+.module-page-header-actions,
+.data-toolbar,
+.data-toolbar-group,
+.workbench-page .ant-card-head-title,
+.workbench-page .ant-card-extra {
+  min-width: 0;
+}
+
+.module-page-header-copy > .ant-typography,
+.workbench-page .ant-descriptions-item-content,
+.workbench-page .ant-list-item-meta-title,
+.workbench-page .ant-list-item-meta-description {
+  overflow-wrap: anywhere;
+}
+
+.workbench-page .ant-card-head-wrapper {
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .module-page-eyebrow {
   display: inline-flex;
   align-items: center;
@@ -52,6 +78,34 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.module-page-header-compact {
+  gap: 8px 16px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.module-page-header-compact h2.ant-typography {
+  margin: 2px 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.module-page-header-compact .module-page-header-copy > .ant-typography {
+  display: block;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.module-page-header-compact .module-page-steps {
+  gap: 6px;
+  padding-top: 8px;
+}
+
+.module-page-header-compact .module-page-steps li {
+  min-height: 28px;
+  padding: 4px 8px;
 }
 
 .module-page-steps {
