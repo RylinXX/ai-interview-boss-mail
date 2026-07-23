@@ -336,7 +336,7 @@ const AppLayout: React.FC = () => {
       <Drawer
         title="业务导航"
         placement="left"
-        width={280}
+        size={280}
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
         className="mobile-nav-drawer"

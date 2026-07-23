@@ -68,7 +68,7 @@ export const AsyncState: React.FC<AsyncStateProps> = ({
         <Alert
           type="error"
           showIcon
-          message="数据加载失败"
+          title="数据加载失败"
           description={error}
           action={onRetry ? <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>重新加载</Button> : undefined}
         />

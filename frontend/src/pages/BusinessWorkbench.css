@@ -448,6 +448,19 @@
   border-bottom-color: #e5ddcf;
 }
 
+.actions-column .customer-project-view-button.ant-btn {
+  width: 76px;
+  min-width: 76px;
+  padding-inline: 10px;
+}
+
+.actions-column .dashboard-fix-button.ant-btn {
+  flex: 0 0 76px;
+  width: 76px;
+  min-width: 76px;
+  padding-inline: 10px;
+}
+
 .dossier-code {
   display: inline-flex;
   width: fit-content;

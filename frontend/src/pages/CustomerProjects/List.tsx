@@ -207,7 +207,17 @@ const CustomerProjectsList: React.FC = () => {
               title: '操作',
               key: 'action',
               width: 100,
-              render: (_: unknown, record) => <Button icon={<EyeOutlined />} onClick={() => navigate(`/customer-projects/${record.id}`)}>查看</Button>,
+              fixed: 'right',
+              className: 'actions-column',
+              render: (_: unknown, record) => (
+                <Button
+                  className="customer-project-view-button"
+                  icon={<EyeOutlined />}
+                  onClick={() => navigate(`/customer-projects/${record.id}`)}
+                >
+                  查看
+                </Button>
+              ),
             },
                 ]}
               />}

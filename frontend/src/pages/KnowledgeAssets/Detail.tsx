@@ -245,7 +245,8 @@ const KnowledgeAssetDetailPage: React.FC = () => {
 
       <Drawer
         title="编辑资产复核"
-        width={560}
+        size={560}
+        forceRender
         open={reviewOpen}
         onClose={() => {
           form.setFieldsValue(asset);

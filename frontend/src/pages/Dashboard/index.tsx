@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Card, Col, Empty, Input, Pagination, Row, Segmented, Space, Spin, Table, Tag, Typography, Tabs, Drawer, Form } from 'antd';
 import { ApartmentOutlined, BulbOutlined, ProjectOutlined, QuestionCircleOutlined, ReloadOutlined, SearchOutlined, DatabaseOutlined, EditOutlined } from '@ant-design/icons';
 import request, { getApiErrorMessage } from '../../utils/request';
@@ -82,6 +82,9 @@ const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const [resumeMetrics, setResumeMetrics] = useState<ResumeMetrics>(EMPTY_RESUME_METRICS);
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const dashboardRequestIdRef = useRef(0);
   const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -110,7 +113,34 @@ const Dashboard: React.FC = () => {
 
   const [form] = Form.useForm();
 
+  const fetchSummary = useCallback(async (requestId = ++dashboardRequestIdRef.current) => {
+    if (requestId !== dashboardRequestIdRef.current) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    setSummary(null);
+    try {
+      const summaryRes = await request.get('/resumes/experience-summary', { timeout: 20000 });
+      if (requestId === dashboardRequestIdRef.current) {
+        setSummary(summaryRes as ExperienceSummary);
+      }
+    } catch (error) {
+      if (requestId === dashboardRequestIdRef.current) {
+        const errorMessage = getApiErrorMessage(error, '能力摘要加载失败，请重试');
+        setSummaryError(errorMessage);
+        message.warning(errorMessage);
+      }
+    } finally {
+      if (requestId === dashboardRequestIdRef.current) {
+        setSummaryLoading(false);
+      }
+    }
+  }, [message]);
+
   const fetchData = useCallback(async (initialLoad = false) => {
+    const requestId = ++dashboardRequestIdRef.current;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    setSummary(null);
     if (initialLoad) {
       setLoading(true);
       setLoadError(null);
@@ -118,26 +148,30 @@ const Dashboard: React.FC = () => {
       setRefreshing(true);
     }
     try {
-      const [resumeRes, summaryRes, projectRes] = await Promise.all([
+      const [resumeRes, projectRes] = await Promise.all([
         request.get('/resumes/metrics'),
-        request.get('/resumes/experience-summary'),
-        request.get('/resumes/project-library'),
+        request.get('/resumes/project-library', { timeout: 20000 }),
       ]);
+      if (requestId !== dashboardRequestIdRef.current) return;
       setResumeMetrics(resumeRes as ResumeMetrics);
-      setSummary(summaryRes as ExperienceSummary);
       setProjectLibrary(projectRes as ProjectLibrary);
+      setLoading(false);
+
+      await fetchSummary(requestId);
     } catch (error) {
-      const errorMessage = getApiErrorMessage(error, '获取方案工作台失败，请稍后重试');
-      setLoadError(errorMessage);
-      message.error(errorMessage);
+      if (requestId === dashboardRequestIdRef.current) {
+        const errorMessage = getApiErrorMessage(error, '获取方案工作台失败，请稍后重试');
+        setLoadError(errorMessage);
+        message.error(errorMessage);
+        setSummaryLoading(false);
+      }
     } finally {
-      if (initialLoad) {
+      if (requestId === dashboardRequestIdRef.current) {
         setLoading(false);
-      } else {
         setRefreshing(false);
       }
     }
-  }, [message]);
+  }, [fetchSummary, message]);
 
   useEffect(() => {
     fetchData(true);
@@ -515,9 +549,11 @@ const Dashboard: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: '12%',
+      width: 90,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: any) => (
-        <Button type="link" icon={<EditOutlined />} onClick={() => startEditCapability(record)}>
+        <Button className="dashboard-fix-button" type="link" icon={<EditOutlined />} onClick={() => startEditCapability(record)}>
           修正
         </Button>
       ),
@@ -572,9 +608,11 @@ const Dashboard: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: '8%',
+      width: 90,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: any) => (
-        <Button type="link" icon={<EditOutlined />} onClick={() => startEditWork(record)} style={{ padding: 0 }}>
+        <Button className="dashboard-fix-button" type="link" icon={<EditOutlined />} onClick={() => startEditWork(record)}>
           修正
         </Button>
       ),
@@ -600,7 +638,7 @@ const Dashboard: React.FC = () => {
         <>
 
       {/* 精准且支持互动的核心卡片区 */}
-      <div className="consulting-metric-grid">
+      <div className="consulting-metric-grid dashboard-metric-grid">
         <Card
           className="consulting-metric-card"
           hoverable
@@ -653,12 +691,11 @@ const Dashboard: React.FC = () => {
 
       {industrySummary.length > 0 && (
         <Card className="dashboard-industry-filter-card">
-          <Space align="center" style={{ display: 'flex', flexWrap: 'wrap' }} size={[8, 12]}>
-            <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555', marginRight: 8 }}>行业方向筛选:</span>
+          <div className="dashboard-industry-scroll" aria-label="行业方向筛选">
+            <span className="dashboard-industry-label">行业方向筛选:</span>
             <Tag.CheckableTag
               checked={industryScope === 'all'}
               onChange={() => setIndustryScope('all')}
-              style={{ padding: '4px 10px', fontSize: '13px' }}
             >
               全部行业 ({industrySummary.length})
             </Tag.CheckableTag>
@@ -669,35 +706,35 @@ const Dashboard: React.FC = () => {
                   key={item.industry_key}
                   checked={active}
                   onChange={() => setIndustryScope(active ? 'all' : item.industry_key)}
-                  style={{ padding: '4px 10px', fontSize: '13px', border: active ? 'none' : '1px solid #e8e8e8' }}
                 >
                   {item.industry_label} ({item.resume_count}人 / {item.project_count}项目)
                 </Tag.CheckableTag>
-              );
-            })}
-          </Space>
+                );
+              })}
+          </div>
         </Card>
       )}
 
       {/* 统一整合工作台（Tab 组合，告别冗长滚动） */}
       <Card
         className="workbench-main-workspace consulting-table-card"
-        bodyStyle={{ padding: '12px 24px 24px 24px' }}
+        styles={{ body: { padding: '12px 24px 24px 24px' } }}
         style={{ borderRadius: '8px' }}
       >
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
-          size="large"
+          size="middle"
           type="line"
-          tabBarStyle={{ marginBottom: 20 }}
+          tabBarGutter={16}
           items={[
             {
               key: 'projects',
               label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="dashboard-tab-label">
                   <ProjectOutlined />
-                  项目经验库 ({filteredProjects.length})
+                  <span>项目经验</span>
+                  <span className="dashboard-tab-count">({filteredProjects.length})</span>
                 </span>
               ),
               children: (
@@ -787,13 +824,15 @@ const Dashboard: React.FC = () => {
             {
               key: 'capabilities',
               label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="dashboard-tab-label">
                   <BulbOutlined />
-                  能力样本库 ({candidateRows.length})
+                  <span>能力样本</span>
+                  <span className="dashboard-tab-count">({summaryLoading ? '加载中' : summaryError ? '重试' : candidateRows.length})</span>
                 </span>
               ),
               children: (
-                <div>
+                <AsyncState loading={summaryLoading} error={summaryError} onRetry={() => fetchSummary()}>
+                  <div>
                   {/* 能力库工具栏 */}
                   <div className="dashboard-library-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
                     <Input
@@ -836,19 +875,22 @@ const Dashboard: React.FC = () => {
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无匹配的人才能力逻辑" />
                   )}
-                </div>
+                  </div>
+                </AsyncState>
               )
             },
             {
               key: 'works',
               label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="dashboard-tab-label">
                   <ApartmentOutlined />
-                  履历工作经验 ({workRows.length})
+                  <span>工作经历</span>
+                  <span className="dashboard-tab-count">({summaryLoading ? '加载中' : summaryError ? '重试' : workRows.length})</span>
                 </span>
               ),
               children: (
-                <div>
+                <AsyncState loading={summaryLoading} error={summaryError} onRetry={() => fetchSummary()}>
+                  <div>
                   {/* 工作经验工具栏 */}
                   <div className="dashboard-library-toolbar" style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
                     <Input
@@ -893,7 +935,8 @@ const Dashboard: React.FC = () => {
                   ) : (
                     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无匹配的公司任职经验" />
                   )}
-                </div>
+                  </div>
+                </AsyncState>
               )
             }
           ]}
@@ -914,7 +957,7 @@ const Dashboard: React.FC = () => {
           </span>
         }
         placement="right"
-        width={560}
+        size={560}
         onClose={() => setDrawerVisible(false)}
         open={drawerVisible}
         extra={

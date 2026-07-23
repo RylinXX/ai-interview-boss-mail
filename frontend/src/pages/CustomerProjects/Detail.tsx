@@ -318,7 +318,7 @@ const CustomerProjectDetail: React.FC = () => {
           </Card>
         </Col>
 
-        <Col span={14}>
+        <Col xs={24} xl={14}>
           <Card
             className="strategy-brief-card"
             title={
@@ -387,7 +387,7 @@ const CustomerProjectDetail: React.FC = () => {
           </Card>
         </Col>
 
-        <Col span={10}>
+        <Col xs={24} xl={10}>
           <Card
             className="solution-document-card"
             title={
