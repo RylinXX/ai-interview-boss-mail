@@ -588,6 +588,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="workbench-page dashboard-page">
       <ModulePageHeader
+        compact
         eyebrow={<><DatabaseOutlined /> 业务控制台</>}
         title="业务总览"
         description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
@@ -651,7 +652,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {industrySummary.length > 0 && (
-        <Card style={{ marginBottom: 20, borderRadius: '8px' }} bodyStyle={{ padding: '12px 18px' }}>
+        <Card className="dashboard-industry-filter-card">
           <Space align="center" style={{ display: 'flex', flexWrap: 'wrap' }} size={[8, 12]}>
             <span style={{ fontSize: 13, fontWeight: 'bold', color: '#555', marginRight: 8 }}>行业方向筛选:</span>
             <Tag.CheckableTag

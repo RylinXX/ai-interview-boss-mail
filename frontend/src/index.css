@@ -1448,7 +1448,38 @@ code {
 .dashboard-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
+}
+
+.dashboard-page .consulting-metric-grid {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.dashboard-page .consulting-metric-card .ant-card-body {
+  min-height: 102px;
+  gap: 5px;
+  padding: 12px 14px;
+}
+
+.dashboard-page .consulting-metric-card strong {
+  font-size: 25px;
+}
+
+.dashboard-page .dashboard-industry-filter-card {
+  margin-bottom: 10px;
+}
+
+.dashboard-page .dashboard-industry-filter-card .ant-card-body {
+  padding: 8px 12px;
+}
+
+.dashboard-page .workbench-main-workspace .ant-tabs-nav {
+  margin-bottom: 10px;
+}
+
+.dashboard-page .project-library-toolbar {
+  margin-bottom: 10px !important;
 }
 
 .dashboard-hero {
