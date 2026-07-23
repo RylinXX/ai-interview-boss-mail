@@ -300,7 +300,7 @@ const ResumesList: React.FC = () => {
       title: '人才样本',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
-      width: 180,
+      width: 170,
       render: (text: string, record: any) => (
         <div>
           <Text strong><SensitiveField value={text} kind="name" /></Text>
@@ -319,7 +319,7 @@ const ResumesList: React.FC = () => {
       title: '状态',
       dataIndex: 'parse_status',
       key: 'parse_status',
-      width: 100,
+      width: 88,
       render: (status: string) => {
         const item = STATUS_MAP[status] || { text: status || '待处理', color: 'default' };
         return <Tag color={item.color}>{item.text}</Tag>;
@@ -329,7 +329,7 @@ const ResumesList: React.FC = () => {
       title: '评估分',
       dataIndex: 'match_score',
       key: 'match_score',
-      width: 150,
+      width: 96,
       sorter: (a: any, b: any) => (a.match_score || 0) - (b.match_score || 0),
       render: (score: number | null) => score == null ? '-' : (
         <Space>
@@ -356,28 +356,30 @@ const ResumesList: React.FC = () => {
     {
       title: '项目',
       key: 'projects',
-      width: 90,
+      width: 72,
       render: (_: any, record: any) => getProjectCount(record),
     },
     {
       title: '问题',
       key: 'questions',
-      width: 90,
+      width: 72,
       render: (_: any, record: any) => getQuestionCount(record),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 170,
+      width: 144,
       render: (value: string) => value ? new Date(value).toLocaleString() : '-',
     },
     {
       title: '操作',
       key: 'action',
-      width: 160,
+      width: 152,
+      fixed: 'right' as const,
+      className: 'actions-column',
       render: (_: any, record: any) => (
-        <Space>
+        <Space className="resume-row-actions" size={6}>
           <Tooltip title="查看分析">
             <Button icon={<EyeOutlined />} onClick={() => navigate(`/resumes/${record.id}`)} />
           </Tooltip>
@@ -493,7 +495,8 @@ const ResumesList: React.FC = () => {
                 rowKey="id"
                 dataSource={data}
                 columns={columns}
-                scroll={{ x: 1180 }}
+                tableLayout="fixed"
+                scroll={{ x: 1120 }}
                 rowSelection={{
                   columnWidth: 64,
                   selectedRowKeys,

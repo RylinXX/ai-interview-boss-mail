@@ -709,6 +709,23 @@ code {
   margin-bottom: 16px;
 }
 
+.resume-detail-toolbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+}
+
+.resume-detail-toolbar-status,
+.resume-detail-toolbar-actions {
+  min-width: 0;
+}
+
+.resume-detail-toolbar-actions {
+  justify-content: flex-end;
+}
+
 .resume-detail-shell {
   flex: 1;
   min-height: 0;
@@ -790,6 +807,53 @@ code {
   max-height: 100%;
   overflow-y: auto;
   padding-right: 4px;
+}
+
+.resume-profile-summary {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.resume-profile-copy,
+.resume-analysis-pane .ant-list-item-meta,
+.resume-analysis-pane .ant-list-item-meta-content,
+.resume-analysis-pane .ant-list-item-meta-title,
+.resume-analysis-pane .ant-list-item-meta-description {
+  min-width: 0;
+}
+
+.resume-profile-copy {
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+}
+
+.resume-profile-copy h2,
+.resume-preview-head h5,
+.resume-question-list .ant-list-item-meta-title,
+.resume-question-list .ant-list-item-meta-description,
+.resume-markdown-content,
+.resume-analysis-pane .ant-typography {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.resume-analysis-pane .ant-space-vertical,
+.resume-analysis-pane .ant-space-vertical > .ant-space-item {
+  width: 100%;
+  min-width: 0;
+}
+
+.resume-analysis-pane .ant-tag {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.resume-markdown-content pre,
+.resume-markdown-content table {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .resume-profile-card .ant-card-body {
@@ -1365,6 +1429,26 @@ code {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.resume-list-page .data-toolbar-group:first-child {
+  flex: 1 1 520px;
+}
+
+.resume-list-page .data-toolbar-group:last-child {
+  flex: 1 1 420px;
+  justify-content: flex-end;
+}
+
+.workbench-page .ant-table-thead > tr > th,
+.workbench-page .ant-table-tbody > tr > td {
+  padding: 12px 14px !important;
+}
+
+@media (max-width: 1280px) {
+  .resume-list-page .data-toolbar-group:last-child {
+    justify-content: flex-start;
+  }
 }
 
 .resume-list-hero {

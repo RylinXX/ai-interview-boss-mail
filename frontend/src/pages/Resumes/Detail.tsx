@@ -21,7 +21,7 @@ const statusInfo = (parseStatus?: string) => {
 const asArray = (value: any) => Array.isArray(value) ? value : [];
 
 const QuestionList = ({ title, data }: { title: string; data: any[] }) => (
-  <Card title={title} style={{ marginBottom: 16 }}>
+  <Card className="resume-question-list" title={title} style={{ marginBottom: 16 }}>
     {data.length ? (
       <List
         dataSource={data}
@@ -196,12 +196,12 @@ const ResumeDetail: React.FC = () => {
   return (
     <div className="resume-detail-page workbench-page">
       <div className="resume-detail-toolbar">
-        <Space style={{ justifyContent: 'space-between', width: '100%' }}>
-          <Space>
+        <div className="resume-detail-toolbar-inner">
+          <Space wrap className="resume-detail-toolbar-status">
             <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/resumes')}>返回</Button>
             <Tag color={status.color}>{status.text}</Tag>
           </Space>
-          <Space>
+          <Space wrap className="resume-detail-toolbar-actions">
             {isEditing ? (
               <>
                 <Button type="primary" icon={<SaveOutlined />} onClick={handleUpdate}>保存</Button>
@@ -219,7 +219,7 @@ const ResumeDetail: React.FC = () => {
               </>
             )}
           </Space>
-        </Space>
+        </div>
       </div>
 
       <div className="resume-detail-shell">
@@ -246,8 +246,8 @@ const ResumeDetail: React.FC = () => {
         <div className="resume-analysis-pane" id="resume-analysis-report-content">
           <Card className="resume-profile-card" style={{ marginBottom: 16 }}>
             <div className="resume-profile-hero">
-              <Space align="start" style={{ justifyContent: 'space-between', width: '100%' }}>
-                <div>
+              <Space className="resume-profile-summary" align="start" wrap>
+                <div className="resume-profile-copy">
                   <Text type="secondary">能力样本</Text>
                   <Title level={2} style={{ margin: 0 }}>{resume.candidate_name || '未识别'}</Title>
                   <Text type="secondary">{resume.email || resume.contact || '暂无联系方式'}</Text>
@@ -298,7 +298,9 @@ const ResumeDetail: React.FC = () => {
 
           <Card title="综合分析" style={{ marginBottom: 16 }}>
             {resume.ai_review ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{resume.ai_review}</ReactMarkdown>
+              <div className="resume-markdown-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{resume.ai_review}</ReactMarkdown>
+              </div>
             ) : (
               <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无分析结果" />
             )}
@@ -311,7 +313,7 @@ const ResumeDetail: React.FC = () => {
                 renderItem={(item: any) => (
                   <List.Item>
                     <List.Item.Meta
-                      title={<Space><span>{item.company || '未命名公司'}</span><Tag>{item.role || '角色未明'}</Tag></Space>}
+                      title={<Space wrap><span>{item.company || '未命名公司'}</span><Tag>{item.role || '角色未明'}</Tag></Space>}
                       description={
                             <Space orientation="vertical" size={4}>
                           {item.period && <Text type="secondary">{item.period}</Text>}
