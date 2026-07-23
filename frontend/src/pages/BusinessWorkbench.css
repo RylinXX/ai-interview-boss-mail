@@ -495,7 +495,17 @@
 }
 
 .dossier-header-actions {
+  display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.solution-document-card .ant-card-head-wrapper {
+  flex-wrap: wrap;
+}
+
+.solution-document-card .ant-card-extra {
+  margin-inline-start: 0;
 }
 
 .dossier-progress-card,
@@ -531,13 +541,12 @@
   font-size: 12px;
 }
 
-.strategy-brief-grid {
+.strategy-brief-flow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
-.strategy-brief-grid section {
+.strategy-brief-flow section {
   min-width: 0;
   padding: 14px;
   border: 1px solid #ece4d7;
@@ -545,17 +554,20 @@
   background: #fffdf8;
 }
 
-.strategy-brief-grid section > .ant-typography-secondary,
+.strategy-brief-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.strategy-brief-flow section > .ant-typography-secondary,
 .evidence-panel .ant-typography-secondary {
   display: block;
   margin-bottom: 8px;
   color: #7a6a52 !important;
   font-size: 12px;
   font-weight: 700;
-}
-
-.strategy-brief-wide {
-  grid-column: 1 / -1;
 }
 
 .formal-tag-row {
@@ -1497,7 +1509,7 @@ html[data-theme='dark'] .dossier-code {
 }
 
 html[data-theme='dark'] .dossier-progress-meta span,
-html[data-theme='dark'] .strategy-brief-grid section,
+html[data-theme='dark'] .strategy-brief-flow section,
 html[data-theme='dark'] .workbench-summary-strip,
 html[data-theme='dark'] .project-task-stage,
 html[data-theme='dark'] .project-task-stage-title,
@@ -1586,7 +1598,6 @@ html[data-theme='dark'] .task-output-preview {
   .consulting-hero,
   .workbench-module-hero,
   .dossier-header,
-  .strategy-brief-grid,
   .task-card-head,
   .employee-registry-grid,
   .ai-solution-head,
@@ -1627,6 +1638,10 @@ html[data-theme='dark'] .task-output-preview {
 }
 
 @media (max-width: 760px) {
+  .strategy-brief-pair {
+    grid-template-columns: 1fr;
+  }
+
   .responsive-data-desktop {
     display: none;
   }

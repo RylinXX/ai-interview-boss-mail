@@ -287,7 +287,7 @@ const CustomerProjectDetail: React.FC = () => {
             </Space>
           </div>
         </div>
-        <Space className="dossier-header-actions">
+        <Space wrap className="dossier-header-actions">
           <Button icon={<ReloadOutlined />} onClick={fetchProject}>刷新</Button>
           <Button onClick={generateDiagnosis}>生成诊断</Button>
           <Button type="primary" onClick={generateTasks}>生成任务板</Button>
@@ -328,28 +328,30 @@ const CustomerProjectDetail: React.FC = () => {
               </Space>
             }
           >
-            <div className="strategy-brief-grid">
-              <section>
+            <div className="strategy-brief-flow">
+              <section className="strategy-brief-background">
                 <Text type="secondary">客户背景</Text>
                 <Paragraph>{project.business_model || '业务模式待补充。建议先补齐客户获客、交付、收费和组织协同方式。'}</Paragraph>
               </section>
-              <section>
-                <Text type="secondary">核心问题</Text>
-                <Space wrap className="formal-tag-row">
-                  {(project.pain_points || []).length
-                    ? project.pain_points.map(item => <Tag key={item}>{item}</Tag>)
-                    : <Tag>痛点待补充</Tag>}
-                </Space>
-              </section>
-              <section>
-                <Text type="secondary">业务目标</Text>
-                <Space wrap className="formal-tag-row">
-                  {(project.goals || []).length
-                    ? project.goals.map(item => <Tag color="gold" key={item}>{item}</Tag>)
-                    : <Tag color="gold">目标待补充</Tag>}
-                </Space>
-              </section>
-              <section>
+              <div className="strategy-brief-pair">
+                <section>
+                  <Text type="secondary">核心问题</Text>
+                  <Space wrap className="formal-tag-row">
+                    {(project.pain_points || []).length
+                      ? project.pain_points.map(item => <Tag key={item}>{item}</Tag>)
+                      : <Tag>痛点待补充</Tag>}
+                  </Space>
+                </section>
+                <section>
+                  <Text type="secondary">业务目标</Text>
+                  <Space wrap className="formal-tag-row">
+                    {(project.goals || []).length
+                      ? project.goals.map(item => <Tag color="gold" key={item}>{item}</Tag>)
+                      : <Tag color="gold">目标待补充</Tag>}
+                  </Space>
+                </section>
+              </div>
+              <section className="strategy-brief-diagnosis">
                 <Text type="secondary">诊断标签</Text>
                 {diagnosisReady ? (
                   <Space wrap className="formal-tag-row">
@@ -361,7 +363,7 @@ const CustomerProjectDetail: React.FC = () => {
                   <Paragraph>尚未生成诊断。先用当前客户背景生成根因假设和追问清单。</Paragraph>
                 )}
               </section>
-              <section className="strategy-brief-wide">
+              <section>
                 <Text type="secondary">根因假设</Text>
                 {diagnosisReady ? (
                   <ul className="formal-list">
@@ -371,7 +373,7 @@ const CustomerProjectDetail: React.FC = () => {
                   <Paragraph>生成诊断后，这里会展示可验证的业务根因假设。</Paragraph>
                 )}
               </section>
-              <section className="strategy-brief-wide">
+              <section>
                 <Text type="secondary">下一步问题</Text>
                 {diagnosisReady ? (
                   <ul className="formal-list">
@@ -389,7 +391,7 @@ const CustomerProjectDetail: React.FC = () => {
           <Card
             className="solution-document-card"
             title={
-              <Space>
+              <Space wrap>
                 <FileTextOutlined />
                 <span>{document?.title || '方案文档'}</span>
               </Space>
