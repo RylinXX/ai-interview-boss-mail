@@ -41,6 +41,29 @@ test('dashboard uses the compact module header', async () => {
   assert.doesNotMatch(workbench, /message="数据加载失败"/);
 });
 
+test('dashboard project table contains long text and uses the full expanded width', async () => {
+  const [dashboard, indexCss] = await Promise.all([
+    read('src/pages/Dashboard/index.tsx'),
+    read('src/index.css'),
+  ]);
+
+  assert.match(dashboard, /className="project-library-card"/);
+  assert.match(dashboard, /className="project-evidence-cell"/);
+
+  const expandedDetailRule = indexCss.match(/\.project-expanded-detail\s*\{([^}]*)\}/);
+  assert.ok(expandedDetailRule);
+  assert.match(expandedDetailRule[1], /^[ \t]*display:[ \t]*block;[ \t]*$/m);
+  assert.match(expandedDetailRule[1], /^[ \t]*width:[ \t]*100%;[ \t]*$/m);
+  assert.match(expandedDetailRule[1], /^[ \t]*min-width:[ \t]*0;[ \t]*$/m);
+  assert.doesNotMatch(expandedDetailRule[1], /grid-template-columns/);
+
+  const evidenceTagRule = indexCss.match(/\.project-evidence-cell \.ant-tag\s*\{([^}]*)\}/);
+  assert.ok(evidenceTagRule);
+  assert.match(evidenceTagRule[1], /^[ \t]*max-width:[ \t]*100%;[ \t]*$/m);
+  assert.match(evidenceTagRule[1], /^[ \t]*white-space:[ \t]*normal;[ \t]*$/m);
+  assert.match(evidenceTagRule[1], /^[ \t]*overflow-wrap:[ \t]*anywhere;[ \t]*$/m);
+});
+
 test('dashboard releases the project workbench before loading secondary summaries', async () => {
   const source = await read('src/pages/Dashboard/index.tsx');
   assert.match(source, /const \[summaryLoading, setSummaryLoading\] = useState\(false\)/);

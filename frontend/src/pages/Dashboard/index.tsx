@@ -505,7 +505,7 @@ const Dashboard: React.FC = () => {
       key: 'missing_evidence',
       width: '20%',
       render: (value: string[]) => Array.isArray(value) && value.length ? (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        <div className="project-evidence-cell">
           {value.slice(0, 2).map(item => <Tag color="warning" key={item} style={{ margin: 0 }}>{item}</Tag>)}
           {value.length > 2 && <Tag style={{ margin: 0 }}>+{value.length - 2}</Tag>}
         </div>
@@ -775,6 +775,7 @@ const Dashboard: React.FC = () => {
                     <ResponsiveDataView
                       desktop={(
                         <Table
+                          className="project-library-card"
                           rowKey={(record) => record._rowKey}
                           dataSource={filteredProjects}
                           columns={projectColumns}

@@ -2538,6 +2538,21 @@ html[data-theme='dark'] .agent-solution-item h5 {
   overflow-wrap: anywhere;
 }
 
+.project-evidence-cell {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.project-evidence-cell .ant-tag {
+  max-width: 100%;
+  margin: 0;
+  white-space: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .work-title-cell {
   display: grid;
   gap: 6px;
@@ -2573,9 +2588,9 @@ html[data-theme='dark'] .agent-solution-item h5 {
 }
 
 .project-expanded-detail {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 24px;
+  display: block;
+  width: 100%;
+  min-width: 0;
   padding: 16px 20px 18px 48px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-md);
@@ -2762,8 +2777,7 @@ html[data-theme='dark'] .agent-solution-item h5 {
     height: 390px;
   }
 
-  .analysis-list.compact,
-  .project-expanded-detail {
+  .analysis-list.compact {
     grid-template-columns: 1fr;
   }
 
