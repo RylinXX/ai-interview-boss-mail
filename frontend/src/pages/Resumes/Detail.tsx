@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { getMaximizedPdfPreviewUrl } from '../../utils/pdfPreview';
+import { clearResumeListCache } from './List';
 import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -59,10 +60,11 @@ const ResumeDetail: React.FC = () => {
     if (!id) return;
     setLoading(true);
     try {
-      const res = await request.get(`/resumes/${id}`) as any;
+      const res = await request.get(`/resumes/${id}`);
       setResume(res);
+      form.setFieldsValue(res);
     } catch (error) {
-      message.error('获取能力样本详情失败');
+      message.error(getApiErrorMessage(error, '获取能力样本失败'));
     } finally {
       setLoading(false);
     }
@@ -87,6 +89,7 @@ const ResumeDetail: React.FC = () => {
       await request.put(`/resumes/${id}`, values);
       message.success('更新成功');
       setIsEditing(false);
+      clearResumeListCache();
       fetchResume();
     } catch (error) {
       message.error(getApiErrorMessage(error, '更新失败'));
@@ -103,6 +106,7 @@ const ResumeDetail: React.FC = () => {
         try {
           await request.post(`/resumes/${id}/reparse`);
           message.success('已提交重新分析');
+          clearResumeListCache();
           fetchResume();
         } catch (error) {
           message.error(getApiErrorMessage(error, '重新分析失败'));

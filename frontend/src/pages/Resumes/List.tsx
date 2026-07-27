@@ -50,6 +50,12 @@ const getResumeSummary = (record: any) => (
 
 const EMPTY_METRICS = { total: 0, success: 0, processing: 0, failed: 0, pending: 0 };
 
+const GLOBAL_RESUME_LIST_CACHE = new Map<string, { items: any[]; total: number; metrics: typeof EMPTY_METRICS }>();
+
+export const clearResumeListCache = () => {
+  GLOBAL_RESUME_LIST_CACHE.clear();
+};
+
 const ResumesList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -61,11 +67,20 @@ const ResumesList: React.FC = () => {
   const queryPage = Number(searchParams.get('page')) || 1;
   const queryPageSize = Number(searchParams.get('pageSize')) || 10;
 
-  const queryCacheRef = useRef<Map<string, { items: any[]; total: number; metrics: typeof EMPTY_METRICS }>>(new Map());
-  const [data, setData] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [metrics, setMetrics] = useState(EMPTY_METRICS);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const initialCacheKey = JSON.stringify({
+    page: queryPage,
+    size: queryPageSize,
+    name: queryName,
+    status: queryStatus,
+    school: querySchoolTag,
+    company: queryCompanyTag,
+  });
+  const cachedInitial = GLOBAL_RESUME_LIST_CACHE.get(initialCacheKey);
+
+  const [data, setData] = useState<any[]>(cachedInitial?.items || []);
+  const [total, setTotal] = useState(cachedInitial?.total || 0);
+  const [metrics, setMetrics] = useState(cachedInitial?.metrics || EMPTY_METRICS);
+  const [initialLoading, setInitialLoading] = useState(!cachedInitial);
   const [tableLoading, setTableLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
@@ -123,8 +138,8 @@ const ResumesList: React.FC = () => {
       company: selectedCompanyTag,
     });
 
-    const cached = queryCacheRef.current.get(cacheKey);
-    if (cached && !bypassCache && !silent) {
+    const cached = GLOBAL_RESUME_LIST_CACHE.get(cacheKey);
+    if (cached && !bypassCache) {
       setData(cached.items);
       setTotal(cached.total);
       setMetrics(cached.metrics);
@@ -132,9 +147,7 @@ const ResumesList: React.FC = () => {
       setTableLoading(false);
       setPollingEnabled((cached.metrics?.processing || 0) > 0);
       silent = true;
-    }
-
-    if (!silent) {
+    } else if (!silent) {
       if (data.length === 0) {
         setInitialLoading(true);
       } else {
@@ -165,7 +178,7 @@ const ResumesList: React.FC = () => {
         metrics: res.metrics || EMPTY_METRICS,
       };
 
-      queryCacheRef.current.set(cacheKey, result);
+      GLOBAL_RESUME_LIST_CACHE.set(cacheKey, result);
       setData(result.items);
       setTotal(result.total);
       setMetrics(result.metrics);
@@ -217,7 +230,7 @@ const ResumesList: React.FC = () => {
       } else {
         message.success(`邮箱同步完成：${summary}`);
       }
-      queryCacheRef.current.clear();
+      GLOBAL_RESUME_LIST_CACHE.clear();
       await fetchResumes(false, true);
     } catch (error) {
       message.error(getApiErrorMessage(error, '邮箱同步失败，请先检查系统设置里的样本导入配置'));
@@ -236,7 +249,7 @@ const ResumesList: React.FC = () => {
         try {
           await request.post(`/resumes/${record.id}/reparse`);
           message.success('已提交重新分析');
-          queryCacheRef.current.clear();
+          GLOBAL_RESUME_LIST_CACHE.clear();
           fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '重新分析失败'));
@@ -263,7 +276,7 @@ const ResumesList: React.FC = () => {
             params: { limit: Math.min(failedCount, 100) },
           }) as any;
           message.success(`已提交 ${res.queued_count || 0} 份能力样本重新分析`);
-          queryCacheRef.current.clear();
+          GLOBAL_RESUME_LIST_CACHE.clear();
           await fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量重新分析失败'));
@@ -285,7 +298,7 @@ const ResumesList: React.FC = () => {
         try {
           await request.delete(`/resumes/${id}`);
           message.success('删除成功');
-          queryCacheRef.current.clear();
+          GLOBAL_RESUME_LIST_CACHE.clear();
           fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '删除失败'));
@@ -310,7 +323,7 @@ const ResumesList: React.FC = () => {
           await Promise.all(selectedRowKeys.map(id => request.delete(`/resumes/${id}`)));
           setSelectedRowKeys([]);
           message.success('批量删除成功');
-          queryCacheRef.current.clear();
+          GLOBAL_RESUME_LIST_CACHE.clear();
           fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量删除失败'));
@@ -345,7 +358,7 @@ const ResumesList: React.FC = () => {
           await Promise.all(reparsableRecords.map(record => request.post(`/resumes/${record.id}/reparse`)));
           setSelectedRowKeys([]);
           message.success(`已提交 ${reparsableRecords.length} 份能力样本重新生成`);
-          queryCacheRef.current.clear();
+          GLOBAL_RESUME_LIST_CACHE.clear();
           await fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量重新分析失败'));
