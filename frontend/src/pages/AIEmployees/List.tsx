@@ -413,16 +413,7 @@ const AISolutionAssistantPage: React.FC = () => {
                 <div
                   key={item.id}
                   onClick={() => openConversation(item.id)}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    background: activeConversationId === item.id ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
-                    border: activeConversationId === item.id ? '1px solid rgba(24, 144, 255, 0.3)' : '1px solid transparent',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
+                  className={`history-conv-item ${activeConversationId === item.id ? 'active' : ''}`}
                 >
                   <Text
                     ellipsis
@@ -431,6 +422,7 @@ const AISolutionAssistantPage: React.FC = () => {
                       color: activeConversationId === item.id ? '#1890ff' : 'var(--text-color, #333)',
                       fontWeight: activeConversationId === item.id ? 600 : 400,
                       flex: 1,
+                      marginRight: 6,
                     }}
                   >
                     {item.title || '新对话'}
@@ -442,13 +434,13 @@ const AISolutionAssistantPage: React.FC = () => {
                     okText="删除"
                     cancelText="取消"
                   >
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<DeleteOutlined style={{ color: '#ff4d4f', fontSize: '12px' }} />}
+                    <button
+                      className="delete-btn"
                       onClick={(e) => e.stopPropagation()}
-                      style={{ padding: '0 4px', height: '22px', marginLeft: 4 }}
-                    />
+                      title="删除对话"
+                    >
+                      <DeleteOutlined style={{ fontSize: '13px' }} />
+                    </button>
                   </Popconfirm>
                 </div>
               ))}

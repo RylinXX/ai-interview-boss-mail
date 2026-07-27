@@ -2109,3 +2109,56 @@ html[data-theme='dark'] .task-output-preview {
   font-weight: 700;
 }
 
+/* ==========================================================================
+   ChatGPT / Claude Style Conversation History List & Hover Delete Button
+   ========================================================================== */
+
+.history-conv-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.history-conv-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.dark-mode .history-conv-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.history-conv-item.active {
+  background: rgba(24, 144, 255, 0.08);
+  border: 1px solid rgba(24, 144, 255, 0.25);
+}
+
+.history-conv-item .delete-btn {
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.18s ease;
+  border: none;
+  background: transparent;
+  color: #8c8c8c;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.history-conv-item:hover .delete-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+.history-conv-item .delete-btn:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.12);
+}
+
+
