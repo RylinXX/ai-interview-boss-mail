@@ -181,7 +181,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '核心问题',
                     dataIndex: 'pain_points',
-                    width: '24%',
+                    width: '22%',
                     render: (values: string[]) => (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
                         {(values || []).length > 0 ? (
@@ -199,7 +199,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '交付目标',
                     dataIndex: 'goals',
-                    width: '24%',
+                    width: '22%',
                     render: (values: string[]) => (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
                         {(values || []).length > 0 ? (
@@ -224,7 +224,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '操作',
                     key: 'action',
-                    width: '8%',
+                    width: '12%',
                     align: 'center',
                     render: (_: unknown, record) => (
                       <Button

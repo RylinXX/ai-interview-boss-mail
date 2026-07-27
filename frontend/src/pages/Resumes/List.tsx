@@ -398,7 +398,7 @@ const ResumesList: React.FC = () => {
     {
       title: '核心经历概要',
       key: 'summary',
-      width: '32%',
+      width: '30%',
       ellipsis: true,
       render: (_: any, record: any) => (
         <Tooltip title={getResumeSummary(record)}>
@@ -428,7 +428,7 @@ const ResumesList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: '12%',
+      width: '14%',
       align: 'center' as const,
       render: (_: any, record: any) => (
         <Space className="resume-row-actions" size={4}>
