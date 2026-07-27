@@ -37,7 +37,7 @@ def list_knowledge_assets_route(
     evidence_type: Optional[str] = None,
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    limit: int = Query(default=24, ge=1, le=100),
+    limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -178,7 +178,7 @@ def stream_solution_agent_route(
 
 @router.get("/solution-agent/conversations")
 def list_solution_agent_conversations_route(
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
