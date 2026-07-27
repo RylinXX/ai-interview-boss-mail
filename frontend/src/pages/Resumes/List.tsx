@@ -50,7 +50,7 @@ const getResumeSummary = (record: any) => (
 
 const EMPTY_METRICS = { total: 0, success: 0, processing: 0, failed: 0, pending: 0 };
 
-const GLOBAL_RESUME_LIST_CACHE = new Map<string, { items: any[]; total: number; metrics: typeof EMPTY_METRICS }>();
+const GLOBAL_RESUME_LIST_CACHE = new Map<string, { allItems: any[]; total: number; metrics: typeof EMPTY_METRICS }>();
 
 export const clearResumeListCache = () => {
   GLOBAL_RESUME_LIST_CACHE.clear();
@@ -67,17 +67,16 @@ const ResumesList: React.FC = () => {
   const queryPage = Number(searchParams.get('page')) || 1;
   const queryPageSize = Number(searchParams.get('pageSize')) || 10;
 
-  const initialCacheKey = JSON.stringify({
-    page: queryPage,
-    size: queryPageSize,
+  const initialFilterKey = JSON.stringify({
     name: queryName,
     status: queryStatus,
     school: querySchoolTag,
     company: queryCompanyTag,
   });
-  const cachedInitial = GLOBAL_RESUME_LIST_CACHE.get(initialCacheKey);
+  const cachedInitial = GLOBAL_RESUME_LIST_CACHE.get(initialFilterKey);
+  const initialSliced = cachedInitial ? cachedInitial.allItems.slice((queryPage - 1) * queryPageSize, queryPage * queryPageSize) : [];
 
-  const [data, setData] = useState<any[]>(cachedInitial?.items || []);
+  const [data, setData] = useState<any[]>(initialSliced);
   const [total, setTotal] = useState(cachedInitial?.total || 0);
   const [metrics, setMetrics] = useState(cachedInitial?.metrics || EMPTY_METRICS);
   const [initialLoading, setInitialLoading] = useState(!cachedInitial);
@@ -129,25 +128,26 @@ const ResumesList: React.FC = () => {
   }, [searchParams]);
 
   const fetchResumes = useCallback(async (silent = false, bypassCache = false) => {
-    const cacheKey = JSON.stringify({
-      page: currentPage,
-      size: pageSize,
+    const filterKey = JSON.stringify({
       name: activeSearchName,
       status: activeParseStatus,
       school: selectedSchoolTag,
       company: selectedCompanyTag,
     });
 
-    const cached = GLOBAL_RESUME_LIST_CACHE.get(cacheKey);
+    const cached = GLOBAL_RESUME_LIST_CACHE.get(filterKey);
     if (cached && !bypassCache) {
-      setData(cached.items);
+      const sliced = cached.allItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      setData(sliced);
       setTotal(cached.total);
       setMetrics(cached.metrics);
       setInitialLoading(false);
       setTableLoading(false);
       setPollingEnabled((cached.metrics?.processing || 0) > 0);
-      silent = true;
-    } else if (!silent) {
+      return;
+    }
+
+    if (!silent) {
       if (data.length === 0) {
         setInitialLoading(true);
       } else {
@@ -158,8 +158,8 @@ const ResumesList: React.FC = () => {
 
     try {
       const params: any = {
-        skip: (currentPage - 1) * pageSize,
-        limit: pageSize,
+        skip: 0,
+        limit: 500,
       };
       if (activeSearchName) params.candidate_name = activeSearchName;
       if (activeParseStatus) params.parse_status = activeParseStatus;
@@ -172,17 +172,22 @@ const ResumesList: React.FC = () => {
         metrics: typeof EMPTY_METRICS;
       };
 
+      const allItems = res.items || [];
+      const totalCount = res.total ?? allItems.length;
+      const metricsData = res.metrics || EMPTY_METRICS;
+
       const result = {
-        items: res.items || [],
-        total: res.total || 0,
-        metrics: res.metrics || EMPTY_METRICS,
+        allItems,
+        total: totalCount,
+        metrics: metricsData,
       };
 
-      GLOBAL_RESUME_LIST_CACHE.set(cacheKey, result);
-      setData(result.items);
-      setTotal(result.total);
-      setMetrics(result.metrics);
-      setPollingEnabled((result.metrics?.processing || 0) > 0);
+      GLOBAL_RESUME_LIST_CACHE.set(filterKey, result);
+      const sliced = allItems.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      setData(sliced);
+      setTotal(totalCount);
+      setMetrics(metricsData);
+      setPollingEnabled((metricsData.processing || 0) > 0);
     } catch (error) {
       if (!silent) {
         const errorMessage = getApiErrorMessage(error, '获取人才样本失败，请稍后重试');
