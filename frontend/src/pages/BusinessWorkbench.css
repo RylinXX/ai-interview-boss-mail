@@ -2365,7 +2365,7 @@ body.dark-mode .embedded-metric-card .metric-title {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--card-bg, #ffffff);
+  background: var(--surface-color, #ffffff);
   border: 1px solid var(--border-color, #e8e8e8);
   border-radius: 12px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
@@ -2375,6 +2375,7 @@ body.dark-mode .embedded-metric-card .metric-title {
 }
 
 html[data-theme='dark'] .solution-sidebar-unified,
+[data-theme='dark'] .solution-sidebar-unified,
 body.dark-mode .solution-sidebar-unified {
   background: #141e2e !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
@@ -2394,6 +2395,7 @@ body.dark-mode .solution-sidebar-unified {
 }
 
 html[data-theme='dark'] .solution-sidebar-section-title,
+[data-theme='dark'] .solution-sidebar-section-title,
 body.dark-mode .solution-sidebar-section-title {
   color: #e2e8f0 !important;
   border-bottom-color: rgba(255, 255, 255, 0.12) !important;
@@ -2426,6 +2428,7 @@ body.dark-mode .solution-sidebar-section-title {
 }
 
 html[data-theme='dark'] .solution-history-item:hover,
+[data-theme='dark'] .solution-history-item:hover,
 body.dark-mode .solution-history-item:hover {
   background: rgba(255, 255, 255, 0.08) !important;
 }
@@ -2436,6 +2439,7 @@ body.dark-mode .solution-history-item:hover {
 }
 
 html[data-theme='dark'] .solution-history-item.active,
+[data-theme='dark'] .solution-history-item.active,
 body.dark-mode .solution-history-item.active {
   background: rgba(24, 144, 255, 0.18) !important;
   border-color: rgba(24, 144, 255, 0.45) !important;
@@ -2452,8 +2456,9 @@ body.dark-mode .solution-history-item.active {
 }
 
 html[data-theme='dark'] .solution-history-title,
+[data-theme='dark'] .solution-history-title,
 body.dark-mode .solution-history-title {
-  color: #cbd5e1;
+  color: #cbd5e1 !important;
 }
 
 .solution-history-item .delete-btn {
@@ -2495,6 +2500,7 @@ body.dark-mode .solution-history-title {
 }
 
 html[data-theme='dark'] .preset-prompt-card,
+[data-theme='dark'] .preset-prompt-card,
 body.dark-mode .preset-prompt-card {
   background: #1e293b !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
@@ -2502,6 +2508,7 @@ body.dark-mode .preset-prompt-card {
 }
 
 html[data-theme='dark'] .preset-prompt-card:hover,
+[data-theme='dark'] .preset-prompt-card:hover,
 body.dark-mode .preset-prompt-card:hover {
   background: #334155 !important;
   border-color: #1890ff !important;
@@ -2517,12 +2524,7 @@ body.dark-mode .preset-prompt-card:hover {
 }
 
 html[data-theme='dark'] .solution-chat-input-wrapper,
-body.dark-mode .solution-chat-input-wrapper {
-  background: #1e293b !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-}
-
-html[data-theme='dark'] .solution-chat-input-wrapper textarea,
+[data-theme='dark'] .solution-chat-input-wrapper,
 body.dark-mode .solution-chat-input-wrapper textarea {
   color: #f1f5f9 !important;
 }
