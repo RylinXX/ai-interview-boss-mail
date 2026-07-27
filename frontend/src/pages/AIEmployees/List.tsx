@@ -6,7 +6,6 @@ import {
   CopyOutlined,
   DeleteOutlined,
   ExportOutlined,
-  FileExportOutlined,
   FileSearchOutlined,
   FileTextOutlined,
   FilterOutlined,
@@ -543,7 +542,7 @@ const AISolutionAssistantPage: React.FC = () => {
                 <Button size="small" icon={<SaveOutlined />} onClick={saveDraftSolution}>
                   保存方案
                 </Button>
-                <Button size="small" icon={<FileExportOutlined />} onClick={exportSolutionDoc}>
+                <Button size="small" icon={<ExportOutlined />} onClick={exportSolutionDoc}>
                   导出文档
                 </Button>
               </>
