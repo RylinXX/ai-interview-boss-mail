@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, Checkbox, Divider, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Card, Checkbox, Divider, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Spin, Table, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   ClearOutlined,
@@ -61,10 +61,12 @@ const ResumesList: React.FC = () => {
   const queryPage = Number(searchParams.get('page')) || 1;
   const queryPageSize = Number(searchParams.get('pageSize')) || 10;
 
+  const queryCacheRef = useRef<Map<string, { items: any[]; total: number; metrics: typeof EMPTY_METRICS }>>(new Map());
   const [data, setData] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [metrics, setMetrics] = useState(EMPTY_METRICS);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -111,9 +113,36 @@ const ResumesList: React.FC = () => {
     setPageSize(size);
   }, [searchParams]);
 
-  const fetchResumes = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    if (!silent) setLoadError(null);
+  const fetchResumes = useCallback(async (silent = false, bypassCache = false) => {
+    const cacheKey = JSON.stringify({
+      page: currentPage,
+      size: pageSize,
+      name: activeSearchName,
+      status: activeParseStatus,
+      school: selectedSchoolTag,
+      company: selectedCompanyTag,
+    });
+
+    const cached = queryCacheRef.current.get(cacheKey);
+    if (cached && !bypassCache && !silent) {
+      setData(cached.items);
+      setTotal(cached.total);
+      setMetrics(cached.metrics);
+      setInitialLoading(false);
+      setTableLoading(false);
+      setPollingEnabled((cached.metrics?.processing || 0) > 0);
+      silent = true;
+    }
+
+    if (!silent) {
+      if (data.length === 0) {
+        setInitialLoading(true);
+      } else {
+        setTableLoading(true);
+      }
+      setLoadError(null);
+    }
+
     try {
       const params: any = {
         skip: (currentPage - 1) * pageSize,
@@ -129,10 +158,18 @@ const ResumesList: React.FC = () => {
         total: number;
         metrics: typeof EMPTY_METRICS;
       };
-      setData(res.items || []);
-      setTotal(res.total || 0);
-      setMetrics(res.metrics || EMPTY_METRICS);
-      setPollingEnabled((res.metrics?.processing || 0) > 0);
+
+      const result = {
+        items: res.items || [],
+        total: res.total || 0,
+        metrics: res.metrics || EMPTY_METRICS,
+      };
+
+      queryCacheRef.current.set(cacheKey, result);
+      setData(result.items);
+      setTotal(result.total);
+      setMetrics(result.metrics);
+      setPollingEnabled((result.metrics?.processing || 0) > 0);
     } catch (error) {
       if (!silent) {
         const errorMessage = getApiErrorMessage(error, '获取人才样本失败，请稍后重试');
@@ -140,9 +177,12 @@ const ResumesList: React.FC = () => {
         message.error(errorMessage);
       }
     } finally {
-      if (!silent) setLoading(false);
+      if (!silent) {
+        setInitialLoading(false);
+        setTableLoading(false);
+      }
     }
-  }, [activeParseStatus, activeSearchName, currentPage, pageSize, selectedCompanyTag, selectedSchoolTag]);
+  }, [activeParseStatus, activeSearchName, currentPage, pageSize, selectedCompanyTag, selectedSchoolTag, data.length]);
 
   useEffect(() => {
     fetchResumes();
@@ -177,7 +217,8 @@ const ResumesList: React.FC = () => {
       } else {
         message.success(`邮箱同步完成：${summary}`);
       }
-      await fetchResumes();
+      queryCacheRef.current.clear();
+      await fetchResumes(false, true);
     } catch (error) {
       message.error(getApiErrorMessage(error, '邮箱同步失败，请先检查系统设置里的样本导入配置'));
     } finally {
@@ -195,7 +236,8 @@ const ResumesList: React.FC = () => {
         try {
           await request.post(`/resumes/${record.id}/reparse`);
           message.success('已提交重新分析');
-          fetchResumes();
+          queryCacheRef.current.clear();
+          fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '重新分析失败'));
         }
@@ -221,7 +263,8 @@ const ResumesList: React.FC = () => {
             params: { limit: Math.min(failedCount, 100) },
           }) as any;
           message.success(`已提交 ${res.queued_count || 0} 份能力样本重新分析`);
-          await fetchResumes();
+          queryCacheRef.current.clear();
+          await fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量重新分析失败'));
         } finally {
@@ -242,7 +285,8 @@ const ResumesList: React.FC = () => {
         try {
           await request.delete(`/resumes/${id}`);
           message.success('删除成功');
-          fetchResumes();
+          queryCacheRef.current.clear();
+          fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '删除失败'));
         }
@@ -266,7 +310,8 @@ const ResumesList: React.FC = () => {
           await Promise.all(selectedRowKeys.map(id => request.delete(`/resumes/${id}`)));
           setSelectedRowKeys([]);
           message.success('批量删除成功');
-          fetchResumes();
+          queryCacheRef.current.clear();
+          fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量删除失败'));
         }
@@ -300,7 +345,8 @@ const ResumesList: React.FC = () => {
           await Promise.all(reparsableRecords.map(record => request.post(`/resumes/${record.id}/reparse`)));
           setSelectedRowKeys([]);
           message.success(`已提交 ${reparsableRecords.length} 份能力样本重新生成`);
-          await fetchResumes();
+          queryCacheRef.current.clear();
+          await fetchResumes(false, true);
         } catch (error) {
           message.error(getApiErrorMessage(error, '批量重新分析失败'));
         } finally {
@@ -502,7 +548,7 @@ const ResumesList: React.FC = () => {
         </>}
       />
 
-      <AsyncState loading={loading} error={loadError} onRetry={() => fetchResumes()}>
+      <AsyncState loading={initialLoading} error={loadError} onRetry={() => fetchResumes(false, true)}>
         <div className="consulting-metric-grid">
           <Card className="consulting-metric-card">
             <span className="metric-icon"><FileTextOutlined /></span>
@@ -631,6 +677,7 @@ const ResumesList: React.FC = () => {
                 rowKey="id"
                 dataSource={data}
                 columns={columns}
+                loading={tableLoading}
                 tableLayout="fixed"
                 rowSelection={{
                   columnWidth: 64,
@@ -658,7 +705,7 @@ const ResumesList: React.FC = () => {
               />
             )}
             mobile={(
-              <>
+              <Spin spinning={tableLoading}>
                 <div className="mobile-record-grid">
                   {data.map(record => {
                     const status = STATUS_MAP[record.parse_status] || { text: '待处理', color: 'default' };
@@ -713,7 +760,7 @@ const ResumesList: React.FC = () => {
                     }}
                   />
                 ) : null}
-              </>
+              </Spin>
             )}
           />
         </Card>
