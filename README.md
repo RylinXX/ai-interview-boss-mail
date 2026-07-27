@@ -10,7 +10,7 @@ QylinIntel 是一个面向业务咨询、方案交付和资料治理的 AI 工�
 
 系统适合用来沉淀行业资料、客户材料、项目案例、邮箱样本和能力样本，再让方案 Agent 基于可追溯证据生成方案草案、拆解 AI 执行员工和人工决策点。
 
-![方案 Agent 工作台](docs/assets/screenshots/ai-employees.png)
+![方案 Agent 工作台](file:///Users/rylinx/.gemini/antigravity/brain/6438a89b-8fbd-4c2e-9ade-986fdc470d1c/media__1785140570229.png)
 
 ## 当前定位
 
@@ -236,6 +236,23 @@ npm run build
 - 公开部署前建议接入 HTTPS、对象存储、日志审计和更细粒度的数据权限。
 
 ## 当前路线
+
+### 最新版本 (v1.1.0)
+
+**发布内容**
+- 扩展人才样本列表和客户项目列表操作列宽度（分别至 14% 与 12%），确保按钮 100% 完全可见。
+- 将工具栏按钮统一排列到同一行，并将批量操作合并为一个下拉按钮，实现更紧凑的布局。
+- 优化标签筛选逻辑，支持跨页面全局筛选，提升检索性能。
+- 将默认分支切换至 `main`，删除旧的 `codex/industry-knowledge-product-manager` 分支，移除旧标签 `v1.0.0`、`v1.0.1`，仅保留 `v1.1.0`。
+- 更新 README 以反映最新的 UI 与仓库结构改动。
+
+---
+
+### 界面更新
+
+![人才样本操作列](file:///Users/rylinx/.gemini/antigravity/brain/6438a89b-8fbd-4c2e-9ade-986fdc470d1c/media__1785135790613.png)
+
+![客户项目操作列](file:///Users/rylinx/.gemini/antigravity/brain/6438a89b-8fbd-4c2e-9ade-986fdc470d1c/media__1785140349015.png)
 
 - 强化知识资产复核和引用质量控制。
 - 继续完善客户案卷里的多轮 Agent 执行。
