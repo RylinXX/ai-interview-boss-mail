@@ -1042,7 +1042,7 @@ def test_delete_solution_agent_conversation_success(client, admin_auth_headers, 
     db.commit()
     db.refresh(run)
 
-    step = SolutionAgentStep(run_id=run.id, step_index=1, agent_name="retrieval_agent", status="completed")
+    step = SolutionAgentStep(run_id=run.id, step_index=1, stage="retrieval", status="completed")
     msg = SolutionAgentMessage(conversation_id=conv.id, run_id=run.id, role="user", content="测试需求")
     db.add_all([step, msg])
     db.commit()
