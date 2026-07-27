@@ -188,6 +188,7 @@ class AIProductManagerDraftResponse(BaseModel):
 class SolutionAgentRequest(BaseModel):
     conversation_id: Optional[UUID] = None
     requirement: str
+    search_scope: Optional[str] = "all"
     company_profile: Optional[str] = None
     project_materials: Optional[str] = None
     constraints: Optional[str] = None
@@ -200,6 +201,7 @@ class SolutionAgentResponse(BaseModel):
     run_id: Optional[UUID] = None
     user_message_id: Optional[UUID] = None
     assistant_message_id: Optional[UUID] = None
+    search_scope: Optional[str] = "all"
     assistant_message: str
     solution: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]] = []

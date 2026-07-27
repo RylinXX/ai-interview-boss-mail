@@ -2178,18 +2178,20 @@ body.dark-mode .history-conv-item:hover {
 }
 
 .module-page-header-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(130px, 1fr));
-  gap: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .header-metric-card {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(6px);
-  border: 1px solid rgba(184, 138, 59, 0.22);
+  border: 1px solid rgba(184, 138, 59, 0.25);
   border-radius: 10px;
-  padding: 8px 12px;
-  box-shadow: 0 2px 6px rgba(184, 138, 59, 0.05);
+  padding: 8px 14px;
+  min-width: 110px;
+  box-shadow: 0 2px 8px rgba(184, 138, 59, 0.05);
   transition: all 0.2s ease;
 }
 
@@ -2354,5 +2356,161 @@ body.dark-mode .embedded-metric-card .metric-title {
   }
 }
 
+/* ==========================================================================
+   AI Solution Assistant - Unified Left Sidebar & RAG Evidence Panel
+   ========================================================================== */
 
+.solution-sidebar-unified {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e8e8e8);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
 
+body.dark-mode .solution-sidebar-unified {
+  background: #141e2e;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.solution-sidebar-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-color, #333333);
+  margin-top: 14px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--border-color, #e8e8e8);
+}
+
+body.dark-mode .solution-sidebar-section-title {
+  color: #e2e8f0;
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+
+.solution-history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding-right: 2px;
+}
+
+.solution-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.solution-history-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+body.dark-mode .solution-history-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.solution-history-item.active {
+  background: rgba(24, 144, 255, 0.08);
+  border-color: rgba(24, 144, 255, 0.28);
+}
+
+body.dark-mode .solution-history-item.active {
+  background: rgba(24, 144, 255, 0.18);
+  border-color: rgba(24, 144, 255, 0.45);
+}
+
+.solution-history-title {
+  font-size: 12.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 190px;
+  flex: 1;
+}
+
+.solution-history-item .delete-btn {
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.18s ease;
+  border: none;
+  background: transparent;
+  color: #8c8c8c;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.solution-history-item:hover .delete-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+.solution-history-item .delete-btn:hover {
+  color: #ff4d4f;
+  background: rgba(255, 77, 79, 0.12);
+}
+
+/* RAG Trace Collapsible Panel */
+.rag-trace-collapse {
+  margin-top: 10px;
+  border: 1px solid rgba(24, 144, 255, 0.2) !important;
+  background: rgba(24, 144, 255, 0.02) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+
+body.dark-mode .rag-trace-collapse {
+  border-color: rgba(24, 144, 255, 0.3) !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+}
+
+.rag-trace-collapse .ant-collapse-header {
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #1890ff !important;
+}
+
+.rag-trace-content {
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.rag-trace-evidence-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e8e8e8);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rag-trace-evidence-item:hover {
+  border-color: #1890ff;
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.12);
+}

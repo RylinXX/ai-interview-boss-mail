@@ -1612,6 +1612,7 @@ def _get_or_create_solution_agent_conversation(
         title=_solution_agent_conversation_title(payload.requirement),
         last_requirement=payload.requirement,
         message_count=0,
+        search_scope=payload.search_scope or "all",
         created_by=user_id,
         last_active_at=datetime.utcnow(),
     )
@@ -1639,6 +1640,8 @@ def _persist_solution_agent_interaction(
         return result
 
     conversation = _get_or_create_solution_agent_conversation(db, payload, user_id)
+    if payload.search_scope and conversation.search_scope != payload.search_scope:
+        conversation.search_scope = payload.search_scope
     now = datetime.utcnow()
     run = SolutionAgentRun(
         conversation_id=conversation.id,
@@ -1708,6 +1711,7 @@ def _persist_solution_agent_interaction(
         **result,
         "conversation_id": str(conversation.id),
         "run_id": str(run.id),
+        "search_scope": conversation.search_scope or "all",
         "user_message_id": str(user_message.id),
         "assistant_message_id": str(assistant_message.id),
     }
@@ -1719,6 +1723,7 @@ def _conversation_to_dict(conversation: SolutionAgentConversation) -> Dict[str, 
         "title": conversation.title,
         "last_requirement": conversation.last_requirement,
         "message_count": conversation.message_count or 0,
+        "search_scope": getattr(conversation, "search_scope", None) or "all",
         "created_at": conversation.created_at,
         "updated_at": conversation.updated_at,
         "last_active_at": conversation.last_active_at,
@@ -1925,6 +1930,31 @@ def generate_solution_agent(
         db,
         KnowledgeAssetSearchRequest(query=query, limit=payload.limit),
     )
+    search_scope = payload.search_scope or "all"
+    if search_scope == "resumes_only":
+        retrieved["items"] = [
+            item for item in retrieved["items"]
+            if item.get("asset") and (
+                str(item["asset"].source_type or "").startswith("resume_")
+                or item["asset"].source_resume_id is not None
+            )
+        ]
+    elif search_scope == "cases_only":
+        retrieved["items"] = [
+            item for item in retrieved["items"]
+            if item.get("asset") and (
+                item["asset"].source_type in ["customer_project_dossier", "solution_document", "manual_case", "project_experience"]
+                or "项目" in str(item["asset"].source_type or "")
+            )
+        ]
+    elif search_scope == "assets_only":
+        retrieved["items"] = [
+            item for item in retrieved["items"]
+            if item.get("asset") and (
+                item["asset"].source_type in ["knowledge_asset", "strong_evidence", "manual", "document"]
+                or not str(item["asset"].source_type or "").startswith("resume_")
+            )
+        ]
     fallback = _fallback_solution_agent_response(payload, retrieved)
     evidence = [_asset_to_solution_evidence(item) for item in retrieved["items"]]
     coverage = _assess_solution_agent_coverage(payload, evidence)

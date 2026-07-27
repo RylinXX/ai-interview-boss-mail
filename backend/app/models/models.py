@@ -703,6 +703,7 @@ class SolutionAgentConversation(Base):
     title = Column(String, nullable=False)
     last_requirement = Column(Text, nullable=True)
     message_count = Column(Integer, default=0)
+    search_scope = Column(String, default="all", nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

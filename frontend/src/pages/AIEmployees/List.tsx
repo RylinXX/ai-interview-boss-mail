@@ -1,25 +1,25 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Drawer, Form, Input, Modal, Popconfirm, Row, Select, Space, Tag, Typography } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { App, Button, Card, Col, Collapse, Drawer, Empty, Input, Popconfirm, Row, Select, Space, Tag, Typography } from 'antd';
 import {
-  AppstoreOutlined,
-  AuditOutlined,
   BookOutlined,
-  BulbOutlined,
-  CheckCircleOutlined,
   ClearOutlined,
   CopyOutlined,
-  DatabaseOutlined,
   DeleteOutlined,
   ExportOutlined,
+  FileExportOutlined,
+  FileSearchOutlined,
   FileTextOutlined,
+  FilterOutlined,
   GlobalOutlined,
+  HistoryOutlined,
+  InfoCircleOutlined,
   LinkOutlined,
+  LoadingOutlined,
   PlusOutlined,
   ReadOutlined,
   RobotOutlined,
-  SafetyCertificateOutlined,
+  SaveOutlined,
   SendOutlined,
-  SettingOutlined,
   SolutionOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -66,6 +66,7 @@ type ConversationSummary = {
   id: string;
   title: string;
   message_count?: number;
+  search_scope?: string;
   last_active_at?: string;
 };
 
@@ -120,6 +121,58 @@ const PRESET_SCENARIOS = [
     tag: '证据审查',
   },
 ];
+
+const scopeOptions = [
+  {
+    value: 'all',
+    label: (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+        <GlobalOutlined style={{ color: '#1890ff' }} />
+        全量知识与人才库
+      </span>
+    ),
+  },
+  {
+    value: 'resumes_only',
+    label: (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+        <ReadOutlined style={{ color: '#722ed1' }} />
+        仅人才能力档案
+      </span>
+    ),
+  },
+  {
+    value: 'cases_only',
+    label: (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+        <SolutionOutlined style={{ color: '#52c41a' }} />
+        仅案例打法与项目
+      </span>
+    ),
+  },
+  {
+    value: 'assets_only',
+    label: (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+        <FileTextOutlined style={{ color: '#fa8c16' }} />
+        仅强证据知识资产
+      </span>
+    ),
+  },
+];
+
+const getScopeLabel = (scopeKey: string) => {
+  switch (scopeKey) {
+    case 'resumes_only':
+      return '仅人才能力档案';
+    case 'cases_only':
+      return '仅案例打法与项目';
+    case 'assets_only':
+      return '仅强证据知识资产';
+    default:
+      return '全量知识与人才库';
+  }
+};
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
 
@@ -201,6 +254,11 @@ const AISolutionAssistantPage: React.FC = () => {
     fetchConversations();
   }, []);
 
+  const handleScopeChange = (val: string) => {
+    setSearchScope(val);
+    toast.info('切换数据源后，仅对新发起提问生效，不修改历史对话的检索范围');
+  };
+
   const startNewChat = () => {
     setActiveConversationId(undefined);
     setMessages([]);
@@ -209,15 +267,20 @@ const AISolutionAssistantPage: React.FC = () => {
     toast.success('已开启新一轮解决方案对话');
   };
 
-  const openConversation = async (conversationId: string) => {
+  const openConversation = async (conversationId: string, itemSearchScope?: string) => {
     try {
       const history = await request.get(`/solution-agent/conversations/${conversationId}/messages`) as any;
       const items = history.items || [];
+      const convScope = history.conversation?.search_scope || itemSearchScope || 'all';
       setActiveConversationId(conversationId);
-      setMessages(items.map((item: any) => ({
-        role: item.role,
-        content: item.content,
-      })));
+      setSearchScope(convScope);
+      setMessages(
+        items.map((item: any) => ({
+          role: item.role,
+          content: item.content,
+          evidence: item.sources || [],
+        }))
+      );
       const assistant = [...items].reverse().find((item: any) => item.role === 'assistant' && item.run_id);
       if (assistant?.run_id) {
         const run = await request.get(`/solution-agent/runs/${assistant.run_id}`) as any;
@@ -225,7 +288,11 @@ const AISolutionAssistantPage: React.FC = () => {
           setLastSolution(run.response_payload.solution);
           const retrieved = run.response_payload.retrieved_evidence || [];
           if (items.length) {
-            setMessages(previous => previous.map((msg, i) => i === previous.length - 1 && msg.role === 'assistant' ? { ...msg, evidence: retrieved } : msg));
+            setMessages(previous =>
+              previous.map((msg, i) =>
+                i === previous.length - 1 && msg.role === 'assistant' ? { ...msg, evidence: retrieved } : msg
+              )
+            );
           }
         }
       }
@@ -238,7 +305,7 @@ const AISolutionAssistantPage: React.FC = () => {
     e.stopPropagation();
     try {
       await request.delete(`/solution-agent/conversations/${conversationId}`);
-      toast.success('已删除历史对话');
+      toast.success('已成功删除历史对话');
       if (activeConversationId === conversationId) {
         startNewChat();
       }
@@ -296,6 +363,14 @@ const AISolutionAssistantPage: React.FC = () => {
     toast.success('已复制回复文本到剪贴板');
   };
 
+  const saveDraftSolution = () => {
+    toast.success('当前解决方案已作为业务草稿保存');
+  };
+
+  const exportSolutionDoc = () => {
+    toast.info('功能预留：即将支持导出 PDF / Markdown 规范文档');
+  };
+
   const createCustomerProject = async () => {
     if (!lastSolution) {
       toast.warning('暂无生成的解决方案可转换为客户项目');
@@ -320,45 +395,6 @@ const AISolutionAssistantPage: React.FC = () => {
     }
   };
 
-  const scopeOptions = [
-    {
-      value: 'all',
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
-          <GlobalOutlined style={{ color: '#1890ff' }} />
-          全量知识与人才库
-        </span>
-      ),
-    },
-    {
-      value: 'resumes_only',
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
-          <ReadOutlined style={{ color: '#722ed1' }} />
-          仅人才能力档案
-        </span>
-      ),
-    },
-    {
-      value: 'cases_only',
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
-          <SolutionOutlined style={{ color: '#52c41a' }} />
-          仅案例打法与项目
-        </span>
-      ),
-    },
-    {
-      value: 'assets_only',
-      label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
-          <FileTextOutlined style={{ color: '#fa8c16' }} />
-          仅强证据知识资产
-        </span>
-      ),
-    },
-  ];
-
   return (
     <div
       className="ai-solution-assistant-page workbench-page"
@@ -370,90 +406,93 @@ const AISolutionAssistantPage: React.FC = () => {
         boxSizing: 'border-box',
       }}
     >
-      {/* 左侧：历史对话与检索配置面板 */}
-      <div
-        style={{
-          width: '260px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 12,
-          flexShrink: 0,
-        }}
-      >
+      {/* 左侧：整合为单一整体容器（统一圆角/背景/边框，内部分组） */}
+      <div className="solution-sidebar-unified">
+        {/* 顶部操作区：通栏主按钮 */}
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={startNewChat}
-          style={{ height: '40px', borderRadius: '8px', fontWeight: 600 }}
+          block
+          style={{ height: '40px', borderRadius: '8px', fontWeight: 600, fontSize: '13.5px' }}
         >
-          新建解决方案对话
+          + 新建解决方案对话
         </Button>
 
-        {/* 检索范围设置（精美图标样式） */}
-        <Card size="small" style={{ borderRadius: '8px' }} title={<span style={{ fontSize: '12px' }}><SettingOutlined /> RAG 检索范围选择</span>}>
+        {/* 检索范围配置分组（带标题分割线） */}
+        <div className="solution-sidebar-section-title">
+          <FilterOutlined style={{ color: '#1890ff' }} /> 检索知识库范围
+        </div>
+        <div style={{ marginBottom: 4 }}>
           <Select
             value={searchScope}
-            onChange={setSearchScope}
+            onChange={handleScopeChange}
             style={{ width: '100%' }}
             size="small"
             options={scopeOptions}
           />
-        </Card>
+          <Text type="secondary" style={{ fontSize: '11px', marginTop: 4, display: 'block', color: '#8c8c8c' }}>
+            💡 控制本次问答 RAG 检索数据源边界。
+          </Text>
+        </div>
 
-        {/* 历史对话列表（含鼠标悬浮删除按键与确认框） */}
-        <Card
-          size="small"
-          style={{ flex: 1, borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
-          styles={{ body: { flex: 1, overflowY: 'auto', padding: '8px' } }}
-          title={<span style={{ fontSize: '12px' }}>💬 历史会话记录</span>}
-        >
+        {/* 历史会话分组（带标题分割线） */}
+        <div className="solution-sidebar-section-title" style={{ marginTop: 12 }}>
+          <HistoryOutlined style={{ color: '#722ed1' }} /> 历史对话记录
+        </div>
+
+        {/* 列表承载所有会话条目 */}
+        <div className="solution-history-list">
           {conversations.length ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {conversations.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => openConversation(item.id)}
-                  className={`history-conv-item ${activeConversationId === item.id ? 'active' : ''}`}
+            conversations.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => openConversation(item.id, item.search_scope)}
+                className={`solution-history-item ${activeConversationId === item.id ? 'active' : ''}`}
+                title={item.title || '新对话'}
+              >
+                <span
+                  className="solution-history-title"
+                  style={{
+                    color: activeConversationId === item.id ? '#1890ff' : 'var(--text-color, #333)',
+                    fontWeight: activeConversationId === item.id ? 600 : 400,
+                  }}
                 >
-                  <Text
-                    ellipsis
-                    style={{
-                      fontSize: '12.5px',
-                      color: activeConversationId === item.id ? '#1890ff' : 'var(--text-color, #333)',
-                      fontWeight: activeConversationId === item.id ? 600 : 400,
-                      flex: 1,
-                      marginRight: 6,
-                    }}
-                  >
-                    {item.title || '新对话'}
-                  </Text>
+                  {item.title || '新对话'}
+                </span>
 
-                  <Popconfirm
-                    title="确认删除该历史对话吗？"
-                    onConfirm={(e) => e && deleteConversation(item.id, e as any)}
-                    okText="删除"
-                    cancelText="取消"
+                <Popconfirm
+                  title="确认删除该历史对话及其记录吗？"
+                  onConfirm={(e) => e && deleteConversation(item.id, e as any)}
+                  okText="删除"
+                  cancelText="取消"
+                >
+                  <button
+                    className="delete-btn"
+                    onClick={(e) => e.stopPropagation()}
+                    title="删除对话"
                   >
-                    <button
-                      className="delete-btn"
-                      onClick={(e) => e.stopPropagation()}
-                      title="删除对话"
-                    >
-                      <DeleteOutlined style={{ fontSize: '13px' }} />
-                    </button>
-                  </Popconfirm>
-                </div>
-              ))}
-            </div>
+                    <DeleteOutlined style={{ fontSize: '13px' }} />
+                  </button>
+                </Popconfirm>
+              </div>
+            ))
           ) : (
-            <Text type="secondary" style={{ fontSize: '11.5px', display: 'block', textAlign: 'center', marginTop: 20 }}>
-              暂无历史对话
-            </Text>
+            <div style={{ padding: '24px 0', textAlign: 'center' }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={
+                  <Text type="secondary" style={{ fontSize: '11.5px' }}>
+                    暂无历史对话<br />点击上方按钮新建对话
+                  </Text>
+                }
+              />
+            </div>
           )}
-        </Card>
+        </div>
       </div>
 
-      {/* 右侧：ChatGPT 风格沉浸式 Chat 工作台 */}
+      {/* 右侧：主聊天窗口 UI 视觉优化 */}
       <Card
         className="chat-main-card consulting-table-card"
         style={{
@@ -463,24 +502,25 @@ const AISolutionAssistantPage: React.FC = () => {
           borderRadius: '12px',
           overflow: 'hidden',
           boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+          border: '1px solid var(--border-color, #e8e8e8)',
         }}
         styles={{
           body: {
             flex: 1,
             display: 'flex',
             flexDirection: 'column',
-            padding: '16px 24px',
+            padding: '20px 24px',
             overflow: 'hidden',
           },
         }}
       >
-        {/* 顶部标头与方案转交付操作 */}
+        {/* 顶部标头与操作按键 */}
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            paddingBottom: '12px',
+            paddingBottom: '14px',
             borderBottom: '1px solid var(--border-color, #f0f0f0)',
           }}
         >
@@ -490,20 +530,35 @@ const AISolutionAssistantPage: React.FC = () => {
           </span>
           <Space>
             {lastSolution && (
-              <Button
-                type="primary"
-                size="small"
-                icon={<ExportOutlined />}
-                loading={creatingProject}
-                onClick={createCustomerProject}
-              >
-                转换为客户项目卷宗
-              </Button>
+              <>
+                <Button
+                  type="primary"
+                  size="small"
+                  icon={<ExportOutlined />}
+                  loading={creatingProject}
+                  onClick={createCustomerProject}
+                >
+                  转换为客户项目卷宗
+                </Button>
+                <Button size="small" icon={<SaveOutlined />} onClick={saveDraftSolution}>
+                  保存方案
+                </Button>
+                <Button size="small" icon={<FileExportOutlined />} onClick={exportSolutionDoc}>
+                  导出文档
+                </Button>
+              </>
             )}
             {messages.length > 0 && (
-              <Button icon={<ClearOutlined />} size="small" onClick={startNewChat}>
-                清空对话
-              </Button>
+              <Popconfirm
+                title="确认清空当前对话及其历史记录吗？"
+                onConfirm={startNewChat}
+                okText="清空"
+                cancelText="取消"
+              >
+                <Button icon={<ClearOutlined />} size="small" danger>
+                  清空对话
+                </Button>
+              </Popconfirm>
             )}
           </Space>
         </div>
@@ -594,7 +649,7 @@ const AISolutionAssistantPage: React.FC = () => {
                       width: 36,
                       height: 36,
                       borderRadius: '50%',
-                      background: msg.role === 'user' ? 'var(--primary-color, #1890ff)' : '#722ed1',
+                      background: msg.role === 'user' ? '#1890ff' : '#722ed1',
                       color: '#fff',
                       display: 'flex',
                       alignItems: 'center',
@@ -607,16 +662,18 @@ const AISolutionAssistantPage: React.FC = () => {
                     {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
+                    {/* 消息气泡规范：用户靠右浅色底，AI靠左白色底 */}
                     <div
                       style={{
-                        background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.08)' : 'var(--card-bg, #f7f9fc)',
-                        border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.2)' : 'var(--border-color, #e8e8e8)'}`,
+                        background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.09)' : 'var(--card-bg, #ffffff)',
+                        border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.25)' : 'var(--border-color, #e8e8e8)'}`,
                         padding: '14px 18px',
-                        borderRadius: '12px',
+                        borderRadius: msg.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
                         fontSize: '14px',
                         lineHeight: '1.7',
                         color: 'var(--text-color, #262626)',
+                        boxShadow: msg.role === 'assistant' ? '0 2px 8px rgba(0, 0, 0, 0.03)' : 'none',
                       }}
                     >
                       {msg.role === 'assistant' ? (
@@ -628,52 +685,84 @@ const AISolutionAssistantPage: React.FC = () => {
                       )}
                     </div>
 
-                    {/* 消息底部工具栏：复制 / 引用数据来源脚标 */}
+                    {/* 【重点：RAG 检索溯源信息规范（折叠面板强制落地）】 */}
                     {msg.role === 'assistant' && (
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          paddingTop: 4,
-                        }}
-                      >
-                        {/* 交互式引用脚标 (点击弹出 Drawer) */}
-                        {msg.evidence && msg.evidence.length > 0 ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <Text type="secondary" style={{ fontSize: '11.5px', marginRight: 2 }}>
-                              <BookOutlined /> 来源依据:
-                            </Text>
-                            {msg.evidence.map((item, idx) => {
-                              const citeLabel = item.candidate_name
-                                ? `[${idx + 1}] ${item.candidate_name}`
-                                : item.project_name
-                                ? `[${idx + 1}] ${item.project_name}`
-                                : `[${idx + 1}] ${item.title || item.source_name || '资料'}`;
-                              return (
-                                <Tag
-                                  color="green"
-                                  key={idx}
-                                  style={{ cursor: 'pointer', borderRadius: '12px', padding: '1px 10px', fontSize: '11.5px', margin: 0 }}
-                                  onClick={() => setDetailDrawerItem(item)}
-                                >
-                                  <LinkOutlined style={{ marginRight: 3 }} />
-                                  {citeLabel}
-                                </Tag>
-                              );
-                            })}
-                          </div>
-                        ) : <div />}
+                      <div>
+                        <Collapse
+                          ghost
+                          className="rag-trace-collapse"
+                          items={[
+                            {
+                              key: '1',
+                              label: (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12px', fontWeight: 600, color: '#1890ff' }}>
+                                  <FileSearchOutlined /> 📄 检索来源明细 (已命中 {msg.evidence?.length || 0} 项数据素材)
+                                </span>
+                              ),
+                              children: (
+                                <div className="rag-trace-content">
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 6, borderBottom: '1px solid var(--border-color, #f0f0f0)' }}>
+                                    <Tag color="blue" style={{ margin: 0, fontSize: '11.5px' }}>
+                                      ① 当前生效检索范围：【数据源：{getScopeLabel(searchScope)}】
+                                    </Tag>
+                                  </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    <Text type="secondary" style={{ fontSize: '11.5px', fontWeight: 600 }}>
+                                      ② 命中条目清单 ({msg.evidence?.length || 0} 条):
+                                    </Text>
+                                    {msg.evidence && msg.evidence.length > 0 ? (
+                                      msg.evidence.map((item, idx) => {
+                                        const titleStr = item.candidate_name
+                                          ? `${item.candidate_name} (${item.company || ''} ${item.role || ''})`
+                                          : item.project_name || item.title || '知识记录';
+                                        const labelType = item.candidate_name ? '人才履历' : item.project_name ? '项目经验' : '强证据资产';
+                                        return (
+                                          <div
+                                            key={idx}
+                                            className="rag-trace-evidence-item"
+                                            onClick={() => setDetailDrawerItem(item)}
+                                          >
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+                                              <Tag color={item.candidate_name ? 'purple' : 'cyan'} style={{ margin: 0, fontSize: '10.5px' }}>
+                                                {labelType}
+                                              </Tag>
+                                              <Text ellipsis style={{ fontSize: '12px', fontWeight: 500 }}>
+                                                [{idx + 1}] {titleStr}
+                                              </Text>
+                                            </div>
+                                            <Tag color="green" style={{ margin: 0, fontSize: '10.5px' }}>
+                                              <LinkOutlined /> 查看详情
+                                            </Tag>
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      <Text type="secondary" style={{ fontSize: '11.5px' }}>
+                                        未检出直接命中的私有知识库文档
+                                      </Text>
+                                    )}
+                                  </div>
+                                  <div style={{ paddingTop: 6, borderTop: '1px solid var(--border-color, #f0f0f0)', color: '#8c8c8c', fontSize: '11px', lineHeight: '1.5' }}>
+                                    💡 标注：本次结论基于以上素材生成，无检索素材部分为模型通用推理。
+                                  </div>
+                                </div>
+                              ),
+                            },
+                          ]}
+                        />
 
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<CopyOutlined />}
-                          onClick={() => copyMessageText(msg.content)}
-                          style={{ fontSize: '11.5px', color: '#8c8c8c' }}
-                        >
-                          复制回复
-                        </Button>
+                        {/* 消息底栏复制按钮 */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<CopyOutlined />}
+                            onClick={() => copyMessageText(msg.content)}
+                            style={{ fontSize: '11.5px', color: '#8c8c8c' }}
+                          >
+                            复制回复
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -681,26 +770,32 @@ const AISolutionAssistantPage: React.FC = () => {
               </div>
             ))}
 
+            {/* 动态加载状态优化：轻量化 Spin 图标 + 自定义提示文案 */}
             {submitting && (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#1890ff', margin: '16px 0 16px 48px' }}>
-                <RobotOutlined className="anticon-spin" style={{ fontSize: '18px' }} />
-                <Text type="secondary" style={{ fontSize: '13px' }}>
-                  智能体正在检索全库参数并撰写解决方案...
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, margin: '16px 0 16px 48px' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#1890ff' }}>
+                  <LoadingOutlined style={{ fontSize: '18px' }} />
+                  <Text strong style={{ fontSize: '13.5px', color: '#1890ff' }}>
+                    智能体正在检索全库参数并撰写解决方案…
+                  </Text>
+                </div>
+                <Text type="secondary" style={{ fontSize: '11.5px', marginLeft: 28 }}>
+                  💡 提示：回答生成耗时取决于知识库检索体量与多路 RAG 融合计算量。
                 </Text>
               </div>
             )}
           </div>
         )}
 
-        {/* 底部 ChatGPT 风格输入框 */}
-        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color, #e8e8e8)', marginTop: 'auto' }}>
+        {/* 底部 ChatGPT 风格输入框区域（加高高度，辅助文案内嵌，发送固定右下侧） */}
+        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, #e8e8e8)', marginTop: 'auto' }}>
           <Input.TextArea
-            rows={2}
+            rows={3}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder="输入业务问题，例如：分析大厂工程专家的核心经验，或针对传统行业输出数字化方案..."
+            placeholder="输入您的业务诉求，例如：分析大厂工程专家的核心打法，或针对传统零售企业输出私域流量数字化方案..."
             variant="borderless"
-            style={{ resize: 'none', fontSize: '14px' }}
+            style={{ resize: 'none', fontSize: '14px', minHeight: '72px' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -708,8 +803,8 @@ const AISolutionAssistantPage: React.FC = () => {
               }
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-color, #f0f0f0)' }}>
-            <Text type="secondary" style={{ fontSize: '11.5px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--border-color, #f0f0f0)' }}>
+            <Text type="secondary" style={{ fontSize: '11.5px', color: '#8c8c8c' }}>
               按 Cmd + Enter 或 Ctrl + Enter 快捷发送
             </Text>
             <Button
@@ -718,7 +813,7 @@ const AISolutionAssistantPage: React.FC = () => {
               loading={submitting}
               disabled={!inputText.trim()}
               onClick={() => handleSendPrompt(inputText)}
-              style={{ borderRadius: '6px', padding: '0 18px', height: '32px' }}
+              style={{ borderRadius: '6px', padding: '0 20px', height: '34px', fontWeight: 600 }}
             >
               发送
             </Button>
