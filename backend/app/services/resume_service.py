@@ -39,7 +39,7 @@ import json
 from collections import Counter
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, cast, String
 
 
 INDUSTRY_LABEL_PROFILES = RESUME_INDUSTRY_PROFILES
@@ -355,6 +355,12 @@ def _apply_resume_intelligence(resume: Resume, parsed_data: Dict[str, Any], raw_
 
     project_evaluation = parsed_data.get("project_evaluation")
     project_score = project_evaluation.get("score") if isinstance(project_evaluation, dict) else None
+
+    tags_info = extract_candidate_enriched_tags(parsed_data, raw_text)
+    parsed_data["school_tags"] = tags_info["school_tags"]
+    parsed_data["company_tags"] = tags_info["company_tags"]
+    if tags_info["salary_expectation"]:
+        parsed_data["salary_expectation"] = tags_info["salary_expectation"]
 
     resume.parsed_data = parsed_data
     resume.match_score = _safe_int(
@@ -1645,28 +1651,10 @@ def get_resume_page(
         query = query.filter(Resume.parse_status == parse_status)
 
     if school_tag and school_tag != 'all':
-        if school_tag == "985院校":
-            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_985)[:35]]
-            query = query.filter(or_(*conds))
-        elif school_tag == "211院校":
-            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_211)[:30]]
-            query = query.filter(or_(*conds))
-        elif school_tag == "QS前30/海外名校":
-            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(QS_TOP30)[:25]]
-            query = query.filter(or_(*conds))
-        elif school_tag == "硕士学历":
-            query = query.filter(or_(Resume.raw_text.ilike("%硕士%"), Resume.raw_text.ilike("%研究生%"), Resume.raw_text.ilike("%Master%")))
+        query = query.filter(cast(Resume.parsed_data, String).ilike(f'%"{school_tag}"%'))
 
     if company_tag and company_tag != 'all':
-        if company_tag == "一线互联网/大厂":
-            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(TOP_INTERNET)[:25]]
-            query = query.filter(or_(*conds))
-        elif company_tag == "世界500强":
-            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(FORTUNE_500)[:25]]
-            query = query.filter(or_(*conds))
-        elif company_tag == "国央企/大型名企":
-            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(SOE_COMPANIES)[:20]]
-            query = query.filter(or_(*conds))
+        query = query.filter(cast(Resume.parsed_data, String).ilike(f'%"{company_tag}"%'))
 
     total = query.count()
     rows = query.order_by(Resume.created_at.desc()).offset(max(skip, 0)).limit(limit).all()
