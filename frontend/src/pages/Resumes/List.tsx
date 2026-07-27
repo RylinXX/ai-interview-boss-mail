@@ -297,23 +297,47 @@ const ResumesList: React.FC = () => {
 
   const columns = [
     {
-      title: '人才样本',
+      title: '人才样本与评估标签',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
-      width: 170,
-      render: (text: string, record: any) => (
-        <div>
-          <Text strong><SensitiveField value={text} kind="name" /></Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            <SensitiveField
-              value={record.email || record.contact}
-              kind={record.email ? 'email' : 'phone'}
-              fallback="暂无联系方式"
-            />
-          </Text>
-        </div>
-      ),
+      width: 240,
+      render: (text: string, record: any) => {
+        const schoolTags = record.school_tags || record.parsed_data?.school_tags || [];
+        const companyTags = record.company_tags || record.parsed_data?.company_tags || [];
+        const salary = record.salary_expectation || record.parsed_data?.salary_expectation || record.parsed_data?.expected_salary;
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div>
+              <Text strong style={{ fontSize: '14px' }}><SensitiveField value={text} kind="name" /></Text>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 5px' }}>
+              {salary && salary !== '面议' && (
+                <Tag color="magenta" style={{ margin: 0, fontSize: '11px', lineHeight: '18px', fontWeight: 600 }}>
+                  💰 {salary}
+                </Tag>
+              )}
+              {schoolTags.map((t: string) => (
+                <Tag color={t.includes('985') ? 'purple' : t.includes('211') ? 'cyan' : 'geekblue'} key={t} style={{ margin: 0, fontSize: '11px', lineHeight: '18px', fontWeight: 600 }}>
+                  🎓 {t}
+                </Tag>
+              ))}
+              {companyTags.map((t: string) => (
+                <Tag color={t.includes('互联网') ? 'volcano' : t.includes('500强') ? 'gold' : 'blue'} key={t} style={{ margin: 0, fontSize: '11px', lineHeight: '18px', fontWeight: 600 }}>
+                  🏢 {t}
+                </Tag>
+              ))}
+            </div>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              <SensitiveField
+                value={record.email || record.contact}
+                kind={record.email ? 'email' : 'phone'}
+                fallback="暂无联系方式"
+              />
+            </Text>
+          </div>
+        );
+      },
     },
     {
       title: '状态',

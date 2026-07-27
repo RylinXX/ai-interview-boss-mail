@@ -251,6 +251,25 @@ const ResumeDetail: React.FC = () => {
                   <Text type="secondary">能力样本</Text>
                   <Title level={2} style={{ margin: 0 }}>{resume.candidate_name || '未识别'}</Title>
                   <Text type="secondary">{resume.email || resume.contact || '暂无联系方式'}</Text>
+                  
+                  {/* 人才特征与期望薪资评估标签 */}
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(resume.salary_expectation || parsedData.salary_expectation || parsedData.expected_salary) && (resume.salary_expectation || parsedData.salary_expectation || parsedData.expected_salary) !== '面议' && (
+                      <Tag color="magenta" style={{ fontWeight: 600, padding: '2px 8px' }}>
+                        💰 期望薪资：{resume.salary_expectation || parsedData.salary_expectation || parsedData.expected_salary}
+                      </Tag>
+                    )}
+                    {(resume.school_tags || parsedData.school_tags || []).map((tag: string) => (
+                      <Tag color={tag.includes('985') ? 'purple' : tag.includes('211') ? 'cyan' : 'geekblue'} key={tag} style={{ fontWeight: 600, padding: '2px 8px' }}>
+                        🎓 {tag}
+                      </Tag>
+                    ))}
+                    {(resume.company_tags || parsedData.company_tags || []).map((tag: string) => (
+                      <Tag color={tag.includes('互联网') ? 'volcano' : tag.includes('500强') ? 'gold' : 'blue'} key={tag} style={{ fontWeight: 600, padding: '2px 8px' }}>
+                        🏢 {tag}
+                      </Tag>
+                    ))}
+                  </div>
                 </div>
                 {resume.match_score != null && (
                   <Progress
@@ -277,11 +296,15 @@ const ResumeDetail: React.FC = () => {
                 </Form.Item>
               </Form>
             ) : (
-              <Descriptions column={1} size="small">
+              <Descriptions column={2} size="small" style={{ marginTop: 12 }}>
                 <Descriptions.Item label="工作年限">{parsedData.years_of_experience ?? '-'}</Descriptions.Item>
                 <Descriptions.Item label="最近公司">{parsedData.recent_company || '-'}</Descriptions.Item>
                 <Descriptions.Item label="学历">{parsedData.highest_degree || '-'}</Descriptions.Item>
-                <Descriptions.Item label="学校">{parsedData.school || '-'}</Descriptions.Item>
+                <Descriptions.Item label="毕业学校">{parsedData.school || '-'}</Descriptions.Item>
+                <Descriptions.Item label="期望薪资">{resume.salary_expectation || parsedData.salary_expectation || parsedData.expected_salary || '面议'}</Descriptions.Item>
+                <Descriptions.Item label="履历评估">
+                  {[(resume.school_tags || parsedData.school_tags || []).join(', '), (resume.company_tags || parsedData.company_tags || []).join(', ')].filter(Boolean).join(' · ') || '常规履历'}
+                </Descriptions.Item>
               </Descriptions>
             )}
           </Card>

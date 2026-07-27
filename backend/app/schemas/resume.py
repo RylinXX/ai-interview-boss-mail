@@ -81,6 +81,9 @@ class ResumeResponse(ResumeBase):
     hr_review: Optional[str] = None
     status: ResumeStatus
     stage: Optional[str] = "new"
+    school_tags: Optional[List[str]] = []
+    company_tags: Optional[List[str]] = []
+    salary_expectation: Optional[str] = "面议"
     # 其他岗位匹配信息
     other_position_matches: Optional[List[Dict[str, Any]]] = None
     # 淘汰相关字段
@@ -106,6 +109,9 @@ class ResumeListItemResponse(BaseModel):
     parse_status: Optional[str] = None
     parse_error: Optional[str] = None
     experience_summary: Optional[str] = None
+    school_tags: Optional[List[str]] = []
+    company_tags: Optional[List[str]] = []
+    salary_expectation: Optional[str] = "面议"
     project_count: int = 0
     question_count: int = 0
     created_at: datetime

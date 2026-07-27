@@ -1451,6 +1451,138 @@ def get_resume_options(
     return query.order_by(Resume.created_at.desc()).limit(max(1, min(limit, 500))).all()
 
 
+UNIVERSITIES_985 = {
+    "清华大学", "北京大学", "复旦大学", "上海交通大学", "浙江大学", "中国科学技术大学",
+    "南京大学", "哈尔滨工业大学", "西安交通大学", "北京航空航天大学", "北京理工大学",
+    "同济大学", "武汉大学", "华中科技大学", "南开大学", "天津大学", "中山大学",
+    "厦门大学", "山东大学", "东南大学", "吉林大学", "四川大学", "中南大学",
+    "电子科技大学", "大连理工大学", "西北工业大学", "湖南大学", "重庆大学", "兰州大学",
+    "华南理工大学", "中国农业大学", "北京师范大学", "华东师范大学", "中央民族大学",
+    "中国海洋大学", "西北农林科技大学", "东北大学", "郑州大学", "云南大学", "新疆大学",
+    "清华", "北大", "浙大", "复旦", "交大", "上交", "哈工大", "西交", "北航", "北理", "华科", "武大"
+}
+
+UNIVERSITIES_211 = {
+    "北京邮电大学", "北京交通大学", "北京科技大学", "北京化工大学", "北京林业大学",
+    "北京中医药大学", "北京外国语大学", "中国传媒大学", "对外经济贸易大学", "中央音乐学院",
+    "中国政法大学", "中国石油大学", "中国地质大学", "中国矿业大学", "中央财经大学",
+    "上海财经大学", "上海外国语大学", "东华大学", "华东理工大学", "上海大学", "苏州大学",
+    "南京航空航天大学", "南京理工大学", "河海大学", "江南大学", "南京农业大学", "中国药科大学",
+    "安徽大学", "合肥工业大学", "福州大学", "南昌大学", "郑州大学", "武汉理工大学",
+    "华中农业大学", "华中师范大学", "中南财经政法大学", "湖南师范大学", "暨南大学",
+    "华南师范大学", "西南交通大学", "电子科技大学", "四川农业大学", "西南财经大学",
+    "西南大学", "贵州大学", "西北大学", "西安电子科技大学", "长安大学", "陕西师范大学",
+    "兰州大学", "青海大学", "宁夏大学", "新疆大学", "石河子大学", "内蒙古大学", "辽宁大学",
+    "大连海事大学", "延边大学", "哈尔滨工程大学", "东北林业大学", "东北农业大学"
+}
+
+QS_TOP30 = {
+    "麻省理工学院", "MIT", "哈佛大学", "Harvard", "斯坦福大学", "Stanford",
+    "剑桥大学", "Cambridge", "牛津大学", "Oxford", "加州理工学院", "Caltech",
+    "帝国理工学院", "Imperial College", "苏黎世联邦理工学院", "ETH Zurich",
+    "新加坡国立大学", "NUS", "南洋理工大学", "NTU", "伦敦大学学院", "UCL",
+    "芝加哥大学", "University of Chicago", "宾夕法尼亚大学", "UPenn",
+    "康奈尔大学", "Cornell", "墨尔本大学", "University of Melbourne",
+    "加州大学伯克利分校", "UC Berkeley", "悉尼大学", "University of Sydney",
+    "新南威尔士大学", "UNSW", "新加坡国立", "南洋理工", "港大", "香港大学",
+    "香港科技大学", "HKUST", "香港中文大学", "CUHK", "爱丁堡大学", "曼彻斯特大学",
+    "哥伦比亚大学", "Columbia University", "普林斯顿大学", "Princeton", "耶鲁大学", "Yale"
+}
+
+TOP_INTERNET = {
+    "腾讯", "Tencent", "阿里巴巴", "Alibaba", "阿里", "百度", "Baidu", "字节跳动", "ByteDance",
+    "抖音", "今日头条", "美团", "Meituan", "哔哩哔哩", "Bilibili", "B站", "快手", "Kuaishou",
+    "华为", "Huawei", "京东", "JD.com", "网易", "NetEase", "拼多多", "Pinduoduo", "小红书",
+    "滴滴", "DiDi", "蚂蚁集团", "Ant Group", "商汤", "旷视", "蔚来", "小鹏", "理想"
+}
+
+FORTUNE_500 = {
+    "微软", "Microsoft", "谷歌", "Google", "苹果", "Apple", "亚马逊", "Amazon", "Meta", "Facebook",
+    "特斯拉", "Tesla", "IBM", "英特尔", "Intel", "甲骨文", "Oracle", "思科", "Cisco", "SAP",
+    "西门子", "Siemens", "索尼", "Sony", "三星", "Samsung", "沃尔玛", "Walmart", "普华永道", "PwC",
+    "德勤", "Deloitte", "毕马威", "KPMG", "安永", "EY", "麦肯锡", "McKinsey", "波士顿", "BCG", "贝恩", "Bain"
+}
+
+SOE_COMPANIES = {
+    "中国移动", "中国联通", "中国电信", "国家电网", "中国石油", "中国石化", "中国建筑",
+    "中国铁建", "中国中车", "中国人寿", "中国平安", "工商银行", "建设银行", "农业银行",
+    "中国银行", "交通银行", "招商银行", "中信集团", "光大集团", "招商局", "保利", "华润"
+}
+
+
+def extract_candidate_enriched_tags(parsed_data: Dict[str, Any], raw_text: str = "") -> Dict[str, Any]:
+    text_blob = (raw_text or "") + " " + json.dumps(parsed_data or {}, ensure_ascii=False)
+
+    # 1. School Tags
+    school_tags = []
+    if parsed_data and isinstance(parsed_data.get("school_tags"), list) and parsed_data.get("school_tags"):
+        school_tags = [str(x) for x in parsed_data["school_tags"]]
+    else:
+        tags_set = set()
+        for sch in UNIVERSITIES_985:
+            if sch in text_blob:
+                tags_set.add("985院校")
+                break
+        for sch in UNIVERSITIES_211:
+            if sch in text_blob:
+                tags_set.add("211院校")
+                break
+        for sch in QS_TOP30:
+            if sch in text_blob:
+                tags_set.add("QS前30/海外名校")
+                break
+        if "硕士" in text_blob or "研究生" in text_blob or "Master" in text_blob:
+            tags_set.add("硕士学历")
+        elif "博士" in text_blob or "PhD" in text_blob:
+            tags_set.add("博士学历")
+        school_tags = list(tags_set)
+
+    # 2. Company Tags
+    company_tags = []
+    if parsed_data and isinstance(parsed_data.get("company_tags"), list) and parsed_data.get("company_tags"):
+        company_tags = [str(x) for x in parsed_data["company_tags"]]
+    else:
+        comp_set = set()
+        for comp in TOP_INTERNET:
+            if comp in text_blob:
+                comp_set.add("一线互联网/大厂")
+                break
+        for comp in FORTUNE_500:
+            if comp in text_blob:
+                comp_set.add("世界500强")
+                break
+        for comp in SOE_COMPANIES:
+            if comp in text_blob:
+                comp_set.add("国央企/大型名企")
+                break
+        company_tags = list(comp_set)
+
+    # 3. Salary Expectation
+    salary_tag = parsed_data.get("salary_expectation") or parsed_data.get("expected_salary")
+    if not salary_tag:
+        salary_patterns = [
+            r'(\d+k\s*[-~—]\s*\d+k(?:\s*·\s*\d+薪)?)',
+            r'(\d+\s*[-~—]\s*\d+k(?:\s*·\s*\d+薪)?)',
+            r'(\d+\s*[-~—]\s*\d+元?/[天日小时月])',
+            r'(\d+k\s*以上|\d+k\s*以下)',
+            r'(\d+万\s*[-~—]\s*\d+万/年)',
+            r'期望[:：]?\s*(\d+[kK\d\-~—\s·薪/天月]+)'
+        ]
+        for pattern in salary_patterns:
+            match = re.search(pattern, text_blob, re.IGNORECASE)
+            if match:
+                val = match.group(1).strip()
+                if len(val) <= 20:
+                    salary_tag = val
+                    break
+
+    return {
+        "school_tags": school_tags,
+        "company_tags": company_tags,
+        "salary_expectation": salary_tag or "面议",
+    }
+
+
 def _resume_list_item(resume: Resume) -> Dict[str, Any]:
     parsed_data = resume.parsed_data if isinstance(resume.parsed_data, dict) else {}
     projects = parsed_data.get("project_experiences")
@@ -1461,6 +1593,9 @@ def _resume_list_item(resume: Resume) -> Dict[str, Any]:
         if resume.parse_status == "failed" and resume.parse_error
         else None
     )
+
+    tags_info = extract_candidate_enriched_tags(parsed_data, resume.raw_text or "")
+
     return {
         "id": resume.id,
         "candidate_name": resume.candidate_name,
@@ -1470,6 +1605,9 @@ def _resume_list_item(resume: Resume) -> Dict[str, Any]:
         "parse_status": resume.parse_status,
         "parse_error": parse_error,
         "experience_summary": parsed_data.get("experience_summary"),
+        "school_tags": tags_info["school_tags"],
+        "company_tags": tags_info["company_tags"],
+        "salary_expectation": tags_info["salary_expectation"],
         "project_count": len(projects) if isinstance(projects, list) else 0,
         "question_count": (
             (len(interview_questions) if isinstance(interview_questions, list) else 0)
