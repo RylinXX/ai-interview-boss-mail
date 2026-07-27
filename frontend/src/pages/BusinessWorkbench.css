@@ -16,57 +16,51 @@
 }
 
 .module-page-header {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px 20px;
   align-items: center;
-  padding: 20px 22px;
-  margin-bottom: 18px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--surface-color);
-  box-shadow: var(--shadow-sm);
+  padding: 22px 28px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(24, 144, 255, 0.18);
+  border-left: 5px solid #1890ff;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 60%, #eff6ff 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(24, 144, 255, 0.05);
+  overflow: hidden;
 }
 
-.module-page-header-copy {
-  min-width: 0;
-}
-
-.module-page-header-copy,
-.module-page-header-actions,
-.data-toolbar,
-.data-toolbar-group,
-.workbench-page .ant-card-head-title,
-.workbench-page .ant-card-extra {
-  min-width: 0;
-}
-
-.module-page-header-copy > .ant-typography,
-.workbench-page .ant-descriptions-item-content,
-.workbench-page .ant-list-item-meta-title,
-.workbench-page .ant-list-item-meta-description {
-  overflow-wrap: anywhere;
-}
-
-.workbench-page .ant-card-head-wrapper {
-  align-items: flex-start;
-  gap: 12px;
+.module-page-header::after {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(24, 144, 255, 0.08) 0%, transparent 70%);
+  pointer-events: none;
 }
 
 .module-page-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--secondary-color);
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
 }
 
 .module-page-header h2.ant-typography {
-  margin: 5px 0 3px;
-  color: var(--text-primary);
-  font-size: 26px;
+  margin: 6px 0 4px;
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
 .module-page-header-copy > .ant-typography {

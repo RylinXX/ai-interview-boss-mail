@@ -807,12 +807,18 @@ const Dashboard: React.FC = () => {
             </Card>
           </div>
 
-          {/* 统一整合工作台（Tab 划分: 项目经验 / 能力样本 / 工作经历） */}
+          {/* 屏下明细区：项目经验 / 能力样本 / 工作经历 明细表 */}
+          <div style={{ marginTop: '36px', marginBottom: '12px' }}>
+            <Text type="secondary" style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              📊 业务沉淀与经验打法明细
+            </Text>
+          </div>
+
           <Card
             className="workbench-main-workspace consulting-table-card"
-        styles={{ body: { padding: '12px 24px 24px 24px' } }}
-        style={{ borderRadius: '8px' }}
-      >
+            styles={{ body: { padding: '16px 24px 24px 24px' } }}
+            style={{ borderRadius: '10px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)' }}
+          >
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
