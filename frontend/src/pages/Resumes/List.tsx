@@ -469,8 +469,8 @@ const ResumesList: React.FC = () => {
         </div>
 
         <Card className="consulting-table-card" title="人才样本列表">
-          <div className="data-toolbar">
-            <div className="data-toolbar-group">
+          <div className="data-toolbar" style={{ flexWrap: 'wrap', gap: '8px 12px' }}>
+            <div className="data-toolbar-group" style={{ flexWrap: 'wrap', gap: 8 }}>
             <Input
               placeholder="搜索人才样本"
               prefix={<SearchOutlined />}
@@ -478,24 +478,57 @@ const ResumesList: React.FC = () => {
               onChange={event => setSearchName(event.target.value)}
               onPressEnter={applyFilters}
               allowClear
-              style={{ width: 220 }}
+              style={{ width: 170 }}
             />
             <Select
               placeholder="分析状态"
               allowClear
               value={parseStatus}
               onChange={setParseStatus}
-              style={{ width: 150 }}
+              style={{ width: 110 }}
               options={[
                 { value: 'processing', label: '分析中' },
                 { value: 'success', label: '已分析' },
                 { value: 'failed', label: '失败' },
               ]}
             />
+            <Select
+              placeholder="🎓 院校背景"
+              allowClear
+              value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
+              onChange={val => {
+                setSelectedSchoolTag(val || 'all');
+                setCurrentPage(1);
+              }}
+              style={{ width: 155 }}
+              options={[
+                { value: '985院校', label: '🎓 985院校' },
+                { value: '211院校', label: '🎓 211院校' },
+                { value: 'QS前30/海外名校', label: '🎓 QS前30/海外名校' },
+                { value: '硕士学历', label: '🎓 硕士学历' },
+              ]}
+            />
+            <Select
+              placeholder="🏢 履历平台"
+              allowClear
+              value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
+              onChange={val => {
+                setSelectedCompanyTag(val || 'all');
+                setCurrentPage(1);
+              }}
+              style={{ width: 165 }}
+              options={[
+                { value: '一线互联网/大厂', label: '🏢 一线互联网/大厂' },
+                { value: '世界500强', label: '🏢 世界500强' },
+                { value: '国央企/大型名企', label: '🏢 国央企/大型名企' },
+              ]}
+            />
             <Button type="primary" onClick={applyFilters}>查询</Button>
             <Button onClick={() => {
               setSearchName('');
               setParseStatus(undefined);
+              setSelectedSchoolTag('all');
+              setSelectedCompanyTag('all');
               setCurrentPage(1);
               setActiveSearchName('');
               setActiveParseStatus(undefined);
@@ -516,59 +549,6 @@ const ResumesList: React.FC = () => {
               批量删除
             </Button>
             </div>
-          </div>
-
-          {/* 人才特征与结构化标签二次筛选栏 */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginTop: 12, marginBottom: 16, padding: '10px 16px', background: 'rgba(201, 150, 63, 0.05)', borderRadius: 8, border: '1px solid rgba(201, 150, 63, 0.2)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <Text strong style={{ fontSize: '12px', color: '#8c6019', marginRight: 2 }}>🎓 院校背景:</Text>
-              {['all', '985院校', '211院校', 'QS前30/海外名校', '硕士学历'].map(tag => (
-                <Tag.CheckableTag
-                  key={tag}
-                  checked={selectedSchoolTag === tag}
-                  onChange={() => {
-                    setSelectedSchoolTag(selectedSchoolTag === tag ? 'all' : tag);
-                    setCurrentPage(1);
-                  }}
-                  style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
-                >
-                  {tag === 'all' ? '全部院校' : tag}
-                </Tag.CheckableTag>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <Text strong style={{ fontSize: '12px', color: '#8c6019', marginRight: 2 }}>🏢 履历平台:</Text>
-              {['all', '一线互联网/大厂', '世界500强', '国央企/大型名企'].map(tag => (
-                <Tag.CheckableTag
-                  key={tag}
-                  checked={selectedCompanyTag === tag}
-                  onChange={() => {
-                    setSelectedCompanyTag(selectedCompanyTag === tag ? 'all' : tag);
-                    setCurrentPage(1);
-                  }}
-                  style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
-                >
-                  {tag === 'all' ? '全部履历' : tag}
-                </Tag.CheckableTag>
-              ))}
-            </div>
-
-            {(selectedSchoolTag !== 'all' || selectedCompanyTag !== 'all') && (
-              <Button
-                type="link"
-                size="small"
-                icon={<ClearOutlined />}
-                onClick={() => {
-                  setSelectedSchoolTag('all');
-                  setSelectedCompanyTag('all');
-                  setCurrentPage(1);
-                }}
-                style={{ fontSize: '12px', color: '#ff4d4f', paddingLeft: 4 }}
-              >
-                重置标签筛选
-              </Button>
-            )}
           </div>
 
           <ResponsiveDataView
@@ -651,7 +631,6 @@ const ResumesList: React.FC = () => {
               </>
             )}
           />
-          {!data.length ? <AsyncState empty emptyDescription="暂无符合条件的人才样本"><span /></AsyncState> : null}
         </Card>
       </AsyncState>
     </div>
