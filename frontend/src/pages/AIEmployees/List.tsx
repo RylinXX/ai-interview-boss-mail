@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import { App, Button, Card, Form, Input, Modal, Row, Col, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Col, Form, Input, Modal, Row, Space, Tag, Typography } from 'antd';
 import {
   BookOutlined,
   ClearOutlined,
-  FileTextOutlined,
   LinkOutlined,
   RobotOutlined,
   SendOutlined,
@@ -11,7 +10,6 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
-import { ModulePageHeader } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
@@ -191,78 +189,111 @@ const AISolutionAssistantPage: React.FC = () => {
   };
 
   return (
-    <div className="ai-solution-assistant-page workbench-page" style={{ maxWidth: '960px', margin: '0 auto' }}>
-      <ModulePageHeader
-        eyebrow={<><RobotOutlined /> RAG 智能助手</>}
-        title="AI 解决方案助手"
-        description="与智能体对话，基于数据库中的人才能力样本、项目打法与知识资产进行 RAG 检索问答，点击对话结果末尾的引用标识即可查看数据来源。"
-        actions={
-          <Space>
-            <Button icon={<ClearOutlined />} onClick={startNewChat}>
-              开启新对话
-            </Button>
-            <Button icon={<FileTextOutlined />} onClick={() => navigate('/customer-projects')}>
-              客户案卷
-            </Button>
-          </Space>
-        }
-      />
-
-      {/* ChatGPT 式极简居中主交互窗口 */}
+    <div
+      className="ai-solution-assistant-page workbench-page"
+      style={{
+        height: 'calc(100vh - 72px)',
+        display: 'flex',
+        flexDirection: 'column',
+        maxWidth: '920px',
+        margin: '0 auto',
+        padding: '12px 16px',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* ChatGPT 风格纯净主容器（首屏 100% 展现） */}
       <Card
         className="chat-main-card consulting-table-card"
-        style={{ marginTop: 16, borderRadius: '12px' }}
-        styles={{ body: { padding: '24px 28px' } }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: '12px',
+          overflow: 'hidden',
+          boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+        }}
+        styles={{
+          body: {
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '16px 20px',
+            overflow: 'hidden',
+          },
+        }}
       >
-        {/* 空白页推荐问答场景 */}
-        {messages.length === 0 && (
-          <div className="chat-preset-section" style={{ marginBottom: 28, textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', marginBottom: 8 }}>🤖</div>
-            <Title level={4} style={{ marginBottom: 4 }}>我是您的 AI 解决方案助手</Title>
-            <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: 24 }}>
-              我可以检索私有人才样本、项目打法与知识资产，为您分析模式并生成带有数据依据的解决方案。
-            </Text>
+        {/* 顶部轻量标头 */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingBottom: '12px',
+            borderBottom: '1px solid var(--border-color, #f0f0f0)',
+            marginBottom: '16px',
+          }}
+        >
+          <span style={{ fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <RobotOutlined style={{ color: '#722ed1', fontSize: '18px' }} />
+            AI 解决方案助手
+          </span>
+          {messages.length > 0 && (
+            <Button icon={<ClearOutlined />} size="small" type="text" onClick={startNewChat}>
+              新对话
+            </Button>
+          )}
+        </div>
 
-            <Row gutter={[12, 12]}>
-              {PRESET_QUICK_PROMPTS.map((item) => (
-                <Col xs={24} sm={12} key={item.label}>
-                  <div
-                    className="preset-prompt-card"
-                    onClick={() => handleSendPrompt(item.prompt)}
-                    style={{
-                      padding: '14px 16px',
-                      background: 'var(--card-bg, #fafafa)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-color, #e8e8e8)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.2s',
-                    }}
-                  >
-                    <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: 4, color: 'var(--text-color, #262626)' }}>
-                      {item.icon} {item.label}
-                    </div>
-                    <Text type="secondary" style={{ fontSize: '12px' }} ellipsis>
-                      {item.prompt}
-                    </Text>
-                  </div>
-                </Col>
-              ))}
-            </Row>
-          </div>
-        )}
-
-        {/* 聊天对话消息流 */}
+        {/* 消息区域（自适应撑满居中滚动） */}
         <div
           className="chat-messages-container"
           style={{
-            minHeight: messages.length ? '360px' : 'auto',
-            maxHeight: '600px',
+            flex: 1,
             overflowY: 'auto',
             paddingRight: '6px',
-            marginBottom: 20,
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
+          {/* 空白页推荐问答场景 */}
+          {messages.length === 0 && (
+            <div className="chat-preset-section" style={{ margin: 'auto 0', textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: '36px', marginBottom: 8 }}>🤖</div>
+              <Title level={4} style={{ marginBottom: 4 }}>我是您的 AI 解决方案助手</Title>
+              <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: 24 }}>
+                基于私有人才能力档案与知识资产，自动推演带依据的解决方案。
+              </Text>
+
+              <Row gutter={[12, 12]}>
+                {PRESET_QUICK_PROMPTS.map((item) => (
+                  <Col xs={24} sm={12} key={item.label}>
+                    <div
+                      className="preset-prompt-card"
+                      onClick={() => handleSendPrompt(item.prompt)}
+                      style={{
+                        padding: '14px 16px',
+                        background: 'var(--card-bg, #fafafa)',
+                        borderRadius: '10px',
+                        border: '1px solid var(--border-color, #e8e8e8)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: 4, color: 'var(--text-color, #262626)' }}>
+                        {item.icon} {item.label}
+                      </div>
+                      <Text type="secondary" style={{ fontSize: '12px' }} ellipsis>
+                        {item.prompt}
+                      </Text>
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+          )}
+
+          {/* 消息流 */}
           {messages.map((msg, index) => (
             <div
               key={index}
@@ -284,8 +315,8 @@ const AISolutionAssistantPage: React.FC = () => {
               >
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
+                    width: 34,
+                    height: 34,
                     borderRadius: '50%',
                     background: msg.role === 'user' ? 'var(--primary-color, #1890ff)' : '#722ed1',
                     color: '#fff',
@@ -293,20 +324,20 @@ const AISolutionAssistantPage: React.FC = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 'bold',
-                    fontSize: '16px',
+                    fontSize: '15px',
                     flexShrink: 0,
                   }}
                 >
                   {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div
                     style={{
                       background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.08)' : 'var(--card-bg, #f7f9fc)',
                       border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.2)' : 'var(--border-color, #e8e8e8)'}`,
-                      padding: '14px 18px',
+                      padding: '12px 16px',
                       borderRadius: '12px',
-                      fontSize: '14.5px',
+                      fontSize: '14px',
                       lineHeight: '1.65',
                       color: 'var(--text-color, #262626)',
                       whiteSpace: 'pre-wrap',
@@ -315,7 +346,7 @@ const AISolutionAssistantPage: React.FC = () => {
                     {msg.content}
                   </div>
 
-                  {/* 对话结果末尾的交互式引用 Source 标记 (只在点击时弹出Modal) */}
+                  {/* 对话结果末尾的交互式引用 Source 标记 (只在点击时弹出 Modal) */}
                   {msg.role === 'assistant' && msg.evidence && msg.evidence.length > 0 && (
                     <div
                       style={{
@@ -323,10 +354,10 @@ const AISolutionAssistantPage: React.FC = () => {
                         alignItems: 'center',
                         gap: 6,
                         flexWrap: 'wrap',
-                        paddingTop: 4,
+                        paddingTop: 2,
                       }}
                     >
-                      <Text type="secondary" style={{ fontSize: '12px', marginRight: 2 }}>
+                      <Text type="secondary" style={{ fontSize: '11.5px', marginRight: 2 }}>
                         <BookOutlined /> 来源依据:
                       </Text>
                       {msg.evidence.map((item, idx) => {
@@ -339,7 +370,7 @@ const AISolutionAssistantPage: React.FC = () => {
                           <Tag
                             color="green"
                             key={idx}
-                            style={{ cursor: 'pointer', borderRadius: '12px', padding: '1px 10px', fontSize: '12px', margin: 0 }}
+                            style={{ cursor: 'pointer', borderRadius: '12px', padding: '1px 10px', fontSize: '11.5px', margin: 0 }}
                             onClick={() => setDetailModalItem(item)}
                           >
                             <LinkOutlined style={{ marginRight: 3 }} />
@@ -355,24 +386,24 @@ const AISolutionAssistantPage: React.FC = () => {
           ))}
 
           {submitting && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#1890ff', margin: '16px 0 16px 48px' }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#1890ff', margin: '16px 0 16px 46px' }}>
               <RobotOutlined className="anticon-spin" style={{ fontSize: '18px' }} />
-              <Text type="secondary" style={{ fontSize: '13.5px' }}>
+              <Text type="secondary" style={{ fontSize: '13px' }}>
                 正在全量检索数据库并生成带依据的解决方案...
               </Text>
             </div>
           )}
         </div>
 
-        {/* ChatGPT 风格底部沉浸式输入框 */}
-        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '12px 14px', borderRadius: '14px', border: '1px solid var(--border-color, #e8e8e8)' }}>
+        {/* ChatGPT 风格底部输入框 */}
+        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-color, #e8e8e8)', marginTop: 'auto' }}>
           <Input.TextArea
-            rows={3}
+            rows={2}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="问点什么吧... 例如：分析 985/211 院校履历专家在大厂的核心经验，或针对具体行业输出解决方案。"
             variant="borderless"
-            style={{ resize: 'none', fontSize: '14.5px' }}
+            style={{ resize: 'none', fontSize: '14px' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -380,8 +411,8 @@ const AISolutionAssistantPage: React.FC = () => {
               }
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border-color, #f0f0f0)' }}>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--border-color, #f0f0f0)' }}>
+            <Text type="secondary" style={{ fontSize: '11.5px' }}>
               按 Cmd + Enter 或 Ctrl + Enter 快捷发送
             </Text>
             <Button
@@ -390,7 +421,7 @@ const AISolutionAssistantPage: React.FC = () => {
               loading={submitting}
               disabled={!inputText.trim()}
               onClick={() => handleSendPrompt(inputText)}
-              style={{ borderRadius: '8px', padding: '0 20px' }}
+              style={{ borderRadius: '6px', padding: '0 18px', height: '32px' }}
             >
               发送
             </Button>
