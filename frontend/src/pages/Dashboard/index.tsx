@@ -7,6 +7,29 @@ import '../BusinessWorkbench.css';
 
 const { Text, Paragraph } = Typography;
 
+const ANT_COLOR_MAP: Record<string, string> = {
+  blue: '#1890ff',
+  gold: '#faad14',
+  volcano: '#fa541c',
+  purple: '#722ed1',
+  cyan: '#13c2c2',
+  green: '#52c41a',
+  geekblue: '#2f54eb',
+  lime: '#a0d911',
+  magenta: '#eb2f96',
+  red: '#f5222d',
+  orange: '#fa8c16',
+  default: '#8c8c8c',
+};
+
+const getValidCssColor = (colorName?: string, defaultFallback: string = '#1890ff') => {
+  if (!colorName) return defaultFallback;
+  if (colorName.startsWith('#') || colorName.startsWith('rgb') || colorName.startsWith('var(')) {
+    return colorName;
+  }
+  return ANT_COLOR_MAP[colorName] || defaultFallback;
+};
+
 type ExperienceSummary = {
   resume_count: number;
   work_experiences: any[];
@@ -183,11 +206,12 @@ const Dashboard: React.FC = () => {
   const normalizedKeyword = projectKeyword.trim().toLowerCase();
   const normalizedCandidateKeyword = candidateKeyword.trim().toLowerCase();
   const normalizedWorkKeyword = workKeyword.trim().toLowerCase();
-  const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
   const analyzed = resumeMetrics.success;
   const processing = resumeMetrics.processing;
   const failed = resumeMetrics.failed;
+  const pending = resumeMetrics.pending || 0;
   const completionRate = resumeMetrics.total ? Math.round((analyzed / resumeMetrics.total) * 100) : 0;
+  const missingBusinessCount = projects.filter(projectHasBusinessGap).length;
 
   const filteredProjects = useMemo(
     () => projects
@@ -669,6 +693,18 @@ const Dashboard: React.FC = () => {
                       strokeDashoffset={`-${(analyzed / (resumeMetrics.total || 1)) * 326.7}`}
                       transform="rotate(-90 70 70)"
                     />
+                    {/* 待分析 segment */}
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      fill="none"
+                      stroke="#faad14"
+                      strokeWidth="16"
+                      strokeDasharray={`${(pending / (resumeMetrics.total || 1)) * 326.7} 326.7`}
+                      strokeDashoffset={`-${((analyzed + processing) / (resumeMetrics.total || 1)) * 326.7}`}
+                      transform="rotate(-90 70 70)"
+                    />
                     {/* 失败 segment */}
                     <circle
                       cx="70"
@@ -678,7 +714,7 @@ const Dashboard: React.FC = () => {
                       stroke="#f5222d"
                       strokeWidth="16"
                       strokeDasharray={`${(failed / (resumeMetrics.total || 1)) * 326.7} 326.7`}
-                      strokeDashoffset={`-${((analyzed + processing) / (resumeMetrics.total || 1)) * 326.7}`}
+                      strokeDashoffset={`-${((analyzed + processing + pending) / (resumeMetrics.total || 1)) * 326.7}`}
                       transform="rotate(-90 70 70)"
                     />
                   </svg>
@@ -697,6 +733,12 @@ const Dashboard: React.FC = () => {
                     <span><span className="donut-legend-dot" style={{ background: '#1890ff' }} />分析中</span>
                     <strong>{processing} <Text type="secondary">({Math.round((processing / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
                   </div>
+                  {pending > 0 && (
+                    <div className="donut-legend-item">
+                      <span><span className="donut-legend-dot" style={{ background: '#faad14' }} />待处理/待分析</span>
+                      <strong>{pending} <Text type="secondary">({Math.round((pending / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
+                    </div>
+                  )}
                   <div className="donut-legend-item">
                     <span><span className="donut-legend-dot" style={{ background: '#f5222d' }} />需处理/失败</span>
                     <strong>{failed} <Text type="secondary">({Math.round((failed / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
@@ -732,7 +774,7 @@ const Dashboard: React.FC = () => {
                           className="industry-bar-fill"
                           style={{
                             width: `${pct}%`,
-                            background: isSelected ? 'var(--primary-color)' : item.industry_color || '#1890ff'
+                            background: isSelected ? 'var(--primary-color)' : getValidCssColor(item.industry_color, '#1890ff')
                           }}
                         />
                       </div>
