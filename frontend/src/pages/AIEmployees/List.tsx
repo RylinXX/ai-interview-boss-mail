@@ -1,13 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Form, Input, Progress, Row, Space, Steps, Tag, Typography } from 'antd';
+import { App, Button, Card, Col, Drawer, Form, Input, Modal, Progress, Row, Space, Tag, Typography } from 'antd';
 import {
-  ArrowRightOutlined,
   AuditOutlined,
+  BookOutlined,
+  BulbOutlined,
+  CheckCircleOutlined,
+  ClearOutlined,
   DatabaseOutlined,
   FileTextOutlined,
+  LinkOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
@@ -16,34 +21,12 @@ import '../BusinessWorkbench.css';
 
 const { Title, Text, Paragraph } = Typography;
 
-const cleanNumberedText = (value: string) => value.replace(/^\s*(?:[-*]\s*)?(?:\d+\s*[.、)]|[（(]\s*\d+\s*[）)]|[一二三四五六七八九十]+[、.])\s*/, '').trim();
-
 type ChatRole = 'user' | 'assistant';
 
 type ChatMessage = {
   role: ChatRole;
   content: string;
-};
-
-type AIEmployeeChatForm = {
-  requirement: string;
-  company_profile?: string;
-  project_materials?: string;
-  constraints?: string;
-};
-
-type SolutionDirection = {
-  name?: string;
-  scenario?: string;
-  value?: string;
-  related_cases?: string[];
-  implementation_steps?: string[];
-};
-
-type DynamicWorker = {
-  name?: string;
-  responsibility?: string;
-  human_review?: string;
+  evidence?: RetrievedEvidence[];
 };
 
 type RetrievedEvidence = {
@@ -54,56 +37,21 @@ type RetrievedEvidence = {
   source_name?: string;
   source_locator?: string;
   source_excerpt?: string;
-  compressed_context?: string;
-  source_payload?: {
-    citation_id?: string;
-    source_name?: string;
-    source_locator?: string;
-    excerpt?: string;
-    chunk_index?: number;
-    chunk_total?: number;
-  };
   match_score?: number;
   match_reason?: string;
-  business_topic_tags?: string[];
-  evidence_type_tags?: string[];
   project_name?: string;
   company?: string;
   role?: string;
   candidate_name?: string;
   solution?: string;
   summary?: string;
+  resume_id?: string;
   capabilities?: string[];
   score?: number;
 };
 
-type AgentTraceItem = {
-  stage: string;
-  agent_role?: string;
-  status: string;
-  summary: string;
-  inputs?: Record<string, unknown>;
-  outputs?: Record<string, unknown>;
-};
-
-type EvidenceCoverage = {
-  score?: number;
-  level?: string;
-  covered?: string[];
-  missing?: string[];
-  requires_more_evidence?: boolean;
-};
-
-type RetrievalLog = {
-  retrieval_mode?: string;
-  returned_count?: number;
-  context_compression?: {
-    total_chars?: number;
-  };
-  route_counts?: Record<string, number>;
-  rrf?: Record<string, unknown>;
-  rerank?: Record<string, unknown>;
-  [key: string]: unknown;
+type SolutionAgentRunResponse = {
+  response_payload?: AIEmployeeChatResponse;
 };
 
 type AIEmployeeChatResponse = {
@@ -113,109 +61,48 @@ type AIEmployeeChatResponse = {
   solution: {
     title?: string;
     summary?: string;
-    recommended_solutions?: SolutionDirection[];
+    recommended_solutions?: Array<{
+      name?: string;
+      scenario?: string;
+      value?: string;
+    }>;
     needed_capabilities?: string[];
     risks?: string[];
     next_questions?: string[];
-    knowledge_context?: {
-      asset_count?: number;
-    };
-    dynamic_workers?: DynamicWorker[];
   };
   retrieved_evidence: RetrievedEvidence[];
-  dynamic_workers: DynamicWorker[];
-  human_decision_points: string[];
-  evidence_self_check?: {
-    status?: string;
-    total_solution_count?: number;
-    cited_solution_count?: number;
-    uncited_solution_count?: number;
-  };
-  unsupported_claims?: Array<{
-    name?: string;
-    reason?: string;
-    scenario?: string;
-    value?: string;
-  }>;
-  agent_trace?: AgentTraceItem[];
-  crew_trace?: AgentTraceItem[];
-  retrieval_log?: RetrievalLog;
-  evidence_coverage?: EvidenceCoverage;
-  clarifying_questions?: string[];
-  next_actions?: string[];
   model_used: boolean;
   fallback_used: boolean;
 };
 
-type ConversationSummary = {
-  id: string;
-  title: string;
-  message_count?: number;
-  last_active_at?: string;
-};
-
-type ConversationMessage = {
-  role: ChatRole;
-  content: string;
-  run_id?: string | null;
-};
-
-type ConversationMessagesResponse = {
-  items?: ConversationMessage[];
-};
-
-type SolutionAgentRunResponse = {
-  response_payload?: AIEmployeeChatResponse;
-};
-
-const splitToList = (value?: string) => {
-  return (value || '')
-    .split(/[\n。；;,，]+/)
-    .map(item => item.trim())
-    .filter(Boolean)
-    .slice(0, 6);
-};
-
-const agentStageLabel: Record<string, string> = {
-  understand_requirement: '理解需求',
-  retrieve_evidence: '检索证据',
-  assess_coverage: '评估覆盖',
-  generate_solution: '生成方案',
-  assign_dynamic_workers: '拆解员工',
-};
-
-const agentRoleLabel: Record<string, string> = {
-  requirement_analyst: '需求分析智能体',
-  evidence_researcher: '证据检索智能体',
-  evidence_critic: '证据审查智能体',
-  solution_writer: '方案撰写智能体',
-  delivery_task_designer: '交付拆解智能体',
-};
-
-const evidenceCheckStatusLabel: Record<string, string> = {
-  passed: '检查通过',
-  needs_review: '需要复核',
-  blocked: '证据不足',
-};
-
-const agentStepStatus = (status: string): 'wait' | 'process' | 'finish' | 'error' => {
-  if (status === 'completed') return 'finish';
-  if (status === 'blocked') return 'error';
-  if (status === 'skipped') return 'wait';
-  return 'process';
-};
-
-const coverageColor = (level?: string) => {
-  if (level === 'strong') return '#389e0d';
-  if (level === 'partial') return '#d48806';
-  return '#cf1322';
-};
+const PRESET_QUICK_PROMPTS = [
+  {
+    icon: '🎓',
+    label: '985/211专家打法分析',
+    prompt: '请分析数据库中 985/211 院校履历专家在 AI 与大数据中台项目的核心落地经验与技术线索。',
+  },
+  {
+    icon: '💼',
+    label: '金融与风控模式盘点',
+    prompt: '请盘点数据库里关于金融服务与风控领域的关键商业模式、落地案例及强证据知识资产。',
+  },
+  {
+    icon: '🚀',
+    label: '零售私域与电商系统方案',
+    prompt: '针对零售企业私域流量增长与电商自动化需求，请基于现有知识资产输出可交付的系统方案。',
+  },
+  {
+    icon: '📊',
+    label: '商业证据链缺口查验',
+    prompt: '请查验当前已沉淀的项目经验打法中，存在哪些尚待补齐的结构化商业证据链缺口？',
+  },
+];
 
 const apiBaseUrl = import.meta.env.VITE_API_URL || '/api';
 
 const streamSolutionAgent = async (
   payload: Record<string, unknown>,
-  onTrace: (trace: AgentTraceItem) => void
+  onTrace?: (trace: any) => void
 ) => {
   const token = localStorage.getItem('token');
   const response = await fetch(`${apiBaseUrl}/solution-agent/stream`, {
@@ -250,8 +137,8 @@ const streamSolutionAgent = async (
         .join('\n');
       if (!eventName || !dataText) continue;
       const data = JSON.parse(dataText);
-      if (eventName === 'trace') {
-        onTrace(data as AgentTraceItem);
+      if (eventName === 'trace' && onTrace) {
+        onTrace(data);
       }
       if (eventName === 'done') {
         finalResult = data as AIEmployeeChatResponse;
@@ -265,479 +152,404 @@ const streamSolutionAgent = async (
   return finalResult;
 };
 
-const AIEmployeesList: React.FC = () => {
+const AISolutionAssistantPage: React.FC = () => {
   const { message: toast } = App.useApp();
   const navigate = useNavigate();
-  const [form] = Form.useForm<AIEmployeeChatForm>();
+  const [inputText, setInputText] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [creatingProject, setCreatingProject] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatResult, setChatResult] = useState<AIEmployeeChatResponse | null>(null);
-  const [lastInput, setLastInput] = useState<AIEmployeeChatForm | null>(null);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [activeEvidence, setActiveEvidence] = useState<RetrievedEvidence[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>();
-  const [streamTrace, setStreamTrace] = useState<AgentTraceItem[]>([]);
+  const [detailModalItem, setDetailModalItem] = useState<RetrievedEvidence | null>(null);
 
-  const solutionDirections = useMemo(
-    () => chatResult?.solution?.recommended_solutions || [],
-    [chatResult]
-  );
-  const dynamicWorkers = chatResult?.dynamic_workers || chatResult?.solution?.dynamic_workers || [];
-  const context = chatResult?.solution?.knowledge_context || {};
-  const coverage = chatResult?.evidence_coverage || {};
-  const visibleTrace = chatResult?.crew_trace?.length ? chatResult.crew_trace : (streamTrace.length ? streamTrace : chatResult?.agent_trace || []);
-
-  const fetchConversations = async () => {
-    try {
-      const result = await request.get('/solution-agent/conversations');
-      setConversations((result.items || []) as ConversationSummary[]);
-    } catch {
-      setConversations([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchConversations();
-  }, []);
-
-  const startNewConversation = () => {
+  const startNewChat = () => {
     setActiveConversationId(undefined);
     setMessages([]);
-    setChatResult(null);
-    setLastInput(null);
-    setStreamTrace([]);
+    setActiveEvidence([]);
+    setInputText('');
+    toast.success('已开启新一轮智能对话');
   };
 
-  const openConversation = async (conversationId: string) => {
-    try {
-      const history = await request.get(`/solution-agent/conversations/${conversationId}/messages`) as ConversationMessagesResponse;
-      const items = history.items || [];
-      setActiveConversationId(conversationId);
-      setMessages(items.map(item => ({ role: item.role, content: item.content })));
-      const assistant = [...items].reverse().find(item => item.role === 'assistant' && item.run_id);
-      if (assistant?.run_id) {
-        const run = await request.get(`/solution-agent/runs/${assistant.run_id}`) as SolutionAgentRunResponse;
-        if (run.response_payload) {
-          setChatResult(run.response_payload);
-        }
-        setStreamTrace([]);
-      }
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, '加载对话失败'));
-    }
-  };
+  const handleSendPrompt = async (promptText: string) => {
+    const textToSend = promptText.trim();
+    if (!textToSend || submitting) return;
 
-  const submitChat = async (values: AIEmployeeChatForm) => {
     const userMessage: ChatMessage = {
       role: 'user',
-      content: values.requirement,
+      content: textToSend,
     };
     const nextMessages = [...messages, userMessage];
     setMessages(nextMessages);
+    setInputText('');
     setSubmitting(true);
-    setLastInput(values);
-    setChatResult(null);
-    setStreamTrace([]);
+
     try {
       const result = await streamSolutionAgent({
         conversation_id: activeConversationId,
-        requirement: values.requirement,
-        company_profile: values.company_profile,
-        project_materials: values.project_materials,
-        constraints: values.constraints,
+        requirement: textToSend,
         confirmed_context: { messages: nextMessages },
         limit: 8,
-      }, trace => {
-        setStreamTrace(previous => [...previous, trace]);
       });
-      setChatResult(result as AIEmployeeChatResponse);
-      setActiveConversationId(result.conversation_id);
-      setMessages([...nextMessages, { role: 'assistant', content: result.assistant_message }]);
-      setStreamTrace([]);
-      fetchConversations();
+
+      const retrieved = result.retrieved_evidence || [];
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: result.assistant_message,
+        evidence: retrieved,
+      };
+
+      setMessages([...nextMessages, assistantMsg]);
+      setActiveEvidence(retrieved);
+      if (result.conversation_id) {
+        setActiveConversationId(result.conversation_id);
+      }
     } catch (error) {
-      toast.error(getApiErrorMessage(error, '方案 Agent 分析失败'));
+      toast.error(getApiErrorMessage(error, 'AI 解决方案助手回答失败，请检查网络后重试'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const createCustomerProject = async () => {
-    if (!chatResult || !lastInput) {
-      return;
-    }
-    setCreatingProject(true);
-    try {
-      const goals = solutionDirections.length
-        ? solutionDirections.map(item => item.name || item.value || '方案方向').slice(0, 4)
-        : splitToList(chatResult.solution.summary);
-      const project = await request.post('/customer-projects/from-agent-solution', {
-        industry: '客户业务优化',
-        business_type: chatResult.solution.title || '方案 Agent 解决方案',
-        current_process: lastInput.project_materials || lastInput.company_profile || lastInput.requirement,
-        pain_points: splitToList(lastInput.requirement),
-        goals,
-        solution: chatResult.solution,
-      });
-      toast.success('已生成客户项目与方案文档');
-      navigate(`/customer-projects/${project.id}`);
-    } catch (error) {
-      toast.error(getApiErrorMessage(error, '生成客户项目失败'));
-    } finally {
-      setCreatingProject(false);
-    }
-  };
-
   return (
-    <div className="ai-employees-page workbench-page">
+    <div className="ai-solution-assistant-page workbench-page">
       <ModulePageHeader
-        eyebrow={<><RobotOutlined /> 方案智能体</>}
-        title="方案 Agent"
-        description="输入客户真实需求，从知识资产库检索报告、案例、样本和客户资料，生成有证据边界的方案与执行任务。"
-        actions={<>
-          <Button icon={<FileTextOutlined />} onClick={() => navigate('/customer-projects')}>
-            客户案卷
-          </Button>
-          <Button type="primary" icon={<ArrowRightOutlined />} onClick={() => navigate('/knowledge-assets/intake')}>
-            资料入库
-          </Button>
-        </>}
+        eyebrow={<><RobotOutlined /> RAG 智能助手</>}
+        title="AI 解决方案助手"
+        description="与智能体对话，基于数据库中的人才能力样本、项目打法与知识资产进行 RAG 检索问答，自动标注线索来源与引用编号。"
+        actions={
+          <Space>
+            <Button icon={<ClearOutlined />} onClick={startNewChat}>
+              开启新对话
+            </Button>
+            <Button icon={<FileTextOutlined />} onClick={() => navigate('/customer-projects')}>
+              客户案卷
+            </Button>
+          </Space>
+        }
       />
 
-      <div className="consulting-metric-grid employee-metric-grid">
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><RobotOutlined /></span>
-          <Text type="secondary">阶段一</Text>
-          <strong>方案</strong>
-          <span>聊天、检索、分析、输出客户解决方案</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><DatabaseOutlined /></span>
-          <Text type="secondary">数据依据</Text>
-          <strong>{context.asset_count ?? '-'}</strong>
-          <span>来自知识资产、外部资料和邮箱样本</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><SafetyCertificateOutlined /></span>
-          <Text type="secondary">证据覆盖</Text>
-          <strong>{typeof coverage.score === 'number' ? `${coverage.score}%` : '-'}</strong>
-          <span>{coverage.level === 'strong' ? '证据较完整' : coverage.level === 'partial' ? '可生成草案，需人工复核' : '先补资料再生成'}</span>
-        </Card>
-        <Card className="consulting-metric-card">
-          <span className="metric-icon"><AuditOutlined /></span>
-          <Text type="secondary">阶段二</Text>
-          <strong>执行</strong>
-          <span>按方案动态生成 AI 执行员工和任务入口</span>
-        </Card>
-      </div>
-
-      <Row gutter={[16, 16]} className="ai-employee-workbench">
-        <Col xs={24} xl={14}>
+      <Row gutter={[20, 20]} style={{ marginTop: 16 }}>
+        {/* 左侧：RAG Chat 交互主界面 */}
+        <Col xs={24} lg={16}>
           <Card
-            className="agent-chat-card ai-chat-card"
+            className="chat-main-card consulting-table-card"
             title={
-              <Space>
-                <RobotOutlined />
-                <span>方案 Agent 对话</span>
-              </Space>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <RobotOutlined style={{ color: 'var(--primary-color, #1890ff)' }} />
+                  智能体问答工作台
+                </span>
+                <Tag color="blue" style={{ margin: 0 }}>RAG 模式（数据库线索实时联动）</Tag>
+              </div>
             }
+            styles={{ body: { padding: '16px 20px' } }}
           >
-            <div className="agent-history-strip">
-              <Space wrap>
-                <Button size="small" type={!activeConversationId ? 'primary' : 'default'} onClick={startNewConversation}>
-                  新对话
-                </Button>
-                {conversations.slice(0, 6).map(item => (
-                  <Button
-                    size="small"
-                    key={item.id}
-                    type={activeConversationId === item.id ? 'primary' : 'default'}
-                    onClick={() => openConversation(item.id)}
-                  >
-                    {item.title || '历史对话'}
-                  </Button>
-                ))}
-              </Space>
-            </div>
+            {/* 预设推荐场景提示卡片 */}
+            {messages.length === 0 && (
+              <div className="chat-preset-section" style={{ marginBottom: 20 }}>
+                <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: 10 }}>
+                  💡 推荐预设业务问答场景（点击快捷发送）：
+                </Text>
+                <Row gutter={[10, 10]}>
+                  {PRESET_QUICK_PROMPTS.map((item) => (
+                    <Col span={12} key={item.label}>
+                      <div
+                        className="preset-prompt-card"
+                        onClick={() => handleSendPrompt(item.prompt)}
+                        style={{
+                          padding: '12px 14px',
+                          background: 'var(--card-bg, #fafafa)',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color, #e8e8e8)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: 4, color: 'var(--text-color, #262626)' }}>
+                          {item.icon} {item.label}
+                        </div>
+                        <Text type="secondary" style={{ fontSize: '11px' }} ellipsis>
+                          {item.prompt}
+                        </Text>
+                      </div>
+                    </Col>
+                  ))}
+                </Row>
+              </div>
+            )}
 
-            <Form
-              form={form}
-              layout="vertical"
-              onFinish={submitChat}
-              initialValues={{
-                requirement: '客户要做处置方案治理方案，官方有模板，需要自动填写公司资质和项目基础信息。',
-                company_profile: '公司具备多项施工、治理或服务资质，需要把资质、人员、项目履历统一沉淀成可复用资料库。',
-                project_materials: '已有项目名称、地址、负责人、治理范围、预算信息和部分官方模板，希望先生成一份可交付方案。',
-                constraints: 'AI 只负责资料整理和方案初稿，关键事实、客户承诺和最终交付必须人工复核。',
+            {/* 对话消息流 */}
+            <div
+              className="chat-messages-container"
+              style={{
+                minHeight: '380px',
+                maxHeight: '520px',
+                overflowY: 'auto',
+                paddingRight: '6px',
+                marginBottom: 16,
               }}
             >
-              <Form.Item
-                name="requirement"
-                label="客户需求"
-                rules={[{ required: true, message: '请输入客户需求' }]}
-              >
-                <Input.TextArea rows={4} placeholder="描述客户现在要解决的问题、目标交付物和约束" />
-              </Form.Item>
-              <Form.Item name="company_profile" label="公司资料">
-                <Input.TextArea rows={3} placeholder="客户公司资质、业务背景、产品或服务情况" />
-              </Form.Item>
-              <Form.Item name="project_materials" label="项目资料 / 模板资料">
-                <Input.TextArea rows={3} placeholder="项目基础信息、已有模板、历史材料、数据口径" />
-              </Form.Item>
-              <Form.Item name="constraints" label="约束条件">
-                <Input.TextArea rows={3} placeholder="数据权限、人工复核、交付周期、预算、不可承诺事项" />
-              </Form.Item>
-              <Space wrap>
-                <Button type="primary" htmlType="submit" icon={<SendOutlined />} loading={submitting}>
-                  让方案 Agent 分析
-                </Button>
-                <Button onClick={() => form.resetFields()} disabled={submitting}>
-                  重置样例
-                </Button>
-              </Space>
-            </Form>
-
-            <div className="ai-chat-thread">
-              <div className="ai-chat-message ai-chat-message-assistant">
-                <RobotOutlined />
-                <div>
-                  <Text strong>方案 Agent</Text>
-                  <Paragraph>
-                    我会先检索知识资产库，把外部资料、内部案例、邮箱样本和客户材料转成可引用证据，再输出方案、动态执行员工和人工审核点。
-                  </Paragraph>
-                </div>
-              </div>
-              {messages.map((item, index) => (
-                <div className={`ai-chat-message ai-chat-message-${item.role}`} key={`${item.role}-${index}`}>
-                  {item.role === 'assistant' ? <RobotOutlined /> : <AuditOutlined />}
-                  <div>
-                    <Text strong>{item.role === 'assistant' ? '方案 Agent' : '你'}</Text>
-                    <Paragraph>{item.content}</Paragraph>
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className={`chat-message-row ${msg.role}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 8,
+                      maxWidth: '88%',
+                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: msg.role === 'user' ? '#1890ff' : '#722ed1',
+                        color: '#fff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                    </div>
+                    <div
+                      style={{
+                        background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.08)' : 'var(--card-bg, #f5f7fa)',
+                        border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.2)' : 'var(--border-color, #e8e8e8)'}`,
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        color: 'var(--text-color, #262626)',
+                        whiteSpace: 'pre-wrap',
+                      }}
+                    >
+                      {msg.content}
+                    </div>
                   </div>
+
+                  {/* 如果包含引用证明依据 */}
+                  {msg.role === 'assistant' && msg.evidence && msg.evidence.length > 0 && (
+                    <div
+                      className="chat-evidence-references"
+                      style={{
+                        marginTop: 10,
+                        marginLeft: 40,
+                        padding: '12px 14px',
+                        background: '#f6ffed',
+                        border: '1px solid #b7eb8f',
+                        borderRadius: '8px',
+                        maxWidth: '85%',
+                      }}
+                    >
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#389e0d', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <BookOutlined /> 📚 调用的数据库参数与引用依据 (References & Source Proofs)：
+                      </div>
+                      <Space wrap size={[6, 6]}>
+                        {msg.evidence.map((item, idx) => {
+                          const citeLabel = item.candidate_name
+                            ? `[引用 ${idx + 1}] 人才: ${item.candidate_name}`
+                            : item.project_name
+                            ? `[引用 ${idx + 1}] 项目: ${item.project_name}`
+                            : `[引用 ${idx + 1}] 资产: ${item.title || item.source_name || '数据库条目'}`;
+                          return (
+                            <Tag
+                              color="green"
+                              key={idx}
+                              style={{ cursor: 'pointer', padding: '2px 8px', fontSize: '12px' }}
+                              onClick={() => setDetailModalItem(item)}
+                            >
+                              <LinkOutlined style={{ marginRight: 4 }} />
+                              {citeLabel}
+                            </Tag>
+                          );
+                        })}
+                      </Space>
+                    </div>
+                  )}
                 </div>
               ))}
+
+              {submitting && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#1890ff', marginLeft: 40 }}>
+                  <RobotOutlined className="anticon-spin" />
+                  <Text type="secondary" style={{ fontSize: '13px' }}>
+                    智能体正在全量检索数据库并推演最佳解决方案...
+                  </Text>
+                </div>
+              )}
             </div>
+
+            {/* 输入框区 */}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <Input.TextArea
+                rows={3}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="请输入您的业务或技术咨询问题，例如：分析大厂背景高管的落地打法，或针对特定行业提出系统方案..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleSendPrompt(inputText);
+                  }
+                }}
+              />
+              <Button
+                type="primary"
+                icon={<SendOutlined />}
+                loading={submitting}
+                onClick={() => handleSendPrompt(inputText)}
+                style={{ height: '76px', padding: '0 24px', borderRadius: '8px' }}
+              >
+                发送
+              </Button>
+            </div>
+            <Text type="secondary" style={{ fontSize: '11px', marginTop: 6, display: 'block' }}>
+              提示: 按 Ctrl + Enter 或 Cmd + Enter 可快速提交发送。
+            </Text>
           </Card>
         </Col>
 
-        <Col xs={24} xl={10}>
-          <div className="ai-side-stack">
-            <Card className="agent-trace-card ai-side-card" title="Agent 运行链路">
-              {visibleTrace.length ? (
-                <Steps
-                  direction="vertical"
-                  size="small"
-                  items={visibleTrace.map(item => ({
-                    title: item.agent_role
-                      ? `${agentRoleLabel[item.agent_role] || item.agent_role} · ${agentStageLabel[item.stage] || item.stage}`
-                      : agentStageLabel[item.stage] || item.stage,
-                    description: item.summary,
-                    status: agentStepStatus(item.status),
-                  }))}
-                />
-              ) : (
-                <Text type="secondary">提交需求后，这里会显示理解、检索、评估、生成和拆解的执行轨迹。</Text>
-              )}
-            </Card>
+        {/* 右侧：数据库检索参数线索探索面板 */}
+        <Col xs={24} lg={8}>
+          <Card
+            className="consulting-table-card"
+            title={
+              <span style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <DatabaseOutlined style={{ color: '#52c41a' }} />
+                数据库线索与依据
+              </span>
+            }
+            styles={{ body: { padding: '16px' } }}
+          >
+            {activeEvidence.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  本次问答中提取到的线索数: <strong>{activeEvidence.length}</strong> 项
+                </Text>
 
-            <Card className="agent-knowledge-card ai-side-card" title="检索到的证据资产">
-              {chatResult ? (
-                <>
-                  <div className="ai-context-counts">
-                    <span><strong>{context.asset_count || chatResult.retrieved_evidence?.length || 0}</strong>证据资产</span>
-                    <span><strong>{chatResult.retrieved_evidence?.filter(item => item.source_type === 'company_case').length || 0}</strong>案例资料</span>
-                    <span><strong>{chatResult.retrieved_evidence?.filter(item => item.source_type?.includes('document')).length || 0}</strong>报告资料</span>
-                  </div>
-                  <div className="ai-evidence-list">
-                    {(chatResult.retrieved_evidence || []).slice(0, 5).map((item, index) => (
-                      <section key={`${item.id || item.title || index}`}>
-                        <Text strong>{item.title || item.project_name || item.company || `证据资产 ${index + 1}`}</Text>
-                        <Paragraph>
-                          {item.summary || item.solution || item.capabilities?.join('、') || item.match_reason || '已命中客户需求相关资料。'}
-                        </Paragraph>
-                        <Space wrap>
-                          <Tag color="blue">{item.citation_id || item.source_payload?.citation_id || `K${index + 1}`}</Tag>
-                          {(item.source_locator || item.source_payload?.source_locator) ? <Tag>{item.source_locator || item.source_payload?.source_locator}</Tag> : null}
-                          <Tag>{item.source_name || item.source_type || item.role || item.candidate_name || '证据依据'}</Tag>
-                          {typeof item.match_score === 'number' ? <Tag color="processing">{Math.round(item.match_score)} 分</Tag> : null}
-                        </Space>
-                      </section>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <Text type="secondary">提交一次客户需求后，这里会展示系统从知识资产库检索到的证据资料。</Text>
-              )}
-            </Card>
-
-            <Card className="agent-coverage-card ai-side-card" title="证据覆盖与缺口">
-              {chatResult ? (
-                <div className="agent-coverage-content">
-                  <Progress
-                    percent={coverage.score || 0}
-                    strokeColor={coverageColor(coverage.level)}
-                    status={coverage.level === 'insufficient' ? 'exception' : 'normal'}
-                  />
-                  <div className="agent-coverage-columns">
-                    <section>
-                      <Text type="secondary">已覆盖</Text>
-                      <Space wrap>
-                        {(coverage.covered || []).map(item => <Tag color="green" key={item}>{item}</Tag>)}
-                      </Space>
-                    </section>
-                    <section>
-                      <Text type="secondary">待补充</Text>
-                      <Space wrap>
-                        {(coverage.missing || []).map(item => <Tag color="orange" key={item}>{item}</Tag>)}
-                      </Space>
-                    </section>
-                  </div>
-                </div>
-              ) : (
-                <Text type="secondary">系统会根据资料命中、客户背景、项目材料和约束条件评估是否足够生成方案。</Text>
-              )}
-            </Card>
-
-            <Card className="agent-self-check-card ai-side-card" title="证据自检">
-              {chatResult?.evidence_self_check ? (
-                <div className="agent-self-check">
-                  <Space wrap>
-                    <Tag color={chatResult.evidence_self_check.status === 'passed' ? 'green' : 'orange'}>
-                      {evidenceCheckStatusLabel[chatResult.evidence_self_check.status || 'needs_review'] || chatResult.evidence_self_check.status}
-                    </Tag>
-                    <Tag>已引用 {chatResult.evidence_self_check.cited_solution_count ?? 0}</Tag>
-                    <Tag>未引用 {chatResult.evidence_self_check.uncited_solution_count ?? 0}</Tag>
-                  </Space>
-                  {(chatResult.unsupported_claims || []).length ? (
-                    <div className="unsupported-claim-list">
-                      {(chatResult.unsupported_claims || []).map((claim, index) => (
-                        <section key={`${claim.name || index}`}>
-                          <Text strong>{claim.name || `待核声明 ${index + 1}`}</Text>
-                          <Paragraph>{claim.reason || claim.value || claim.scenario}</Paragraph>
-                        </section>
-                      ))}
+                {activeEvidence.map((item, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setDetailModalItem(item)}
+                    style={{
+                      padding: '10px 12px',
+                      background: 'var(--card-bg, #fafafa)',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-color, #e8e8e8)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Tag color="blue" style={{ margin: 0 }}>
+                        [引用 {idx + 1}]
+                      </Tag>
+                      {item.match_score && (
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
+                          相关度: {Math.round(item.match_score * 100)}%
+                        </Text>
+                      )}
                     </div>
-                  ) : (
-                    <Text type="secondary">所有方案方向均已关联检索证据。</Text>
-                  )}
-                </div>
-              ) : (
-                <Text type="secondary">生成方案后，未引用证据的声明会列在这里等待复核。</Text>
-              )}
-            </Card>
-
-            <Card className="agent-retrieval-card ai-side-card" title="检索过程日志">
-              {chatResult?.retrieval_log ? (
-                <div className="agent-retrieval-log">
-                  <Space wrap>
-                    <Tag color="purple">模式：{chatResult.retrieval_log.retrieval_mode || '知识检索'}</Tag>
-                    <Tag>返回 {chatResult.retrieval_log.returned_count ?? 0} 条</Tag>
-                    <Tag>压缩后 {chatResult.retrieval_log.context_compression?.total_chars ?? 0} 字符</Tag>
-                  </Space>
-                  <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto', marginTop: 12 }}>
-                    {JSON.stringify({
-                      route_counts: chatResult.retrieval_log.route_counts,
-                      rrf: chatResult.retrieval_log.rrf,
-                      rerank: chatResult.retrieval_log.rerank,
-                    }, null, 2)}
-                  </pre>
-                </div>
-              ) : (
-                <Text type="secondary">提交需求后，这里会显示检索模式、多路召回、RRF、rerank 和上下文压缩信息。</Text>
-              )}
-            </Card>
-
-            <Card className="agent-solution-card ai-side-card" title="动态 AI 执行员工">
-              {dynamicWorkers.length ? (
-                <div className="ai-worker-list">
-                  {dynamicWorkers.map((worker, index) => (
-                    <section key={`${worker.name}-${index}`}>
-                      <span className="employee-role-badge"><RobotOutlined /></span>
-                      <div>
-                        <Text strong>{worker.name || `AI 执行员工 ${index + 1}`}</Text>
-                        <Paragraph>{worker.responsibility || '根据方案承担具体执行任务。'}</Paragraph>
-                        <Tag color="gold">{worker.human_review || '人工审核关键结论'}</Tag>
-                      </div>
-                    </section>
-                  ))}
-                </div>
-              ) : (
-                <Text type="secondary">AI 执行员工不会被预先固定，系统会按客户需求动态生成资料解析、方案设计、交付拆解等执行角色。</Text>
-              )}
-            </Card>
-          </div>
+                    <Text strong style={{ fontSize: '13px', display: 'block', color: 'var(--text-color, #262626)' }}>
+                      {item.candidate_name
+                        ? `候选人: ${item.candidate_name} (${item.role || '专家'})`
+                        : item.project_name
+                        ? `项目: ${item.project_name}`
+                        : item.title || item.source_name || '数据库知识记录'}
+                    </Text>
+                    {item.summary || item.solution ? (
+                      <Paragraph ellipsis={{ rows: 2 } as any} style={{ fontSize: '12px', margin: '4px 0 0 0', color: '#666' }}>
+                        {item.summary || item.solution}
+                      </Paragraph>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999' }}>
+                <DatabaseOutlined style={{ fontSize: '28px', marginBottom: 8, opacity: 0.5 }} />
+                <div style={{ fontSize: '13px' }}>暂无检索线索</div>
+                <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
+                  发送提问后，智能体将在此实时展示检索到的数据库依据。
+                </Text>
+              </div>
+            )}
+          </Card>
         </Col>
       </Row>
 
-      {chatResult && (
-        <Card className="ai-solution-panel" title="客户解决方案草案">
-          <div className="ai-solution-head">
-            <div>
-              <Tag color={chatResult.model_used ? 'green' : 'orange'}>
-                {chatResult.model_used ? '已接入大语言模型' : '规则兜底生成'}
-              </Tag>
-              <Title level={3}>{chatResult.solution.title || '方案 Agent 解决方案'}</Title>
-              <Paragraph>{chatResult.solution.summary}</Paragraph>
-            </div>
+      {/* 引用依据详情 Modal */}
+      <Modal
+        open={Boolean(detailModalItem)}
+        onCancel={() => setDetailModalItem(null)}
+        footer={[
+          <Button key="close" onClick={() => setDetailModalItem(null)}>
+            关闭
+          </Button>,
+          detailModalItem?.resume_id && (
             <Button
+              key="resume"
               type="primary"
-              icon={<FileTextOutlined />}
-              loading={creatingProject}
-              onClick={createCustomerProject}
+              onClick={() => {
+                const id = detailModalItem.resume_id;
+                setDetailModalItem(null);
+                navigate(`/resumes/${id}`);
+              }}
             >
-              生成客户案卷
+              查看完整简历样本
             </Button>
+          ),
+        ]}
+        title="📚 数据库线索依据详情"
+      >
+        {detailModalItem && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>依据名称 / 实体</Text>
+              <Text strong style={{ fontSize: '15px' }}>
+                {detailModalItem.candidate_name
+                  ? `${detailModalItem.candidate_name} - ${detailModalItem.company || ''} ${detailModalItem.role || ''}`
+                  : detailModalItem.project_name || detailModalItem.title || '知识记录'}
+              </Text>
+            </div>
+            {detailModalItem.solution && (
+              <div>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>解决方案 / 项目内容</Text>
+                <Paragraph style={{ margin: 0, background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
+                  {detailModalItem.solution}
+                </Paragraph>
+              </div>
+            )}
+            {detailModalItem.summary && (
+              <div>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>概要摘要</Text>
+                <Paragraph style={{ margin: 0 }}>{detailModalItem.summary}</Paragraph>
+              </div>
+            )}
+            {detailModalItem.match_reason && (
+              <div>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>匹配理由</Text>
+                <Tag color="green">{detailModalItem.match_reason}</Tag>
+              </div>
+            )}
           </div>
-
-          <Row gutter={[16, 16]}>
-            {solutionDirections.map((item, index) => (
-              <Col xs={24} lg={12} key={`${item.name}-${index}`}>
-                <section className="ai-solution-direction">
-                  <Text strong>{index + 1}. {item.name || '方案方向'}</Text>
-                  <Paragraph>{item.scenario}</Paragraph>
-                  <div className="ai-solution-value">{item.value}</div>
-                  <div className="formal-tag-row">
-                    {(item.related_cases || []).map(caseName => (
-                      <Tag key={caseName}>{caseName}</Tag>
-                    ))}
-                  </div>
-                  <ol>
-                    {(item.implementation_steps || []).map((step, stepIndex) => (
-                      <li key={`${step}-${stepIndex}`}>{cleanNumberedText(step)}</li>
-                    ))}
-                  </ol>
-                </section>
-              </Col>
-            ))}
-          </Row>
-
-          <div className="human-decision-list">
-            <Text strong>人工决策点</Text>
-            <ul>
-              {(chatResult.human_decision_points || []).map(point => (
-                <li key={point}>{point}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="agent-followup-grid">
-            <section>
-              <Text strong>继续追问</Text>
-              <ul>
-                {(chatResult.clarifying_questions || []).map(item => <li key={item}>{item}</li>)}
-              </ul>
-            </section>
-            <section>
-              <Text strong>下一步动作</Text>
-              <ul>
-                {(chatResult.next_actions || []).map(item => <li key={item}>{item}</li>)}
-              </ul>
-            </section>
-          </div>
-        </Card>
-      )}
+        )}
+      </Modal>
     </div>
   );
 };
 
-export default AIEmployeesList;
+export default AISolutionAssistantPage;

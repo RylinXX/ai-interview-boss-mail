@@ -259,11 +259,11 @@ const AppLayout: React.FC = () => {
       tag: '项目交付',
     },
     {
-      key: '/ai-employees',
+      key: '/ai-solution-assistant',
       icon: <RobotOutlined />,
-      label: 'AI 员工',
-      description: 'AI 角色、任务编排与执行状态',
-      tag: '智能协作',
+      label: 'AI 解决方案助手',
+      description: '基于人才样本、项目打法与知识资产的 RAG 智能体对话与问答溯源',
+      tag: '智能助手',
       className: 'workflow-nav-item workflow-nav-item-last',
     },
     {

@@ -73,7 +73,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'industry-agent',
-        element: <Navigate to="/ai-employees" replace />,
+        element: <Navigate to="/ai-solution-assistant" replace />,
       },
       {
         path: 'customer-projects',
@@ -84,12 +84,16 @@ const router = createBrowserRouter([
         element: lazyPage(<CustomerProjectDetail />),
       },
       {
-        path: 'ai-employees',
+        path: 'ai-solution-assistant',
         element: lazyPage(<AIEmployeesList />),
       },
       {
+        path: 'ai-employees',
+        element: <Navigate to="/ai-solution-assistant" replace />,
+      },
+      {
         path: 'ai-product-manager',
-        element: <Navigate to="/ai-employees" replace />,
+        element: <Navigate to="/ai-solution-assistant" replace />,
       },
       {
         path: 'knowledge-assets',
