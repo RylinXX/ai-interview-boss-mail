@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Card, Checkbox, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
+  ClearOutlined,
   DeleteOutlined,
   EyeOutlined,
   FileTextOutlined,
@@ -60,6 +61,8 @@ const ResumesList: React.FC = () => {
   const [parseStatus, setParseStatus] = useState<string | undefined>(undefined);
   const [activeSearchName, setActiveSearchName] = useState('');
   const [activeParseStatus, setActiveParseStatus] = useState<string | undefined>(undefined);
+  const [selectedSchoolTag, setSelectedSchoolTag] = useState<string>('all');
+  const [selectedCompanyTag, setSelectedCompanyTag] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [mailSyncing, setMailSyncing] = useState(false);
@@ -512,12 +515,61 @@ const ResumesList: React.FC = () => {
             </div>
           </div>
 
+          {/* 人才特征与结构化标签二次筛选栏 */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginTop: 12, marginBottom: 16, padding: '10px 16px', background: 'rgba(201, 150, 63, 0.05)', borderRadius: 8, border: '1px solid rgba(201, 150, 63, 0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text strong style={{ fontSize: '12px', color: '#8c6019', marginRight: 2 }}>🎓 院校背景:</Text>
+              {['all', '985院校', '211院校', 'QS前30/海外名校', '硕士学历'].map(tag => (
+                <Tag.CheckableTag
+                  key={tag}
+                  checked={selectedSchoolTag === tag}
+                  onChange={() => setSelectedSchoolTag(selectedSchoolTag === tag ? 'all' : tag)}
+                  style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
+                >
+                  {tag === 'all' ? '全部院校' : tag}
+                </Tag.CheckableTag>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text strong style={{ fontSize: '12px', color: '#8c6019', marginRight: 2 }}>🏢 履历平台:</Text>
+              {['all', '一线互联网/大厂', '世界500强', '国央企/大型名企'].map(tag => (
+                <Tag.CheckableTag
+                  key={tag}
+                  checked={selectedCompanyTag === tag}
+                  onChange={() => setSelectedCompanyTag(selectedCompanyTag === tag ? 'all' : tag)}
+                  style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
+                >
+                  {tag === 'all' ? '全部履历' : tag}
+                </Tag.CheckableTag>
+              ))}
+            </div>
+
+            {(selectedSchoolTag !== 'all' || selectedCompanyTag !== 'all') && (
+              <Button
+                type="link"
+                size="small"
+                icon={<ClearOutlined />}
+                onClick={() => { setSelectedSchoolTag('all'); setSelectedCompanyTag('all'); }}
+                style={{ fontSize: '12px', color: '#ff4d4f', paddingLeft: 4 }}
+              >
+                重置标签筛选
+              </Button>
+            )}
+          </div>
+
           <ResponsiveDataView
             desktop={(
               <Table
                 className="resume-intelligence-table"
                 rowKey="id"
-                dataSource={data}
+                dataSource={data.filter(record => {
+                  const schoolTags = record.school_tags || record.parsed_data?.school_tags || [];
+                  const companyTags = record.company_tags || record.parsed_data?.company_tags || [];
+                  if (selectedSchoolTag !== 'all' && !schoolTags.includes(selectedSchoolTag)) return false;
+                  if (selectedCompanyTag !== 'all' && !companyTags.includes(selectedCompanyTag)) return false;
+                  return true;
+                })}
                 columns={columns}
                 tableLayout="fixed"
                 scroll={{ x: 1120 }}

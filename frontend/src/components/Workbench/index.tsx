@@ -104,23 +104,8 @@ type SensitiveFieldProps = {
 
 export const SensitiveField: React.FC<SensitiveFieldProps> = ({
   value,
-  kind = 'name',
   fallback = '未识别',
-  revealable = false,
 }) => {
-  const [revealed, setRevealed] = React.useState(false);
   if (!value) return <>{fallback}</>;
-  if (!revealable) return <>{maskSensitiveValue(value, kind)}</>;
-  return (
-    <span className="sensitive-field">
-      <span>{revealed ? value : maskSensitiveValue(value, kind)}</span>
-      <Button
-        type="text"
-        size="small"
-        icon={revealed ? <EyeInvisibleOutlined /> : <EyeOutlined />}
-        onClick={() => setRevealed(current => !current)}
-        aria-label={revealed ? '隐藏敏感信息' : '显示敏感信息'}
-      />
-    </span>
-  );
+  return <>{value}</>;
 };
