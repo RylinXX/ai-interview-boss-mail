@@ -665,90 +665,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="workbench-page dashboard-page">
-      {/* 营力特数字化系统 风格首屏控制面板 (含右侧 4 项嵌入式微型数据指标卡片) */}
-      <div className="dashboard-top-header-banner">
-        <div className="dashboard-header-left">
-          <div className="module-page-eyebrow">
-            <DatabaseOutlined /> 业务控制台看板
-          </div>
-          <h2 style={{ fontSize: '22px', fontWeight: 800, margin: '8px 0 4px', color: 'var(--text-color, #172033)' }}>
-            AI 人才经验与知识资产分析控制中心
-          </h2>
-          <Text type="secondary" style={{ fontSize: '13px', display: 'block', maxWidth: '400px', marginBottom: 14, lineHeight: '1.6' }}>
-            集中管理人才样本、项目打法与强证据知识资产，实时洞察证据链完整性。
-          </Text>
-          <Button
-            icon={<ReloadOutlined />}
-            loading={refreshing}
-            onClick={() => fetchData(false)}
-            size="small"
-            style={{ borderRadius: '6px' }}
-          >
-            刷新数据
-          </Button>
-        </div>
-
-        <div className="dashboard-header-right-metrics">
-          <Row gutter={[10, 10]}>
-            <Col span={12}>
-              <div className="embedded-metric-card" onClick={() => handleMetricCardClick('candidates')} style={{ cursor: 'pointer' }}>
-                <div className="metric-header">
-                  <span className="metric-title">样本总数</span>
-                  <UserOutlined style={{ color: '#1890ff' }} />
-                </div>
-                <div className="metric-value">{resumeMetrics.total} <span className="metric-unit">人</span></div>
-                <div className="metric-footer">
-                  <span style={{ color: '#52c41a' }}>已解析: {analyzed}</span>
-                  {failed > 0 && <span style={{ color: '#f5222d', marginLeft: 6 }}>失败: {failed}</span>}
-                </div>
-              </div>
-            </Col>
-
-            <Col span={12}>
-              <div className="embedded-metric-card" onClick={() => handleMetricCardClick('projects')} style={{ cursor: 'pointer' }}>
-                <div className="metric-header">
-                  <span className="metric-title">打法项目经历</span>
-                  <ProjectOutlined style={{ color: '#722ed1' }} />
-                </div>
-                <div className="metric-value">{totalProjects} <span className="metric-unit">项</span></div>
-                <div className="metric-footer">
-                  <span>行业: {industrySummary.length} 个</span>
-                  {missingBusinessCount > 0 && <span style={{ color: '#fa8c16', marginLeft: 6 }}>需打磨: {missingBusinessCount}</span>}
-                </div>
-              </div>
-            </Col>
-
-            <Col span={12}>
-              <div className="embedded-metric-card" onClick={() => handleMetricCardClick('works')} style={{ cursor: 'pointer' }}>
-                <div className="metric-header">
-                  <span className="metric-title">知识资产总数</span>
-                  <FileTextOutlined style={{ color: '#fa8c16' }} />
-                </div>
-                <div className="metric-value">{totalAssets} <span className="metric-unit">条</span></div>
-                <div className="metric-footer">
-                  <span style={{ color: '#52c41a' }}>高置信: {highConfidenceAssets}</span>
-                  <span style={{ color: '#1890ff', marginLeft: 6 }}>强证据: {strongProofAssets}</span>
-                </div>
-              </div>
-            </Col>
-
-            <Col span={12}>
-              <div className="embedded-metric-card">
-                <div className="metric-header">
-                  <span className="metric-title">解析成功率</span>
-                  <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                </div>
-                <div className="metric-value">{completionRate}%</div>
-                <div className="metric-footer">
-                  {processing > 0 && <span>分析中: {processing}</span>}
-                  {pending > 0 && <span style={{ marginLeft: 6 }}>待处理: {pending}</span>}
-                  {processing === 0 && pending === 0 && <span style={{ color: '#52c41a' }}>状态良好 100%</span>}
-                </div>
-              </div>
-            </Col>
-          </Row>
-        </div>
-      </div>
+      <ModulePageHeader
+        eyebrow={<><DatabaseOutlined /> 业务控制台</>}
+        title="方案工作台"
+        description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
+        actions={<Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新数据</Button>}
+      />
 
       <AsyncState loading={loading} error={loadError} onRetry={() => fetchData(true)}>
         <>

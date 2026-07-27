@@ -550,12 +550,20 @@ const ResumesList: React.FC = () => {
     },
   ];
 
+  const headerMetrics = [
+    { label: '样本总数', value: metrics.total, hint: '已入库能力样本', icon: <FileTextOutlined /> },
+    { label: '已分析', value: analyzedCount, hint: '模型结构化解析', icon: <TrophyOutlined /> },
+    { label: '项目经历', value: projectCount, hint: '当前页可复用素材', icon: <ProjectOutlined /> },
+    { label: '待处理失败', value: failedCount, hint: `当前页生成 ${questionCount} 个追问`, icon: <QuestionCircleOutlined /> },
+  ];
+
   return (
     <div className="resume-list-page workbench-page">
       <ModulePageHeader
         eyebrow={<><FileTextOutlined /> 能力证据</>}
         title="人才样本"
         description="集中管理履历样本，沉淀行业、职能、项目经验和可复用业务方法。"
+        metrics={headerMetrics}
         actions={<>
           <Dropdown menu={{ items: headerActions }} trigger={['click']}>
             <Button icon={<MoreOutlined />}>更多操作</Button>
@@ -567,33 +575,6 @@ const ResumesList: React.FC = () => {
       />
 
       <AsyncState loading={initialLoading} error={loadError} onRetry={() => fetchResumes(false, true)}>
-        <div className="consulting-metric-grid">
-          <Card className="consulting-metric-card">
-            <span className="metric-icon"><FileTextOutlined /></span>
-            <Text type="secondary">样本总数</Text>
-            <strong>{metrics.total}</strong>
-            <span>已入库能力样本</span>
-          </Card>
-          <Card className="consulting-metric-card">
-            <span className="metric-icon"><TrophyOutlined /></span>
-            <Text type="secondary">已分析</Text>
-            <strong>{analyzedCount}</strong>
-            <span>模型完成结构化解析</span>
-          </Card>
-          <Card className="consulting-metric-card">
-            <span className="metric-icon"><ProjectOutlined /></span>
-            <Text type="secondary">项目经历</Text>
-            <strong>{projectCount}</strong>
-            <span>当前页可复用素材</span>
-          </Card>
-          <Card className="consulting-metric-card">
-            <span className="metric-icon"><QuestionCircleOutlined /></span>
-            <Text type="secondary">待处理失败</Text>
-            <strong>{failedCount}</strong>
-            <span>当前页生成 {questionCount} 个追问</span>
-          </Card>
-        </div>
-
         <Card className="consulting-table-card" title="人才样本列表">
           <div className="data-toolbar" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
             <Input

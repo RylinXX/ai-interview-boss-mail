@@ -4,11 +4,19 @@ import { EyeInvisibleOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/i
 
 const { Text, Title } = Typography;
 
+type HeaderMetric = {
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  icon?: React.ReactNode;
+};
+
 type ModulePageHeaderProps = {
   eyebrow: React.ReactNode;
   title: string;
   description: React.ReactNode;
   actions?: React.ReactNode;
+  metrics?: HeaderMetric[];
   steps?: string[];
   compact?: boolean;
 };
@@ -18,15 +26,32 @@ export const ModulePageHeader: React.FC<ModulePageHeaderProps> = ({
   title,
   description,
   actions,
+  metrics,
   compact = false,
 }) => (
-  <section className={`module-page-header${compact ? ' module-page-header-compact' : ''}`}>
+  <section className={`module-page-header${compact ? ' module-page-header-compact' : ''}${metrics?.length ? ' has-metrics' : ''}`}>
     <div className="module-page-header-copy">
       <span className="module-page-eyebrow">{eyebrow}</span>
       <Title level={2}>{title}</Title>
       <Text type="secondary">{description}</Text>
     </div>
-    {actions ? <div className="module-page-header-actions">{actions}</div> : null}
+    <div className="module-page-header-right">
+      {metrics && metrics.length > 0 && (
+        <div className="module-page-header-metrics">
+          {metrics.map((item, idx) => (
+            <div key={idx} className="header-metric-card">
+              <div className="header-metric-head">
+                {item.icon && <span className="header-metric-icon">{item.icon}</span>}
+                <span className="header-metric-label">{item.label}</span>
+              </div>
+              <div className="header-metric-value">{item.value}</div>
+              {item.hint && <div className="header-metric-hint">{item.hint}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {actions ? <div className="module-page-header-actions">{actions}</div> : null}
+    </div>
   </section>
 );
 

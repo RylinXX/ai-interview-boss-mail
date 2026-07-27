@@ -123,6 +123,7 @@ const CustomerProjectsList: React.FC = () => {
         eyebrow={<><ProjectOutlined /> 交付项目组合</>}
         title="客户项目案卷"
         description="把客户背景、问题诊断、方案文档、执行任务与 AI 员工产出沉淀到同一案卷。"
+        metrics={metrics}
         actions={<>
           <Button icon={<ReloadOutlined />} onClick={fetchProjects} loading={loading}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>启动新交付</Button>
@@ -134,17 +135,6 @@ const CustomerProjectsList: React.FC = () => {
           <div className="workbench-summary-strip">
             <ProjectOutlined />
             <span>{summary}</span>
-          </div>
-
-          <div className="consulting-metric-grid">
-            {metrics.map(metric => (
-              <Card className="consulting-metric-card" key={metric.label}>
-                <span className="metric-icon">{metric.icon}</span>
-                <Text type="secondary">{metric.label}</Text>
-                <strong>{metric.value}</strong>
-                <span>{metric.hint}</span>
-              </Card>
-            ))}
           </div>
 
           <Card className="consulting-table-card" title="交付案卷列表">
