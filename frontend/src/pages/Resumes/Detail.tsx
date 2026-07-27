@@ -198,7 +198,7 @@ const ResumeDetail: React.FC = () => {
       <div className="resume-detail-toolbar">
         <div className="resume-detail-toolbar-inner">
           <Space wrap className="resume-detail-toolbar-status">
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/resumes')}>返回</Button>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)}>返回</Button>
             <Tag color={status.color}>{status.text}</Tag>
           </Space>
           <Space wrap className="resume-detail-toolbar-actions">

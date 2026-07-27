@@ -16,7 +16,7 @@ import {
   TrophyOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import request, { getApiErrorMessage, getResumeParseErrorMessage } from '../../utils/request';
 import { AsyncState, ModulePageHeader, ResponsiveDataView, SensitiveField } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
@@ -51,6 +51,16 @@ const getResumeSummary = (record: any) => (
 const EMPTY_METRICS = { total: 0, success: 0, processing: 0, failed: 0, pending: 0 };
 
 const ResumesList: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  const queryName = searchParams.get('candidate_name') || '';
+  const queryStatus = searchParams.get('parse_status') || undefined;
+  const querySchoolTag = searchParams.get('school_tag') || 'all';
+  const queryCompanyTag = searchParams.get('company_tag') || 'all';
+  const queryPage = Number(searchParams.get('page')) || 1;
+  const queryPageSize = Number(searchParams.get('pageSize')) || 10;
+
   const [data, setData] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [metrics, setMetrics] = useState(EMPTY_METRICS);
@@ -58,19 +68,48 @@ const ResumesList: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [pollingEnabled, setPollingEnabled] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [searchName, setSearchName] = useState('');
-  const [parseStatus, setParseStatus] = useState<string | undefined>(undefined);
-  const [activeSearchName, setActiveSearchName] = useState('');
-  const [activeParseStatus, setActiveParseStatus] = useState<string | undefined>(undefined);
-  const [selectedSchoolTag, setSelectedSchoolTag] = useState<string>('all');
-  const [selectedCompanyTag, setSelectedCompanyTag] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [searchName, setSearchName] = useState(queryName);
+  const [parseStatus, setParseStatus] = useState<string | undefined>(queryStatus);
+  const [activeSearchName, setActiveSearchName] = useState(queryName);
+  const [activeParseStatus, setActiveParseStatus] = useState<string | undefined>(queryStatus);
+  const [selectedSchoolTag, setSelectedSchoolTag] = useState<string>(querySchoolTag);
+  const [selectedCompanyTag, setSelectedCompanyTag] = useState<string>(queryCompanyTag);
+  const [currentPage, setCurrentPage] = useState(queryPage);
+  const [pageSize, setPageSize] = useState(queryPageSize);
   const [mailSyncing, setMailSyncing] = useState(false);
   const [reparsingFailed, setReparsingFailed] = useState(false);
   const [batchReparsing, setBatchReparsing] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const navigate = useNavigate();
+
+  const updateUrlParams = useCallback((newParams: Record<string, any>) => {
+    const params: Record<string, string> = {};
+    if (newParams.candidate_name) params.candidate_name = newParams.candidate_name;
+    if (newParams.parse_status) params.parse_status = newParams.parse_status;
+    if (newParams.school_tag && newParams.school_tag !== 'all') params.school_tag = newParams.school_tag;
+    if (newParams.company_tag && newParams.company_tag !== 'all') params.company_tag = newParams.company_tag;
+    if (newParams.page && newParams.page > 1) params.page = String(newParams.page);
+    if (newParams.pageSize && newParams.pageSize !== 10) params.pageSize = String(newParams.pageSize);
+
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams]);
+
+  useEffect(() => {
+    const name = searchParams.get('candidate_name') || '';
+    const status = searchParams.get('parse_status') || undefined;
+    const school = searchParams.get('school_tag') || 'all';
+    const company = searchParams.get('company_tag') || 'all';
+    const page = Number(searchParams.get('page')) || 1;
+    const size = Number(searchParams.get('pageSize')) || 10;
+
+    setSearchName(name);
+    setActiveSearchName(name);
+    setParseStatus(status);
+    setActiveParseStatus(status);
+    setSelectedSchoolTag(school);
+    setSelectedCompanyTag(company);
+    setCurrentPage(page);
+    setPageSize(size);
+  }, [searchParams]);
 
   const fetchResumes = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -277,13 +316,14 @@ const ResumesList: React.FC = () => {
   const questionCount = data.reduce((sum, item) => sum + getQuestionCount(item), 0);
   const applyFilters = () => {
     const nextSearchName = searchName.trim();
-    if (currentPage === 1 && nextSearchName === activeSearchName && parseStatus === activeParseStatus) {
-      fetchResumes();
-      return;
-    }
-    setCurrentPage(1);
-    setActiveSearchName(nextSearchName);
-    setActiveParseStatus(parseStatus);
+    updateUrlParams({
+      candidate_name: nextSearchName,
+      parse_status: parseStatus,
+      school_tag: selectedSchoolTag,
+      company_tag: selectedCompanyTag,
+      page: 1,
+      pageSize,
+    });
   };
   const headerActions: MenuProps['items'] = [
     {
@@ -505,7 +545,9 @@ const ResumesList: React.FC = () => {
               placeholder="分析状态"
               allowClear
               value={parseStatus}
-              onChange={setParseStatus}
+              onChange={val => {
+                setParseStatus(val);
+              }}
               style={{ width: 100 }}
               options={[
                 { value: 'processing', label: '分析中' },
@@ -518,8 +560,15 @@ const ResumesList: React.FC = () => {
               allowClear
               value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
               onChange={val => {
-                setSelectedSchoolTag(val || 'all');
-                setCurrentPage(1);
+                const nextTag = val || 'all';
+                updateUrlParams({
+                  candidate_name: activeSearchName,
+                  parse_status: activeParseStatus,
+                  school_tag: nextTag,
+                  company_tag: selectedCompanyTag,
+                  page: 1,
+                  pageSize,
+                });
               }}
               style={{ width: 135 }}
               options={[
@@ -534,8 +583,15 @@ const ResumesList: React.FC = () => {
               allowClear
               value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
               onChange={val => {
-                setSelectedCompanyTag(val || 'all');
-                setCurrentPage(1);
+                const nextTag = val || 'all';
+                updateUrlParams({
+                  candidate_name: activeSearchName,
+                  parse_status: activeParseStatus,
+                  school_tag: selectedSchoolTag,
+                  company_tag: nextTag,
+                  page: 1,
+                  pageSize,
+                });
               }}
               style={{ width: 140 }}
               options={[
@@ -553,6 +609,7 @@ const ResumesList: React.FC = () => {
               setCurrentPage(1);
               setActiveSearchName('');
               setActiveParseStatus(undefined);
+              setSearchParams({}, { replace: true });
             }}>重置</Button>
 
             <Divider type="vertical" style={{ height: 20, margin: '0 2px' }} />
@@ -587,8 +644,14 @@ const ResumesList: React.FC = () => {
                   showSizeChanger: true,
                   pageSizeOptions: [10, 20, 50],
                   onChange: (page, size) => {
-                    setCurrentPage(page);
-                    setPageSize(size);
+                    updateUrlParams({
+                      candidate_name: activeSearchName,
+                      parse_status: activeParseStatus,
+                      school_tag: selectedSchoolTag,
+                      company_tag: selectedCompanyTag,
+                      page,
+                      pageSize: size,
+                    });
                     setSelectedRowKeys([]);
                   },
                 }}
@@ -638,7 +701,14 @@ const ResumesList: React.FC = () => {
                     pageSize={pageSize}
                     total={total}
                     onChange={page => {
-                      setCurrentPage(page);
+                      updateUrlParams({
+                        candidate_name: activeSearchName,
+                        parse_status: activeParseStatus,
+                        school_tag: selectedSchoolTag,
+                        company_tag: selectedCompanyTag,
+                        page,
+                        pageSize,
+                      });
                       setSelectedRowKeys([]);
                     }}
                   />
