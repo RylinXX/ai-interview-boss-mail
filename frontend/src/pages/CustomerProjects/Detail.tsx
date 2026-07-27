@@ -66,15 +66,20 @@ const CustomerProjectDetail: React.FC = () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [projectRes, documentRes] = await Promise.all([
-        request.get(`/customer-projects/${id}`),
-        request.get(`/customer-projects/${id}/solution-document`),
-      ]);
+      const projectRes = await request.get(`/customer-projects/${id}`);
       setProject(projectRes as CustomerProject);
-      setDocument(documentRes as SolutionDocument);
-      setDocumentDraft((documentRes as SolutionDocument).content || '');
+
+      try {
+        const documentRes = await request.get(`/customer-projects/${id}/solution-document`);
+        setDocument(documentRes as SolutionDocument);
+        setDocumentDraft((documentRes as SolutionDocument)?.content || '');
+      } catch {
+        setDocument(null);
+        setDocumentDraft('');
+      }
     } catch (error) {
       message.error(getApiErrorMessage(error, '获取客户项目案卷失败'));
+      setProject(null);
     } finally {
       setLoading(false);
     }
