@@ -801,6 +801,8 @@ const Dashboard: React.FC = () => {
                   );
                 })}
               </div>
+            </Card>
+
             {/* 图表 3: 知识资产与强证据完备度 */}
             <Card
               className="dashboard-chart-card"
