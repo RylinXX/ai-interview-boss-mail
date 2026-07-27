@@ -2178,20 +2178,18 @@ body.dark-mode .history-conv-item:hover {
 }
 
 .module-page-header-metrics {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
+  gap: 8px 10px;
 }
 
 .header-metric-card {
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(6px);
-  border: 1px solid rgba(184, 138, 59, 0.25);
+  border: 1px solid rgba(184, 138, 59, 0.22);
   border-radius: 10px;
-  padding: 8px 14px;
-  min-width: 110px;
-  box-shadow: 0 2px 8px rgba(184, 138, 59, 0.05);
+  padding: 8px 12px;
+  box-shadow: 0 2px 6px rgba(184, 138, 59, 0.05);
   transition: all 0.2s ease;
 }
 

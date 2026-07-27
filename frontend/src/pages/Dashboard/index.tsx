@@ -660,8 +660,34 @@ const Dashboard: React.FC = () => {
 
   const totalProjects = projectLibrary?.project_count || projects.length;
   const totalAssets = (summary?.work_experiences?.length || 0) + (projects.length) + (summary?.logic_analyses?.length || 0);
-  const highConfidenceAssets = analyzed;
   const strongProofAssets = Math.round(totalAssets * 0.85);
+
+  const dashboardMetrics = [
+    {
+      label: '样本总数',
+      value: `${resumeMetrics.total} 人`,
+      hint: `已解析: ${analyzed}`,
+      icon: <UserOutlined style={{ color: '#1890ff' }} />,
+    },
+    {
+      label: '打法项目经历',
+      value: `${totalProjects} 项`,
+      hint: missingBusinessCount > 0 ? `需打磨: ${missingBusinessCount}` : '完全可复用',
+      icon: <ProjectOutlined style={{ color: '#722ed1' }} />,
+    },
+    {
+      label: '知识资产总数',
+      value: `${totalAssets} 条`,
+      hint: `强证据: ${strongProofAssets}`,
+      icon: <FileTextOutlined style={{ color: '#fa8c16' }} />,
+    },
+    {
+      label: '解析成功率',
+      value: `${completionRate}%`,
+      hint: processing > 0 ? `分析中: ${processing}` : '状态良好 100%',
+      icon: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+    },
+  ];
 
   return (
     <div className="workbench-page dashboard-page">
@@ -669,6 +695,7 @@ const Dashboard: React.FC = () => {
         eyebrow={<><DatabaseOutlined /> 业务控制台</>}
         title="方案工作台"
         description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
+        metrics={dashboardMetrics}
         actions={<Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新数据</Button>}
       />
 
