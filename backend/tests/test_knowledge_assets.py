@@ -1027,3 +1027,34 @@ def test_solution_agent_requires_more_evidence_before_model_generation(
         "客户所在行业、公司规模和当前业务流程是什么？",
         "这次方案优先解决效率、收入、风控还是交付标准化？",
     ]
+
+
+def test_delete_solution_agent_conversation_success(client, admin_auth_headers, test_user, db):
+    from app.models.models import SolutionAgentConversation, SolutionAgentMessage, SolutionAgentRun, SolutionAgentStep
+
+    conv = SolutionAgentConversation(title="测试删除对话", created_by=test_user.id)
+    db.add(conv)
+    db.commit()
+    db.refresh(conv)
+
+    run = SolutionAgentRun(conversation_id=conv.id, requirement="测试需求", created_by=test_user.id)
+    db.add(run)
+    db.commit()
+    db.refresh(run)
+
+    step = SolutionAgentStep(run_id=run.id, step_index=1, agent_name="retrieval_agent", status="completed")
+    msg = SolutionAgentMessage(conversation_id=conv.id, run_id=run.id, role="user", content="测试需求")
+    db.add_all([step, msg])
+    db.commit()
+
+    response = client.delete(
+        f"/api/solution-agent/conversations/{conv.id}",
+        headers=admin_auth_headers,
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+
+    assert db.query(SolutionAgentConversation).filter(SolutionAgentConversation.id == conv.id).first() is None
+    assert db.query(SolutionAgentRun).filter(SolutionAgentRun.conversation_id == conv.id).first() is None
+    assert db.query(SolutionAgentStep).filter(SolutionAgentStep.run_id == run.id).first() is None
+    assert db.query(SolutionAgentMessage).filter(SolutionAgentMessage.conversation_id == conv.id).first() is None

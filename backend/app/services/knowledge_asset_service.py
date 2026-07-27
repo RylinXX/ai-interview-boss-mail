@@ -1799,8 +1799,17 @@ def delete_solution_agent_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="Solution agent conversation not found")
 
-    db.query(SolutionAgentMessage).filter(SolutionAgentMessage.conversation_id == conversation_id).delete()
-    db.query(SolutionAgentRun).filter(SolutionAgentRun.conversation_id == conversation_id).delete()
+    run_ids = [
+        row[0]
+        for row in db.query(SolutionAgentRun.id)
+        .filter(SolutionAgentRun.conversation_id == conversation_id)
+        .all()
+    ]
+    if run_ids:
+        db.query(SolutionAgentStep).filter(SolutionAgentStep.run_id.in_(run_ids)).delete(synchronize_session=False)
+
+    db.query(SolutionAgentMessage).filter(SolutionAgentMessage.conversation_id == conversation_id).delete(synchronize_session=False)
+    db.query(SolutionAgentRun).filter(SolutionAgentRun.conversation_id == conversation_id).delete(synchronize_session=False)
     db.delete(conversation)
     db.commit()
     return {"status": "success", "id": str(conversation_id)}
