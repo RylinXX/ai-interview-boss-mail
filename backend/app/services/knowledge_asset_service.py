@@ -1897,6 +1897,7 @@ def generate_solution_agent(
     evidence = [_asset_to_solution_evidence(item) for item in retrieved["items"]]
     coverage = _assess_solution_agent_coverage(payload, evidence)
     clarifying_questions = _solution_agent_missing_questions(payload, coverage)
+    next_actions = _solution_agent_next_actions(coverage)
     agent_payload = {
         "user_profile": {
             "requirement": payload.requirement,
