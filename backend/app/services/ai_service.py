@@ -453,6 +453,7 @@ def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str,
 {{
   "title": "方案标题",
   "summary": "一段方案概述",
+  "assistant_message": "请撰写完整的 Markdown 格式大模型解答文本（分为：🎯 一、需求分析与方案定位 | 💡 二、核心交付方案 | 📚 三、私有数据库线索与依据 | ⚠️ 四、假设与风险 | 🚀 五、实施落地步骤），并在文中用 [引用 X] 明确标注引用的知识线索",
   "recommended_solutions": [
     {{
       "name": "方案名称",

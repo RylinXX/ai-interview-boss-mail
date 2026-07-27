@@ -1897,22 +1897,6 @@ def generate_solution_agent(
     evidence = [_asset_to_solution_evidence(item) for item in retrieved["items"]]
     coverage = _assess_solution_agent_coverage(payload, evidence)
     clarifying_questions = _solution_agent_missing_questions(payload, coverage)
-    next_actions = _solution_agent_next_actions(coverage)
-    if coverage["requires_more_evidence"]:
-        result = {
-            **fallback,
-            "agent_trace": _solution_agent_trace(
-                evidence_count=len(evidence),
-                coverage=coverage,
-                model_used=False,
-                worker_count=len(fallback["dynamic_workers"]),
-            ),
-            "retrieval_log": retrieved.get("retrieval_log", {}),
-            "evidence_coverage": coverage,
-            "clarifying_questions": clarifying_questions,
-            "next_actions": next_actions,
-        }
-        return _persist_solution_agent_interaction(db, payload, result, user_id)
     agent_payload = {
         "user_profile": {
             "requirement": payload.requirement,
@@ -1927,13 +1911,26 @@ def generate_solution_agent(
             "assets": evidence,
         },
         "instruction": (
-            "你是一个基于证据库工作的方案 Agent。只能基于提供的 knowledge_assets 生成方案，"
-            "不要编造真实客户名称、财务数据或未提供的事实。请返回可创建客户案卷的 JSON。"
+            "你是一个基于私有知识与经验大纲解题的大语言模型 AI 解决方案助手。"
+            "请基于用户需求和检索到的上下文生成专业落地方案，不要编造未提供的事实。请严格返回 JSON。"
         ),
     }
     generated = generate_solution_agent_response(agent_payload)
     if not generated:
-        return _persist_solution_agent_interaction(db, payload, fallback, user_id)
+        result = {
+            **fallback,
+            "agent_trace": _solution_agent_trace(
+                evidence_count=len(evidence),
+                coverage=coverage,
+                model_used=False,
+                worker_count=len(fallback["dynamic_workers"]),
+            ),
+            "retrieval_log": retrieved.get("retrieval_log", {}),
+            "evidence_coverage": coverage,
+            "clarifying_questions": clarifying_questions,
+            "next_actions": next_actions,
+        }
+        return _persist_solution_agent_interaction(db, payload, result, user_id)
 
     solution = {
         "title": generated.get("title") or fallback["solution"]["title"],
