@@ -364,18 +364,20 @@ const KnowledgeAssetsPage: React.FC = () => {
       />
 
       <AsyncState loading={loading} error={loadError} onRetry={fetchAssets}>
-        <div className="consulting-metric-grid knowledge-metric-grid">
-          {metrics.map(metric => (
-            <Card className="consulting-metric-card" key={metric.label}>
-              <span className="metric-icon">{metric.icon}</span>
-              <Text type="secondary">{metric.label}</Text>
-              <strong>{metric.value}</strong>
-              <span>{metric.hint}</span>
-            </Card>
-          ))}
-        </div>
-
-        <Card className="consulting-table-card" title="资产检索">
+        <Card
+          className="consulting-table-card"
+          title={(
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <span style={{ fontSize: '15px', fontWeight: 600 }}>📚 知识资产检索与列表</span>
+              <Space size="small" wrap>
+                <Tag color="blue" style={{ borderRadius: 10, margin: 0, padding: '1px 8px' }}>资产总量: {serverMetrics.asset_total}</Tag>
+                <Tag color="green" style={{ borderRadius: 10, margin: 0, padding: '1px 8px' }}>已复核: {serverMetrics.reviewed}</Tag>
+                <Tag color="gold" style={{ borderRadius: 10, margin: 0, padding: '1px 8px' }}>强证据: {serverMetrics.evidence_ready}</Tag>
+                <Tag color="purple" style={{ borderRadius: 10, margin: 0, padding: '1px 8px' }}>高置信: {serverMetrics.high_confidence}</Tag>
+              </Space>
+            </div>
+          )}
+        >
         <div className="knowledge-assets-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
           <Space wrap size="small" style={{ flex: 1 }}>
             <Input

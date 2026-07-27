@@ -878,72 +878,9 @@ const Dashboard: React.FC = () => {
                 })}
               </div>
             </Card>
-
-            {/* 图表 3: 业务沉淀与缺口量化卡片 */}
-            <Card
-              className="dashboard-chart-card"
-              title={<><ProjectOutlined style={{ color: '#2fc25b', marginRight: 6 }} /> 业务资产与商业缺口量化</>}
-            >
-              <div className="asset-metrics-visual">
-                <div
-                  className="asset-metric-box"
-                  onClick={() => handleMetricCardClick('projects', 'all')}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="asset-metric-info">
-                    <div className="asset-metric-icon-box" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff' }}>
-                      <DatabaseOutlined />
-                    </div>
-                    <div>
-                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>能力样本总数</Text>
-                      <span className="asset-metric-val" style={{ color: '#1890ff' }}>{resumeMetrics.total}</span>
-                    </div>
-                  </div>
-                  <Tag color="blue">已沉淀</Tag>
-                </div>
-
-                <div
-                  className="asset-metric-box"
-                  onClick={() => handleMetricCardClick('projects', 'all')}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="asset-metric-info">
-                    <div className="asset-metric-icon-box" style={{ background: 'rgba(47, 194, 91, 0.1)', color: '#2fc25b' }}>
-                      <ProjectOutlined />
-                    </div>
-                    <div>
-                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>项目经验打法</Text>
-                      <span className="asset-metric-val" style={{ color: '#2fc25b' }}>{projectLibrary?.project_count || 0}</span>
-                    </div>
-                  </div>
-                  <Tag color="green">可复用</Tag>
-                </div>
-
-                <div
-                  className="asset-metric-box"
-                  onClick={() => handleMetricCardClick('projects', 'gaps')}
-                  style={{
-                    cursor: 'pointer',
-                    borderColor: projectScope === 'gaps' ? '#faad14' : undefined,
-                    background: projectScope === 'gaps' ? 'rgba(250, 173, 20, 0.05)' : undefined
-                  }}
-                >
-                  <div className="asset-metric-info">
-                    <div className="asset-metric-icon-box" style={{ background: 'rgba(250, 173, 20, 0.1)', color: '#faad14' }}>
-                      <QuestionCircleOutlined />
-                    </div>
-                    <div>
-                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>结构商业缺口</Text>
-                      <span className="asset-metric-val" style={{ color: '#faad14' }}>{missingBusinessCount}</span>
-                    </div>
-                  </div>
-                  <Tag color="warning">待补齐证据</Tag>
-                </div>
-              </div>
-            </Card>
           </div>
 
-          {/* 屏下明细区：项目经验 / 能力样本 / 工作经历 明细表 */}
+          {/* 屏下明细区：项目经验 / 人才样本 / 公司经历 明细表 */}
           <Card
             className="workbench-main-workspace consulting-table-card"
             title={(
@@ -951,14 +888,11 @@ const Dashboard: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ display: 'inline-block', width: 4, height: 16, background: 'linear-gradient(180deg, #d4af37 0%, #c9963f 100%)', borderRadius: 2 }} />
-                    📊 业务沉淀与经验打法明细
+                    📊 知识资产、人才样本与项目打法库
                   </span>
-                  <Tag color="gold" style={{ margin: 0, fontSize: '11px', borderRadius: 10, border: '1px solid rgba(201, 150, 63, 0.3)', background: 'rgba(201, 150, 63, 0.08)', color: '#8c6019', fontWeight: 600 }}>
-                    全量知识资产
-                  </Tag>
                 </div>
                 <Text type="secondary" style={{ fontSize: '12px', fontWeight: 400 }}>
-                  提炼项目打法、能力证据与履历画像
+                  按板块查看提炼的项目打法、能力证据与履历画像
                 </Text>
               </div>
             )}
@@ -975,10 +909,13 @@ const Dashboard: React.FC = () => {
             {
               key: 'projects',
               label: (
-                <span className="dashboard-tab-label">
-                  <ProjectOutlined />
-                  <span>项目经验</span>
-                  <span className="dashboard-tab-count">({filteredProjects.length})</span>
+                <span className="dashboard-tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <ProjectOutlined style={{ color: '#722ed1' }} />
+                  <span>项目打法库</span>
+                  <Tag color="purple" style={{ margin: 0, borderRadius: 10, fontSize: '11px' }}>{totalProjects} 项</Tag>
+                  {missingBusinessCount > 0 && (
+                    <Tag color="warning" style={{ margin: 0, borderRadius: 10, fontSize: '11px' }}>缺口 {missingBusinessCount}</Tag>
+                  )}
                 </span>
               ),
               children: (
@@ -1069,10 +1006,11 @@ const Dashboard: React.FC = () => {
             {
               key: 'capabilities',
               label: (
-                <span className="dashboard-tab-label">
-                  <BulbOutlined />
-                  <span>能力样本</span>
-                  <span className="dashboard-tab-count">({summaryLoading ? '加载中' : summaryError ? '重试' : candidateRows.length})</span>
+                <span className="dashboard-tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <BulbOutlined style={{ color: '#1890ff' }} />
+                  <span>人才能力样本库</span>
+                  <Tag color="blue" style={{ margin: 0, borderRadius: 10, fontSize: '11px' }}>{candidateRows.length} 人</Tag>
+                  <Tag color="success" style={{ margin: 0, borderRadius: 10, fontSize: '11px' }}>已解析 {analyzed}</Tag>
                 </span>
               ),
               children: (
@@ -1127,10 +1065,10 @@ const Dashboard: React.FC = () => {
             {
               key: 'works',
               label: (
-                <span className="dashboard-tab-label">
-                  <ApartmentOutlined />
-                  <span>工作经历</span>
-                  <span className="dashboard-tab-count">({summaryLoading ? '加载中' : summaryError ? '重试' : workRows.length})</span>
+                <span className="dashboard-tab-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <ApartmentOutlined style={{ color: '#fa8c16' }} />
+                  <span>任职经历与知识资产库</span>
+                  <Tag color="orange" style={{ margin: 0, borderRadius: 10, fontSize: '11px' }}>{workRows.length} 条</Tag>
                 </span>
               ),
               children: (
