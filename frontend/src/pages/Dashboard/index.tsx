@@ -625,30 +625,15 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="workbench-page dashboard-page">
+      <ModulePageHeader
+        eyebrow={<><DatabaseOutlined /> 业务控制台</>}
+        title="方案工作台"
+        description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
+        actions={<Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新数据</Button>}
+      />
+
       <AsyncState loading={loading} error={loadError} onRetry={() => fetchData(true)}>
         <>
-          {/* 统一顶部操作栏 */}
-          <div className="dashboard-visual-toolbar">
-            <div className="dashboard-visual-toolbar-title">
-              <span className="metric-icon" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff', padding: '6px 10px', borderRadius: 6 }}>
-                <DatabaseOutlined />
-              </span>
-              <div>
-                <h3>业务数据总览与资产分析</h3>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  人才样本、行业打法、商业模式缺口与数据可视化沉淀中心
-                </Text>
-              </div>
-            </div>
-            <Space size="middle">
-              <Tag color="processing" style={{ margin: 0, padding: '4px 10px', fontSize: '12px' }}>
-                系统运行正常 · 实时沉淀
-              </Tag>
-              <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>
-                刷新数据
-              </Button>
-            </Space>
-          </div>
 
           {/* 首屏可视化图表与数据看板区 */}
           <div className="dashboard-chart-grid">

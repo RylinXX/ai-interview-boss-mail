@@ -402,7 +402,6 @@ const AIEmployeesList: React.FC = () => {
             资料入库
           </Button>
         </>}
-        steps={['澄清需求', '检索证据', '生成方案', '人工复核']}
       />
 
       <div className="consulting-metric-grid employee-metric-grid">

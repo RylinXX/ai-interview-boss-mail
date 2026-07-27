@@ -127,7 +127,6 @@ const CustomerProjectsList: React.FC = () => {
           <Button icon={<ReloadOutlined />} onClick={fetchProjects} loading={loading}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>启动新交付</Button>
         </>}
-        steps={['建立案卷', '业务诊断', '方案设计', '交付归档']}
       />
 
       <AsyncState loading={loading} error={loadError} onRetry={fetchProjects}>

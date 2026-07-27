@@ -239,7 +239,6 @@ const KnowledgeAssetsPage: React.FC = () => {
         title="知识资产库"
         description="按来源、标签、证据边界和复核状态管理可被方案 Agent 引用的行业资料。"
         actions={<Button icon={<ReloadOutlined />} onClick={fetchAssets} loading={loading}>刷新</Button>}
-        steps={['来源归档', '标签分层', '证据评分', '方案引用']}
       />
 
       <AsyncState loading={loading} error={loadError} onRetry={fetchAssets}>
