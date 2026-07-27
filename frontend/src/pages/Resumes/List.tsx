@@ -328,7 +328,7 @@ const ResumesList: React.FC = () => {
       title: '人才样本与评估标签',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
-      width: 240,
+      width: '22%',
       render: (text: string, record: any) => {
         const schoolTags = record.school_tags || record.parsed_data?.school_tags || [];
         const companyTags = record.company_tags || record.parsed_data?.company_tags || [];
@@ -371,7 +371,7 @@ const ResumesList: React.FC = () => {
       title: '状态',
       dataIndex: 'parse_status',
       key: 'parse_status',
-      width: 88,
+      width: '7%',
       render: (status: string) => {
         const item = STATUS_MAP[status] || { text: status || '待处理', color: 'default' };
         return <Tag color={item.color}>{item.text}</Tag>;
@@ -381,13 +381,13 @@ const ResumesList: React.FC = () => {
       title: '评估分',
       dataIndex: 'match_score',
       key: 'match_score',
-      width: 96,
+      width: '7%',
       sorter: (a: any, b: any) => (a.match_score || 0) - (b.match_score || 0),
       render: (score: number | null) => score == null ? '-' : (
         <Space>
           <Progress
             type="circle"
-            size={38}
+            size={36}
             percent={score}
             strokeColor={score >= 80 ? '#059669' : score >= 60 ? '#D97706' : '#DC2626'}
             format={() => score}
@@ -398,6 +398,7 @@ const ResumesList: React.FC = () => {
     {
       title: '核心经历概要',
       key: 'summary',
+      width: '32%',
       ellipsis: true,
       render: (_: any, record: any) => (
         <Tooltip title={getResumeSummary(record)}>
@@ -408,37 +409,37 @@ const ResumesList: React.FC = () => {
     {
       title: '项目',
       key: 'projects',
-      width: 72,
+      width: '5%',
       render: (_: any, record: any) => getProjectCount(record),
     },
     {
       title: '问题',
       key: 'questions',
-      width: 72,
+      width: '5%',
       render: (_: any, record: any) => getQuestionCount(record),
     },
     {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: '11%',
-      render: (value: string) => value ? new Date(value).toLocaleString() : '-',
+      width: '10%',
+      render: (value: string) => value ? new Date(value).toLocaleDateString('zh-CN') : '-',
     },
     {
       title: '操作',
       key: 'action',
-      width: '9%',
+      width: '12%',
       align: 'center' as const,
       render: (_: any, record: any) => (
         <Space className="resume-row-actions" size={4}>
           <Tooltip title="查看分析">
-            <Button icon={<EyeOutlined />} onClick={() => navigate(`/resumes/${record.id}`)} />
+            <Button size="small" icon={<EyeOutlined />} onClick={() => navigate(`/resumes/${record.id}`)} />
           </Tooltip>
           <Tooltip title="重新分析">
-            <Button icon={<ReloadOutlined />} onClick={() => handleReparse(record)} disabled={record.parse_status === 'processing'} />
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => handleReparse(record)} disabled={record.parse_status === 'processing'} />
           </Tooltip>
           <Tooltip title="删除">
-            <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
           </Tooltip>
         </Space>
       ),
