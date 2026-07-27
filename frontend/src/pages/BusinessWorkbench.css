@@ -2161,4 +2161,114 @@ body.dark-mode .history-conv-item:hover {
   background: rgba(255, 77, 79, 0.12);
 }
 
+/* ==========================================================================
+   Dashboard Header Banner (营力特数字化系统 风格首屏顶栏控制面板)
+   ========================================================================== */
+
+.dashboard-top-header-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 20px;
+  align-items: center;
+  padding: 22px 28px;
+  margin-bottom: 22px;
+  border-radius: 12px;
+  border: 1px solid rgba(184, 138, 59, 0.32);
+  border-left: 5px solid #B88A3B;
+  background:
+    linear-gradient(135deg, #FFFDF9 0%, #FAF4E7 55%, #F4E8D4 100%),
+    radial-gradient(circle at 88% 20%, rgba(201, 150, 63, 0.18), transparent 45%);
+  box-shadow: 0 6px 20px rgba(184, 138, 59, 0.08), 0 2px 4px rgba(20, 33, 54, 0.03);
+  overflow: hidden;
+}
+
+body.dark-mode .dashboard-top-header-banner {
+  background: linear-gradient(135deg, #111d2c 0%, #142838 50%, #112a1d 100%);
+  border-color: rgba(24, 144, 255, 0.3);
+  border-left-color: #1890ff;
+}
+
+.dashboard-header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  z-index: 2;
+}
+
+.dashboard-header-right-metrics {
+  width: 100%;
+  z-index: 2;
+}
+
+.embedded-metric-card {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(184, 138, 59, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+body.dark-mode .embedded-metric-card {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.embedded-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+  border-color: rgba(184, 138, 59, 0.4);
+}
+
+.embedded-metric-card .metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--text-secondary, #64748b);
+  margin-bottom: 4px;
+}
+
+.embedded-metric-card .metric-title {
+  font-weight: 600;
+  color: #475467;
+}
+
+body.dark-mode .embedded-metric-card .metric-title {
+  color: #cbd5e1;
+}
+
+.embedded-metric-card .metric-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-color, #172033);
+  line-height: 1.25;
+}
+
+.embedded-metric-card .metric-unit {
+  font-size: 12px;
+  font-weight: normal;
+  color: #8c8c8c;
+  margin-left: 2px;
+}
+
+.embedded-metric-card .metric-footer {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+  .dashboard-top-header-banner {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 
