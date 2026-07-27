@@ -4,6 +4,7 @@ import type { MenuProps } from 'antd';
 import {
   ClearOutlined,
   DeleteOutlined,
+  DownOutlined,
   EyeOutlined,
   FileTextOutlined,
   MoreOutlined,
@@ -301,6 +302,27 @@ const ResumesList: React.FC = () => {
     },
   ];
 
+  const batchMenuItems: MenuProps['items'] = [
+    {
+      key: 'batch-reparse',
+      icon: <ReloadOutlined spin={batchReparsing} />,
+      label: '批量重新生成',
+      disabled: !selectedRowKeys.length || batchReparsing,
+      onClick: handleBatchReparse,
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'batch-delete',
+      danger: true,
+      icon: <DeleteOutlined />,
+      label: '批量删除',
+      disabled: !selectedRowKeys.length,
+      onClick: handleBatchDelete,
+    },
+  ];
+
   const columns = [
     {
       title: '人才样本与评估标签',
@@ -469,85 +491,81 @@ const ResumesList: React.FC = () => {
         </div>
 
         <Card className="consulting-table-card" title="人才样本列表">
-          <div className="data-toolbar" style={{ flexWrap: 'wrap', gap: '8px 12px' }}>
-            <div className="data-toolbar-group" style={{ flexWrap: 'wrap', gap: 8 }}>
-            <Input
-              placeholder="搜索人才样本"
-              prefix={<SearchOutlined />}
-              value={searchName}
-              onChange={event => setSearchName(event.target.value)}
-              onPressEnter={applyFilters}
-              allowClear
-              style={{ width: 170 }}
-            />
-            <Select
-              placeholder="分析状态"
-              allowClear
-              value={parseStatus}
-              onChange={setParseStatus}
-              style={{ width: 110 }}
-              options={[
-                { value: 'processing', label: '分析中' },
-                { value: 'success', label: '已分析' },
-                { value: 'failed', label: '失败' },
-              ]}
-            />
-            <Select
-              placeholder="🎓 院校背景"
-              allowClear
-              value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
-              onChange={val => {
-                setSelectedSchoolTag(val || 'all');
+          <div className="data-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: 12, overflowX: 'auto' }}>
+            <div className="data-toolbar-group" style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, flexShrink: 0 }}>
+              <Input
+                placeholder="搜索人才"
+                prefix={<SearchOutlined />}
+                value={searchName}
+                onChange={event => setSearchName(event.target.value)}
+                onPressEnter={applyFilters}
+                allowClear
+                style={{ width: 135 }}
+              />
+              <Select
+                placeholder="分析状态"
+                allowClear
+                value={parseStatus}
+                onChange={setParseStatus}
+                style={{ width: 100 }}
+                options={[
+                  { value: 'processing', label: '分析中' },
+                  { value: 'success', label: '已分析' },
+                  { value: 'failed', label: '失败' },
+                ]}
+              />
+              <Select
+                placeholder="🎓 院校背景"
+                allowClear
+                value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
+                onChange={val => {
+                  setSelectedSchoolTag(val || 'all');
+                  setCurrentPage(1);
+                }}
+                style={{ width: 135 }}
+                options={[
+                  { value: '985院校', label: '🎓 985院校' },
+                  { value: '211院校', label: '🎓 211院校' },
+                  { value: 'QS前30/海外名校', label: '🎓 QS前30/海外名校' },
+                  { value: '硕士学历', label: '🎓 硕士学历' },
+                ]}
+              />
+              <Select
+                placeholder="🏢 履历平台"
+                allowClear
+                value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
+                onChange={val => {
+                  setSelectedCompanyTag(val || 'all');
+                  setCurrentPage(1);
+                }}
+                style={{ width: 145 }}
+                options={[
+                  { value: '一线互联网/大厂', label: '🏢 一线互联网/大厂' },
+                  { value: '世界500强', label: '🏢 世界500强' },
+                  { value: '国央企/大型名企', label: '🏢 国央企/大型名企' },
+                ]}
+              />
+              <Button type="primary" onClick={applyFilters}>查询</Button>
+              <Button onClick={() => {
+                setSearchName('');
+                setParseStatus(undefined);
+                setSelectedSchoolTag('all');
+                setSelectedCompanyTag('all');
                 setCurrentPage(1);
-              }}
-              style={{ width: 155 }}
-              options={[
-                { value: '985院校', label: '🎓 985院校' },
-                { value: '211院校', label: '🎓 211院校' },
-                { value: 'QS前30/海外名校', label: '🎓 QS前30/海外名校' },
-                { value: '硕士学历', label: '🎓 硕士学历' },
-              ]}
-            />
-            <Select
-              placeholder="🏢 履历平台"
-              allowClear
-              value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
-              onChange={val => {
-                setSelectedCompanyTag(val || 'all');
-                setCurrentPage(1);
-              }}
-              style={{ width: 165 }}
-              options={[
-                { value: '一线互联网/大厂', label: '🏢 一线互联网/大厂' },
-                { value: '世界500强', label: '🏢 世界500强' },
-                { value: '国央企/大型名企', label: '🏢 国央企/大型名企' },
-              ]}
-            />
-            <Button type="primary" onClick={applyFilters}>查询</Button>
-            <Button onClick={() => {
-              setSearchName('');
-              setParseStatus(undefined);
-              setSelectedSchoolTag('all');
-              setSelectedCompanyTag('all');
-              setCurrentPage(1);
-              setActiveSearchName('');
-              setActiveParseStatus(undefined);
-            }}>重置</Button>
+                setActiveSearchName('');
+                setActiveParseStatus(undefined);
+              }}>重置</Button>
             </div>
-            <div className="data-toolbar-group">
-            {!!selectedRowKeys.length && <Text type="secondary">已选 {selectedRowKeys.length} 份</Text>}
-            <Text type="secondary">当前页已生成问题 {questionCount} 个</Text>
-            <Button
-              icon={<ReloadOutlined />}
-              loading={batchReparsing}
-              disabled={!selectedRowKeys.length}
-              onClick={handleBatchReparse}
-            >
-              批量重新生成
-            </Button>
-            <Button danger disabled={!selectedRowKeys.length} onClick={handleBatchDelete}>
-              批量删除
-            </Button>
+            
+            <div className="data-toolbar-group" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                问题 {questionCount} 个
+              </Text>
+              <Dropdown menu={{ items: batchMenuItems }} disabled={!selectedRowKeys.length} trigger={['click']}>
+                <Button icon={<DownOutlined />}>
+                  批量操作 {selectedRowKeys.length ? `(${selectedRowKeys.length})` : ''}
+                </Button>
+              </Dropdown>
             </div>
           </div>
 
