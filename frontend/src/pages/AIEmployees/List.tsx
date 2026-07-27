@@ -1,16 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Col, Drawer, Form, Input, Modal, Progress, Row, Space, Tag, Typography } from 'antd';
+import React, { useState } from 'react';
+import { App, Button, Card, Form, Input, Modal, Row, Col, Space, Tag, Typography } from 'antd';
 import {
-  AuditOutlined,
   BookOutlined,
-  BulbOutlined,
-  CheckCircleOutlined,
   ClearOutlined,
-  DatabaseOutlined,
   FileTextOutlined,
   LinkOutlined,
   RobotOutlined,
-  SafetyCertificateOutlined,
   SendOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -50,10 +45,6 @@ type RetrievedEvidence = {
   score?: number;
 };
 
-type SolutionAgentRunResponse = {
-  response_payload?: AIEmployeeChatResponse;
-};
-
 type AIEmployeeChatResponse = {
   conversation_id?: string;
   run_id?: string;
@@ -61,14 +52,6 @@ type AIEmployeeChatResponse = {
   solution: {
     title?: string;
     summary?: string;
-    recommended_solutions?: Array<{
-      name?: string;
-      scenario?: string;
-      value?: string;
-    }>;
-    needed_capabilities?: string[];
-    risks?: string[];
-    next_questions?: string[];
   };
   retrieved_evidence: RetrievedEvidence[];
   model_used: boolean;
@@ -158,14 +141,12 @@ const AISolutionAssistantPage: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [activeEvidence, setActiveEvidence] = useState<RetrievedEvidence[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | undefined>();
   const [detailModalItem, setDetailModalItem] = useState<RetrievedEvidence | null>(null);
 
   const startNewChat = () => {
     setActiveConversationId(undefined);
     setMessages([]);
-    setActiveEvidence([]);
     setInputText('');
     toast.success('已开启新一轮智能对话');
   };
@@ -199,7 +180,6 @@ const AISolutionAssistantPage: React.FC = () => {
       };
 
       setMessages([...nextMessages, assistantMsg]);
-      setActiveEvidence(retrieved);
       if (result.conversation_id) {
         setActiveConversationId(result.conversation_id);
       }
@@ -211,11 +191,11 @@ const AISolutionAssistantPage: React.FC = () => {
   };
 
   return (
-    <div className="ai-solution-assistant-page workbench-page">
+    <div className="ai-solution-assistant-page workbench-page" style={{ maxWidth: '960px', margin: '0 auto' }}>
       <ModulePageHeader
         eyebrow={<><RobotOutlined /> RAG 智能助手</>}
         title="AI 解决方案助手"
-        description="与智能体对话，基于数据库中的人才能力样本、项目打法与知识资产进行 RAG 检索问答，自动标注线索来源与引用编号。"
+        description="与智能体对话，基于数据库中的人才能力样本、项目打法与知识资产进行 RAG 检索问答，点击对话结果末尾的引用标识即可查看数据来源。"
         actions={
           <Space>
             <Button icon={<ClearOutlined />} onClick={startNewChat}>
@@ -228,270 +208,197 @@ const AISolutionAssistantPage: React.FC = () => {
         }
       />
 
-      <Row gutter={[20, 20]} style={{ marginTop: 16 }}>
-        {/* 左侧：RAG Chat 交互主界面 */}
-        <Col xs={24} lg={16}>
-          <Card
-            className="chat-main-card consulting-table-card"
-            title={
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <RobotOutlined style={{ color: 'var(--primary-color, #1890ff)' }} />
-                  智能体问答工作台
-                </span>
-                <Tag color="blue" style={{ margin: 0 }}>RAG 模式（数据库线索实时联动）</Tag>
-              </div>
-            }
-            styles={{ body: { padding: '16px 20px' } }}
-          >
-            {/* 预设推荐场景提示卡片 */}
-            {messages.length === 0 && (
-              <div className="chat-preset-section" style={{ marginBottom: 20 }}>
-                <Text type="secondary" style={{ fontSize: '12px', display: 'block', marginBottom: 10 }}>
-                  💡 推荐预设业务问答场景（点击快捷发送）：
-                </Text>
-                <Row gutter={[10, 10]}>
-                  {PRESET_QUICK_PROMPTS.map((item) => (
-                    <Col span={12} key={item.label}>
-                      <div
-                        className="preset-prompt-card"
-                        onClick={() => handleSendPrompt(item.prompt)}
-                        style={{
-                          padding: '12px 14px',
-                          background: 'var(--card-bg, #fafafa)',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color, #e8e8e8)',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: 4, color: 'var(--text-color, #262626)' }}>
-                          {item.icon} {item.label}
-                        </div>
-                        <Text type="secondary" style={{ fontSize: '11px' }} ellipsis>
-                          {item.prompt}
-                        </Text>
-                      </div>
-                    </Col>
-                  ))}
-                </Row>
-              </div>
-            )}
+      {/* ChatGPT 式极简居中主交互窗口 */}
+      <Card
+        className="chat-main-card consulting-table-card"
+        style={{ marginTop: 16, borderRadius: '12px' }}
+        styles={{ body: { padding: '24px 28px' } }}
+      >
+        {/* 空白页推荐问答场景 */}
+        {messages.length === 0 && (
+          <div className="chat-preset-section" style={{ marginBottom: 28, textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', marginBottom: 8 }}>🤖</div>
+            <Title level={4} style={{ marginBottom: 4 }}>我是您的 AI 解决方案助手</Title>
+            <Text type="secondary" style={{ fontSize: '13px', display: 'block', marginBottom: 24 }}>
+              我可以检索私有人才样本、项目打法与知识资产，为您分析模式并生成带有数据依据的解决方案。
+            </Text>
 
-            {/* 对话消息流 */}
-            <div
-              className="chat-messages-container"
-              style={{
-                minHeight: '380px',
-                maxHeight: '520px',
-                overflowY: 'auto',
-                paddingRight: '6px',
-                marginBottom: 16,
-              }}
-            >
-              {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className={`chat-message-row ${msg.role}`}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    marginBottom: 16,
-                  }}
-                >
+            <Row gutter={[12, 12]}>
+              {PRESET_QUICK_PROMPTS.map((item) => (
+                <Col xs={24} sm={12} key={item.label}>
                   <div
+                    className="preset-prompt-card"
+                    onClick={() => handleSendPrompt(item.prompt)}
                     style={{
-                      display: 'flex',
-                      gap: 8,
-                      maxWidth: '88%',
-                      flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                      padding: '14px 16px',
+                      background: 'var(--card-bg, #fafafa)',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-color, #e8e8e8)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
                     }}
                   >
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: msg.role === 'user' ? '#1890ff' : '#722ed1',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold',
-                        fontSize: '14px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                    <div style={{ fontWeight: 600, fontSize: '13px', marginBottom: 4, color: 'var(--text-color, #262626)' }}>
+                      {item.icon} {item.label}
                     </div>
-                    <div
-                      style={{
-                        background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.08)' : 'var(--card-bg, #f5f7fa)',
-                        border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.2)' : 'var(--border-color, #e8e8e8)'}`,
-                        padding: '12px 16px',
-                        borderRadius: '10px',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        color: 'var(--text-color, #262626)',
-                        whiteSpace: 'pre-wrap',
-                      }}
-                    >
-                      {msg.content}
-                    </div>
+                    <Text type="secondary" style={{ fontSize: '12px' }} ellipsis>
+                      {item.prompt}
+                    </Text>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+          </div>
+        )}
+
+        {/* 聊天对话消息流 */}
+        <div
+          className="chat-messages-container"
+          style={{
+            minHeight: messages.length ? '360px' : 'auto',
+            maxHeight: '600px',
+            overflowY: 'auto',
+            paddingRight: '6px',
+            marginBottom: 20,
+          }}
+        >
+          {messages.map((msg, index) => (
+            <div
+              key={index}
+              className={`chat-message-row ${msg.role}`}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                marginBottom: 20,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 12,
+                  maxWidth: '92%',
+                  flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+                }}
+              >
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: '50%',
+                    background: msg.role === 'user' ? 'var(--primary-color, #1890ff)' : '#722ed1',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 'bold',
+                    fontSize: '16px',
+                    flexShrink: 0,
+                  }}
+                >
+                  {msg.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div
+                    style={{
+                      background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.08)' : 'var(--card-bg, #f7f9fc)',
+                      border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.2)' : 'var(--border-color, #e8e8e8)'}`,
+                      padding: '14px 18px',
+                      borderRadius: '12px',
+                      fontSize: '14.5px',
+                      lineHeight: '1.65',
+                      color: 'var(--text-color, #262626)',
+                      whiteSpace: 'pre-wrap',
+                    }}
+                  >
+                    {msg.content}
                   </div>
 
-                  {/* 如果包含引用证明依据 */}
+                  {/* 对话结果末尾的交互式引用 Source 标记 (只在点击时弹出Modal) */}
                   {msg.role === 'assistant' && msg.evidence && msg.evidence.length > 0 && (
                     <div
-                      className="chat-evidence-references"
                       style={{
-                        marginTop: 10,
-                        marginLeft: 40,
-                        padding: '12px 14px',
-                        background: '#f6ffed',
-                        border: '1px solid #b7eb8f',
-                        borderRadius: '8px',
-                        maxWidth: '85%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        flexWrap: 'wrap',
+                        paddingTop: 4,
                       }}
                     >
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#389e0d', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <BookOutlined /> 📚 调用的数据库参数与引用依据 (References & Source Proofs)：
-                      </div>
-                      <Space wrap size={[6, 6]}>
-                        {msg.evidence.map((item, idx) => {
-                          const citeLabel = item.candidate_name
-                            ? `[引用 ${idx + 1}] 人才: ${item.candidate_name}`
-                            : item.project_name
-                            ? `[引用 ${idx + 1}] 项目: ${item.project_name}`
-                            : `[引用 ${idx + 1}] 资产: ${item.title || item.source_name || '数据库条目'}`;
-                          return (
-                            <Tag
-                              color="green"
-                              key={idx}
-                              style={{ cursor: 'pointer', padding: '2px 8px', fontSize: '12px' }}
-                              onClick={() => setDetailModalItem(item)}
-                            >
-                              <LinkOutlined style={{ marginRight: 4 }} />
-                              {citeLabel}
-                            </Tag>
-                          );
-                        })}
-                      </Space>
+                      <Text type="secondary" style={{ fontSize: '12px', marginRight: 2 }}>
+                        <BookOutlined /> 来源依据:
+                      </Text>
+                      {msg.evidence.map((item, idx) => {
+                        const citeLabel = item.candidate_name
+                          ? `[${idx + 1}] ${item.candidate_name}`
+                          : item.project_name
+                          ? `[${idx + 1}] ${item.project_name}`
+                          : `[${idx + 1}] ${item.title || item.source_name || '资料'}`;
+                        return (
+                          <Tag
+                            color="green"
+                            key={idx}
+                            style={{ cursor: 'pointer', borderRadius: '12px', padding: '1px 10px', fontSize: '12px', margin: 0 }}
+                            onClick={() => setDetailModalItem(item)}
+                          >
+                            <LinkOutlined style={{ marginRight: 3 }} />
+                            {citeLabel}
+                          </Tag>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
-              ))}
-
-              {submitting && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: '#1890ff', marginLeft: 40 }}>
-                  <RobotOutlined className="anticon-spin" />
-                  <Text type="secondary" style={{ fontSize: '13px' }}>
-                    智能体正在全量检索数据库并推演最佳解决方案...
-                  </Text>
-                </div>
-              )}
+              </div>
             </div>
+          ))}
 
-            {/* 输入框区 */}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <Input.TextArea
-                rows={3}
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="请输入您的业务或技术咨询问题，例如：分析大厂背景高管的落地打法，或针对特定行业提出系统方案..."
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    e.preventDefault();
-                    handleSendPrompt(inputText);
-                  }
-                }}
-              />
-              <Button
-                type="primary"
-                icon={<SendOutlined />}
-                loading={submitting}
-                onClick={() => handleSendPrompt(inputText)}
-                style={{ height: '76px', padding: '0 24px', borderRadius: '8px' }}
-              >
-                发送
-              </Button>
+          {submitting && (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', color: '#1890ff', margin: '16px 0 16px 48px' }}>
+              <RobotOutlined className="anticon-spin" style={{ fontSize: '18px' }} />
+              <Text type="secondary" style={{ fontSize: '13.5px' }}>
+                正在全量检索数据库并生成带依据的解决方案...
+              </Text>
             </div>
-            <Text type="secondary" style={{ fontSize: '11px', marginTop: 6, display: 'block' }}>
-              提示: 按 Ctrl + Enter 或 Cmd + Enter 可快速提交发送。
+          )}
+        </div>
+
+        {/* ChatGPT 风格底部沉浸式输入框 */}
+        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '12px 14px', borderRadius: '14px', border: '1px solid var(--border-color, #e8e8e8)' }}>
+          <Input.TextArea
+            rows={3}
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder="问点什么吧... 例如：分析 985/211 院校履历专家在大厂的核心经验，或针对具体行业输出解决方案。"
+            variant="borderless"
+            style={{ resize: 'none', fontSize: '14.5px' }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                handleSendPrompt(inputText);
+              }
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 6, borderTop: '1px solid var(--border-color, #f0f0f0)' }}>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              按 Cmd + Enter 或 Ctrl + Enter 快捷发送
             </Text>
-          </Card>
-        </Col>
+            <Button
+              type="primary"
+              icon={<SendOutlined />}
+              loading={submitting}
+              disabled={!inputText.trim()}
+              onClick={() => handleSendPrompt(inputText)}
+              style={{ borderRadius: '8px', padding: '0 20px' }}
+            >
+              发送
+            </Button>
+          </div>
+        </div>
+      </Card>
 
-        {/* 右侧：数据库检索参数线索探索面板 */}
-        <Col xs={24} lg={8}>
-          <Card
-            className="consulting-table-card"
-            title={
-              <span style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <DatabaseOutlined style={{ color: '#52c41a' }} />
-                数据库线索与依据
-              </span>
-            }
-            styles={{ body: { padding: '16px' } }}
-          >
-            {activeEvidence.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <Text type="secondary" style={{ fontSize: '12px' }}>
-                  本次问答中提取到的线索数: <strong>{activeEvidence.length}</strong> 项
-                </Text>
-
-                {activeEvidence.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => setDetailModalItem(item)}
-                    style={{
-                      padding: '10px 12px',
-                      background: 'var(--card-bg, #fafafa)',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-color, #e8e8e8)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <Tag color="blue" style={{ margin: 0 }}>
-                        [引用 {idx + 1}]
-                      </Tag>
-                      {item.match_score && (
-                        <Text type="secondary" style={{ fontSize: '11px' }}>
-                          相关度: {Math.round(item.match_score * 100)}%
-                        </Text>
-                      )}
-                    </div>
-                    <Text strong style={{ fontSize: '13px', display: 'block', color: 'var(--text-color, #262626)' }}>
-                      {item.candidate_name
-                        ? `候选人: ${item.candidate_name} (${item.role || '专家'})`
-                        : item.project_name
-                        ? `项目: ${item.project_name}`
-                        : item.title || item.source_name || '数据库知识记录'}
-                    </Text>
-                    {item.summary || item.solution ? (
-                      <Paragraph ellipsis={{ rows: 2 } as any} style={{ fontSize: '12px', margin: '4px 0 0 0', color: '#666' }}>
-                        {item.summary || item.solution}
-                      </Paragraph>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999' }}>
-                <DatabaseOutlined style={{ fontSize: '28px', marginBottom: 8, opacity: 0.5 }} />
-                <div style={{ fontSize: '13px' }}>暂无检索线索</div>
-                <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
-                  发送提问后，智能体将在此实时展示检索到的数据库依据。
-                </Text>
-              </div>
-            )}
-          </Card>
-        </Col>
-      </Row>
-
-      {/* 引用依据详情 Modal */}
+      {/* 点击引用标识时弹出的数据依据 Modal */}
       <Modal
         open={Boolean(detailModalItem)}
         onCancel={() => setDetailModalItem(null)}
@@ -509,17 +416,17 @@ const AISolutionAssistantPage: React.FC = () => {
                 navigate(`/resumes/${id}`);
               }}
             >
-              查看完整简历样本
+              查看完整简历档案
             </Button>
           ),
         ]}
-        title="📚 数据库线索依据详情"
+        title="📚 引用线索与数据依据详情"
       >
         {detailModalItem && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 4 }}>
             <div>
-              <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>依据名称 / 实体</Text>
-              <Text strong style={{ fontSize: '15px' }}>
+              <Text type="secondary" style={{ display: 'block', fontSize: '12px', marginBottom: 2 }}>来源实体名称</Text>
+              <Text strong style={{ fontSize: '15.5px' }}>
                 {detailModalItem.candidate_name
                   ? `${detailModalItem.candidate_name} - ${detailModalItem.company || ''} ${detailModalItem.role || ''}`
                   : detailModalItem.project_name || detailModalItem.title || '知识记录'}
@@ -527,21 +434,21 @@ const AISolutionAssistantPage: React.FC = () => {
             </div>
             {detailModalItem.solution && (
               <div>
-                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>解决方案 / 项目内容</Text>
-                <Paragraph style={{ margin: 0, background: '#f5f5f5', padding: 8, borderRadius: 4 }}>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px', marginBottom: 2 }}>解决方案 / 核心经历打法</Text>
+                <Paragraph style={{ margin: 0, background: 'var(--card-bg, #f5f5f5)', padding: 10, borderRadius: 6, fontSize: '13.5px' }}>
                   {detailModalItem.solution}
                 </Paragraph>
               </div>
             )}
             {detailModalItem.summary && (
               <div>
-                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>概要摘要</Text>
-                <Paragraph style={{ margin: 0 }}>{detailModalItem.summary}</Paragraph>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px', marginBottom: 2 }}>概要与核心摘要</Text>
+                <Paragraph style={{ margin: 0, fontSize: '13.5px' }}>{detailModalItem.summary}</Paragraph>
               </div>
             )}
             {detailModalItem.match_reason && (
               <div>
-                <Text type="secondary" style={{ display: 'block', fontSize: '12px' }}>匹配理由</Text>
+                <Text type="secondary" style={{ display: 'block', fontSize: '12px', marginBottom: 2 }}>相关度匹配理由</Text>
                 <Tag color="green">{detailModalItem.match_reason}</Tag>
               </div>
             )}
