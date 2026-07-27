@@ -1029,15 +1029,15 @@ def test_solution_agent_requires_more_evidence_before_model_generation(
     ]
 
 
-def test_delete_solution_agent_conversation_success(client, admin_auth_headers, test_user, db):
+def test_delete_solution_agent_conversation_success(client, admin_auth_headers, test_admin, db):
     from app.models.models import SolutionAgentConversation, SolutionAgentMessage, SolutionAgentRun, SolutionAgentStep
 
-    conv = SolutionAgentConversation(title="测试删除对话", created_by=test_user.id)
+    conv = SolutionAgentConversation(title="测试删除对话", created_by=test_admin.id)
     db.add(conv)
     db.commit()
     db.refresh(conv)
 
-    run = SolutionAgentRun(conversation_id=conv.id, requirement="测试需求", created_by=test_user.id)
+    run = SolutionAgentRun(conversation_id=conv.id, requirement="测试需求", created_by=test_admin.id)
     db.add(run)
     db.commit()
     db.refresh(run)
