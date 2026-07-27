@@ -587,6 +587,15 @@ const AISolutionAssistantPage: React.FC = () => {
                   <div
                     className="preset-prompt-card"
                     onClick={() => handleSendPrompt(item.prompt)}
+                    style={{
+                      padding: '14px 16px',
+                      background: 'var(--card-bg, #fafafa)',
+                      borderRadius: '10px',
+                      border: '1px solid var(--border-color, #e8e8e8)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
+                    }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-color, #262626)' }}>

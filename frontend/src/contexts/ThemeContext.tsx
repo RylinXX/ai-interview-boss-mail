@@ -24,6 +24,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     document.documentElement.dataset.theme = mode;
     document.documentElement.style.colorScheme = mode;
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.classList.toggle('dark-mode', mode === 'dark');
+    }
     window.localStorage.setItem('qylin-theme-mode', mode);
   }, [mode]);
 
