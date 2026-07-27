@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Card, Checkbox, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
+import { Button, Card, Checkbox, Divider, Dropdown, Input, message, Modal, Pagination, Progress, Select, Space, Table, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   ClearOutlined,
@@ -421,17 +421,16 @@ const ResumesList: React.FC = () => {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 144,
+      width: '11%',
       render: (value: string) => value ? new Date(value).toLocaleString() : '-',
     },
     {
       title: '操作',
       key: 'action',
-      width: 152,
-      fixed: 'right' as const,
-      className: 'actions-column',
+      width: '9%',
+      align: 'center' as const,
       render: (_: any, record: any) => (
-        <Space className="resume-row-actions" size={6}>
+        <Space className="resume-row-actions" size={4}>
           <Tooltip title="查看分析">
             <Button icon={<EyeOutlined />} onClick={() => navigate(`/resumes/${record.id}`)} />
           </Tooltip>
@@ -491,82 +490,80 @@ const ResumesList: React.FC = () => {
         </div>
 
         <Card className="consulting-table-card" title="人才样本列表">
-          <div className="data-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'nowrap', gap: 12, overflowX: 'auto' }}>
-            <div className="data-toolbar-group" style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', gap: 6, flexShrink: 0 }}>
-              <Input
-                placeholder="搜索人才"
-                prefix={<SearchOutlined />}
-                value={searchName}
-                onChange={event => setSearchName(event.target.value)}
-                onPressEnter={applyFilters}
-                allowClear
-                style={{ width: 135 }}
-              />
-              <Select
-                placeholder="分析状态"
-                allowClear
-                value={parseStatus}
-                onChange={setParseStatus}
-                style={{ width: 100 }}
-                options={[
-                  { value: 'processing', label: '分析中' },
-                  { value: 'success', label: '已分析' },
-                  { value: 'failed', label: '失败' },
-                ]}
-              />
-              <Select
-                placeholder="🎓 院校背景"
-                allowClear
-                value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
-                onChange={val => {
-                  setSelectedSchoolTag(val || 'all');
-                  setCurrentPage(1);
-                }}
-                style={{ width: 135 }}
-                options={[
-                  { value: '985院校', label: '🎓 985院校' },
-                  { value: '211院校', label: '🎓 211院校' },
-                  { value: 'QS前30/海外名校', label: '🎓 QS前30/海外名校' },
-                  { value: '硕士学历', label: '🎓 硕士学历' },
-                ]}
-              />
-              <Select
-                placeholder="🏢 履历平台"
-                allowClear
-                value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
-                onChange={val => {
-                  setSelectedCompanyTag(val || 'all');
-                  setCurrentPage(1);
-                }}
-                style={{ width: 145 }}
-                options={[
-                  { value: '一线互联网/大厂', label: '🏢 一线互联网/大厂' },
-                  { value: '世界500强', label: '🏢 世界500强' },
-                  { value: '国央企/大型名企', label: '🏢 国央企/大型名企' },
-                ]}
-              />
-              <Button type="primary" onClick={applyFilters}>查询</Button>
-              <Button onClick={() => {
-                setSearchName('');
-                setParseStatus(undefined);
-                setSelectedSchoolTag('all');
-                setSelectedCompanyTag('all');
+          <div className="data-toolbar" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+            <Input
+              placeholder="搜索人才"
+              prefix={<SearchOutlined />}
+              value={searchName}
+              onChange={event => setSearchName(event.target.value)}
+              onPressEnter={applyFilters}
+              allowClear
+              style={{ width: 130 }}
+            />
+            <Select
+              placeholder="分析状态"
+              allowClear
+              value={parseStatus}
+              onChange={setParseStatus}
+              style={{ width: 100 }}
+              options={[
+                { value: 'processing', label: '分析中' },
+                { value: 'success', label: '已分析' },
+                { value: 'failed', label: '失败' },
+              ]}
+            />
+            <Select
+              placeholder="🎓 院校背景"
+              allowClear
+              value={selectedSchoolTag === 'all' ? undefined : selectedSchoolTag}
+              onChange={val => {
+                setSelectedSchoolTag(val || 'all');
                 setCurrentPage(1);
-                setActiveSearchName('');
-                setActiveParseStatus(undefined);
-              }}>重置</Button>
-            </div>
-            
-            <div className="data-toolbar-group" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-              <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
-                问题 {questionCount} 个
-              </Text>
-              <Dropdown menu={{ items: batchMenuItems }} disabled={!selectedRowKeys.length} trigger={['click']}>
-                <Button icon={<DownOutlined />}>
-                  批量操作 {selectedRowKeys.length ? `(${selectedRowKeys.length})` : ''}
-                </Button>
-              </Dropdown>
-            </div>
+              }}
+              style={{ width: 135 }}
+              options={[
+                { value: '985院校', label: '🎓 985院校' },
+                { value: '211院校', label: '🎓 211院校' },
+                { value: 'QS前30/海外名校', label: '🎓 QS前30/海外名校' },
+                { value: '硕士学历', label: '🎓 硕士学历' },
+              ]}
+            />
+            <Select
+              placeholder="🏢 履历平台"
+              allowClear
+              value={selectedCompanyTag === 'all' ? undefined : selectedCompanyTag}
+              onChange={val => {
+                setSelectedCompanyTag(val || 'all');
+                setCurrentPage(1);
+              }}
+              style={{ width: 140 }}
+              options={[
+                { value: '一线互联网/大厂', label: '🏢 一线互联网/大厂' },
+                { value: '世界500强', label: '🏢 世界500强' },
+                { value: '国央企/大型名企', label: '🏢 国央企/大型名企' },
+              ]}
+            />
+            <Button type="primary" onClick={applyFilters}>查询</Button>
+            <Button onClick={() => {
+              setSearchName('');
+              setParseStatus(undefined);
+              setSelectedSchoolTag('all');
+              setSelectedCompanyTag('all');
+              setCurrentPage(1);
+              setActiveSearchName('');
+              setActiveParseStatus(undefined);
+            }}>重置</Button>
+
+            <Divider type="vertical" style={{ height: 20, margin: '0 2px' }} />
+
+            <Text type="secondary" style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+              问题 {questionCount} 个
+            </Text>
+            <Dropdown menu={{ items: batchMenuItems }} disabled={!selectedRowKeys.length} trigger={['click']}>
+              <Button icon={<DownOutlined />}>
+                批量操作 {selectedRowKeys.length ? `(${selectedRowKeys.length})` : ''}
+              </Button>
+            </Dropdown>
           </div>
 
           <ResponsiveDataView
@@ -577,7 +574,6 @@ const ResumesList: React.FC = () => {
                 dataSource={data}
                 columns={columns}
                 tableLayout="fixed"
-                scroll={{ x: 1120 }}
                 rowSelection={{
                   columnWidth: 64,
                   selectedRowKeys,
