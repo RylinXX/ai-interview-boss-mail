@@ -48,14 +48,37 @@ def _get_llm_config() -> Dict[str, Any]:
     db = SessionLocal()
     try:
         cfg = db.query(SystemConfig).first()
-        llm_provider = (cfg.llm_provider if cfg else None) or _DEFAULT_PROVIDER
-        llm_base_url = (cfg.llm_base_url if cfg else None) or _DEFAULT_BASE_URL_BY_PROVIDER.get(llm_provider) or _DEFAULT_BASE_URL
+        llm_provider = (cfg.llm_provider if cfg else None) or os.getenv("LLM_PROVIDER") or _DEFAULT_PROVIDER
+        llm_base_url = (
+            (cfg.llm_base_url if cfg else None)
+            or os.getenv("VOLCENGINE_BASE_URL")
+            or os.getenv("ARK_BASE_URL")
+            or os.getenv("OPENAI_BASE_URL")
+            or os.getenv("LLM_BASE_URL")
+            or _DEFAULT_BASE_URL_BY_PROVIDER.get(llm_provider)
+            or _DEFAULT_BASE_URL
+        )
         llm_base_url = _normalize_llm_base_url(llm_base_url)
-        llm_model = (cfg.llm_model if cfg else None) or _DEFAULT_MODEL
+        llm_model = (
+            (cfg.llm_model if cfg else None)
+            or os.getenv("VOLCENGINE_MODEL")
+            or os.getenv("ARK_MODEL")
+            or os.getenv("DOUBAO_MODEL")
+            or os.getenv("OPENAI_MODEL")
+            or os.getenv("LLM_MODEL")
+            or _DEFAULT_MODEL
+        )
         llm_temperature = (cfg.llm_temperature if cfg and cfg.llm_temperature is not None else None)
         llm_temperature = _DEFAULT_TEMPERATURE if llm_temperature is None else llm_temperature
         llm_max_tokens = cfg.llm_max_tokens if cfg else None
-        llm_api_key = (cfg.llm_api_key if cfg else None) or os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
+        llm_api_key = (
+            (cfg.llm_api_key if cfg else None)
+            or os.getenv("VOLCENGINE_API_KEY")
+            or os.getenv("ARK_API_KEY")
+            or os.getenv("DOUBAO_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("LLM_API_KEY")
+        )
         return {
             "llm_provider": llm_provider,
             "llm_base_url": llm_base_url,

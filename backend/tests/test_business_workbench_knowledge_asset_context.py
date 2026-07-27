@@ -93,4 +93,4 @@ def test_ai_employee_chat_passes_matching_knowledge_assets_to_model(monkeypatch)
     assert knowledge_context["knowledge_assets"][0]["title"] == "Template field mapping playbook"
     assert result["solution"]["knowledge_context"]["knowledge_asset_count"] == 1
     assert result["retrieved_evidence"][0]["asset_title"] == "Template field mapping playbook"
-    assert "1 条知识资产" in result["assistant_message"]
+    assert "Template field mapping playbook" in result["assistant_message"]

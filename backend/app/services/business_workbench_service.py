@@ -277,6 +277,74 @@ def _build_ai_employee_evidence_context(
     }
 
 
+def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution: Dict[str, Any], context: Dict[str, Any]) -> str:
+    llm_markdown = solution.get("assistant_message")
+    if llm_markdown and isinstance(llm_markdown, str) and len(llm_markdown.strip()) > 30:
+        return llm_markdown.strip()
+
+    title = solution.get("title") or "AI 业务解决方案"
+    summary = solution.get("summary") or "基于私有人才库档案与知识资产为您生成的深度解决方案。"
+
+    project_cases = context.get("project_cases") or []
+    work_cases = context.get("work_cases") or []
+    knowledge_assets = context.get("knowledge_assets") or []
+
+    md_lines = [
+        f"### 🎯 一、 需求分析与方案定位：{title}",
+        f"**客户咨询问题**: {payload.requirement.strip()}",
+        f"**方案总结与定位**: {summary}\n",
+        "### 💡 二、 核心交付方案与业务逻辑",
+    ]
+
+    rec_solutions = solution.get("recommended_solutions") or []
+    for idx, item in enumerate(rec_solutions, start=1):
+        md_lines.append(f"#### {idx}. {item.get('name', '系统实施方案方向')}")
+        if item.get('scenario'):
+            md_lines.append(f"- **适用业务场景**: {item.get('scenario')}")
+        if item.get('value'):
+            md_lines.append(f"- **核心商业价值**: {item.get('value')}")
+        steps = item.get('implementation_steps') or []
+        if steps:
+            md_lines.append(f"- **落地实施步骤**: {' ➔ '.join(steps)}")
+        md_lines.append("")
+
+    md_lines.append("### 📚 三、 私有数据库线索与真实依据引述")
+    cite_idx = 1
+    if project_cases or work_cases or knowledge_assets:
+        for p in project_cases[:3]:
+            candidate = p.get('candidate_name', '专家')
+            proj = p.get('project_name', '案例')
+            model = p.get('business_model') or p.get('solution') or '沉淀打法'
+            md_lines.append(f"- **[引用 {cite_idx}] 人才案例**: **{candidate}** - 《{proj}》（商业模式实操: {model}）")
+            cite_idx += 1
+        for w in work_cases[:2]:
+            candidate = w.get('candidate_name', '专家')
+            comp = w.get('company', '企业')
+            role = w.get('role', '角色')
+            capabilities = ', '.join(w.get('capabilities', [])[:3]) if w.get('capabilities') else '通用能力'
+            md_lines.append(f"- **[引用 {cite_idx}] 履历档案**: **{candidate}** (曾任职于 **{comp}** {role}，具备 {capabilities}）")
+            cite_idx += 1
+        for k in knowledge_assets[:3]:
+            asset_title = k.get('title') or k.get('source_name') or '知识资产'
+            proves = ', '.join(k.get('proves', [])[:2]) if k.get('proves') else '行业证据'
+            md_lines.append(f"- **[引用 {cite_idx}] 强证据知识资产**: 《{asset_title}》（证明维度: {proves}）")
+            cite_idx += 1
+    else:
+        md_lines.append("- 当前私有数据库中未匹配到直接对标的过往案例，建议导入更多相关领域的能力样本档案。\n")
+
+    md_lines.append("\n### ⚠️ 四、 假设前提与已知风险边界")
+    risks = solution.get("risks") or ["方案上线前需要由人工审核确认客户真实业务范围", "关键口径与交付范围需与客户二次确认"]
+    for r in risks:
+        md_lines.append(f"- {r}")
+
+    md_lines.append("\n### 🚀 五、 实施落地与交付拆解")
+    next_q = solution.get("next_questions") or ["客户当前最优先希望先交付的成果模块是什么？", "是否已有历史数据或试点部门？"]
+    for q in next_q:
+        md_lines.append(f"- ❓ **追问建议**: {q}")
+
+    return "\n".join(md_lines)
+
+
 def _fallback_chat_solution(payload: AIEmployeeChatRequest, context: Dict[str, Any]) -> Dict[str, Any]:
     requirement = payload.requirement.strip()
     is_template = any(term in requirement for term in ["模板", "填报", "文档", "资质"])
@@ -421,13 +489,7 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
         },
         "dynamic_workers": workers,
     }
-    assistant_message = (
-        f"我根据已上传的数据检索到 {len(context['project_cases'])} 个相关项目经验、"
-        f"{len(context['work_cases'])} 段公司经历、"
-        f"{len(context['knowledge_assets'])} 条知识资产。建议方案是「{solution['title']}」。"
-        "第一阶段先输出解决方案和PDF，第二阶段由动态AI员工完成初稿、拆解和检查，"
-        "关键范围、字段口径、客户承诺和最终交付仍由人工确认。"
-    )
+    assistant_message = _format_standard_solution_markdown(payload, solution, context)
     return {
         "assistant_message": assistant_message,
         "solution": solution,
