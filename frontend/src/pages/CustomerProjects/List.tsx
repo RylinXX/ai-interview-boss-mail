@@ -153,71 +153,94 @@ const CustomerProjectsList: React.FC = () => {
                 rowKey="id"
                 dataSource={projects}
                 pagination={{ pageSize: 10 }}
-                scroll={{ x: 1040 }}
+                tableLayout="fixed"
+                scroll={{ x: 1100 }}
                 columns={[
-            {
-              title: '项目案卷',
-              dataIndex: 'name',
-              width: 280,
-              render: (value: string, record) => (
-                <Space orientation="vertical" size={4}>
-                  <span className="dossier-code">{formatDossierCode(record.created_at)}</span>
-                  <Text strong>{value}</Text>
-                  <Text type="secondary">{record.solution_document?.title || '待生成方案文档'}</Text>
-                </Space>
-              ),
-            },
-            {
-              title: '客户背景',
-              key: 'background',
-              width: 220,
-              render: (_: unknown, record) => (
-                <Space orientation="vertical" size={4}>
-                  <Text>{record.industry || '行业待补充'}</Text>
-                  <Text type="secondary">{record.company_scale || '规模待补充'}</Text>
-                </Space>
-              ),
-            },
-            {
-              title: '核心问题',
-              dataIndex: 'pain_points',
-              render: (values: string[]) => (
-                <Space wrap>
-                  {(values || []).slice(0, 3).map(item => <Tag key={item}>{item}</Tag>)}
-                </Space>
-              ),
-            },
-            {
-              title: '交付目标',
-              dataIndex: 'goals',
-              render: (values: string[]) => (
-                <Space wrap>
-                  {(values || []).slice(0, 3).map(item => <Tag color="gold" key={item}>{item}</Tag>)}
-                </Space>
-              ),
-            },
-            {
-              title: '交付状态',
-              dataIndex: 'status',
-              width: 120,
-              render: (value: string) => <Tag color="processing">{statusLabel[value] || value}</Tag>,
-            },
-            {
-              title: '操作',
-              key: 'action',
-              width: 100,
-              fixed: 'right',
-              className: 'actions-column',
-              render: (_: unknown, record) => (
-                <Button
-                  className="customer-project-view-button"
-                  icon={<EyeOutlined />}
-                  onClick={() => navigate(`/customer-projects/${record.id}`)}
-                >
-                  查看
-                </Button>
-              ),
-            },
+                  {
+                    title: '项目案卷',
+                    dataIndex: 'name',
+                    width: 240,
+                    render: (value: string, record) => (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span className="dossier-code">{formatDossierCode(record.created_at)}</span>
+                        <Text strong style={{ fontSize: '14px' }}>{value}</Text>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>{record.solution_document?.title || '待生成方案文档'}</Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: '客户背景',
+                    key: 'background',
+                    width: 180,
+                    render: (_: unknown, record) => (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <Text strong style={{ color: '#2c3e50' }}>{record.industry || '行业待补充'}</Text>
+                        <Text type="secondary" style={{ fontSize: '12px' }}>{record.company_scale || '规模待补充'}</Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: '核心问题',
+                    dataIndex: 'pain_points',
+                    width: 240,
+                    render: (values: string[]) => (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
+                        {(values || []).length > 0 ? (
+                          (values || []).slice(0, 3).map(item => (
+                            <Tag key={item} style={{ margin: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item}
+                            </Tag>
+                          ))
+                        ) : (
+                          <Text type="secondary">-</Text>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    title: '交付目标',
+                    dataIndex: 'goals',
+                    width: 240,
+                    render: (values: string[]) => (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
+                        {(values || []).length > 0 ? (
+                          (values || []).slice(0, 3).map(item => (
+                            <Tag color="gold" key={item} style={{ margin: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {item}
+                            </Tag>
+                          ))
+                        ) : (
+                          <Text type="secondary">-</Text>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    title: '交付状态',
+                    dataIndex: 'status',
+                    width: 120,
+                    align: 'center',
+                    render: (value: string) => <Tag color="processing" style={{ margin: 0 }}>{statusLabel[value] || value}</Tag>,
+                  },
+                  {
+                    title: '操作',
+                    key: 'action',
+                    width: 110,
+                    align: 'center',
+                    fixed: 'right',
+                    className: 'actions-column',
+                    render: (_: unknown, record) => (
+                      <Button
+                        type="primary"
+                        ghost
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => navigate(`/customer-projects/${record.id}`)}
+                      >
+                        查看
+                      </Button>
+                    ),
+                  },
                 ]}
               />}
               mobile={(

@@ -233,12 +233,19 @@ code {
   gap: 6px !important;
 }
 
-.actions-column .ant-btn,
+.actions-column .ant-btn.icon-only,
+.actions-column .ant-btn-icon-only,
 .resume-row-actions .ant-btn {
   flex: 0 0 36px;
   width: 36px;
   min-width: 36px;
   padding-inline: 0;
+}
+
+.actions-column .ant-btn:not(.icon-only):not(.ant-btn-icon-only) {
+  width: auto;
+  min-width: 60px;
+  padding-inline: 12px;
 }
 
 .ant-table-thead > tr > th.actions-column,
