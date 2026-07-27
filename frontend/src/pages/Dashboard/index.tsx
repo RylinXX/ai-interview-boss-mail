@@ -527,7 +527,7 @@ const Dashboard: React.FC = () => {
       title: '样本人选',
       dataIndex: 'candidate_name',
       key: 'candidate_name',
-      width: '25%',
+      width: '22%',
       render: (value: string, record: any) => (
         <Space direction="vertical" size={4}>
           <Text strong style={{ fontSize: '15px' }}><SensitiveField value={value} /></Text>
@@ -539,7 +539,7 @@ const Dashboard: React.FC = () => {
       title: '底层业务逻辑推演',
       dataIndex: 'analysis',
       key: 'analysis',
-      width: '63%',
+      width: '68%',
       render: (value: string) => (
         <Paragraph ellipsis={{ rows: 3, expandable: true, symbol: '展开全文' }} style={{ margin: 0, color: '#444', lineHeight: '1.6' }}>
           {value || '暂无逻辑分析'}
@@ -549,9 +549,8 @@ const Dashboard: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 90,
-      fixed: 'right' as const,
-      className: 'actions-column',
+      width: '10%',
+      align: 'center' as const,
       render: (_: any, record: any) => (
         <Button className="dashboard-fix-button" type="link" icon={<EditOutlined />} onClick={() => startEditCapability(record)}>
           修正
@@ -808,16 +807,26 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* 屏下明细区：项目经验 / 能力样本 / 工作经历 明细表 */}
-          <div style={{ marginTop: '36px', marginBottom: '12px' }}>
-            <Text type="secondary" style={{ fontSize: '13px', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-              📊 业务沉淀与经验打法明细
-            </Text>
-          </div>
-
           <Card
             className="workbench-main-workspace consulting-table-card"
+            title={(
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ display: 'inline-block', width: 4, height: 16, background: 'linear-gradient(180deg, #d4af37 0%, #c9963f 100%)', borderRadius: 2 }} />
+                    📊 业务沉淀与经验打法明细
+                  </span>
+                  <Tag color="gold" style={{ margin: 0, fontSize: '11px', borderRadius: 10, border: '1px solid rgba(201, 150, 63, 0.3)', background: 'rgba(201, 150, 63, 0.08)', color: '#8c6019', fontWeight: 600 }}>
+                    全量知识资产
+                  </Tag>
+                </div>
+                <Text type="secondary" style={{ fontSize: '12px', fontWeight: 400 }}>
+                  提炼项目打法、能力证据与履历画像
+                </Text>
+              </div>
+            )}
             styles={{ body: { padding: '16px 24px 24px 24px' } }}
-            style={{ borderRadius: '10px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)' }}
+            style={{ marginTop: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.03)' }}
           >
         <Tabs
           activeKey={activeTab}
