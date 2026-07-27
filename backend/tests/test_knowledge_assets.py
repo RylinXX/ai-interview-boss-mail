@@ -1047,14 +1047,17 @@ def test_delete_solution_agent_conversation_success(client, admin_auth_headers, 
     db.add_all([step, msg])
     db.commit()
 
+    saved_conv_id = conv.id
+    saved_run_id = run.id
+
     response = client.delete(
-        f"/api/solution-agent/conversations/{conv.id}",
+        f"/api/solution-agent/conversations/{saved_conv_id}",
         headers=admin_auth_headers,
     )
     assert response.status_code == 200
     assert response.json()["status"] == "success"
 
-    assert db.query(SolutionAgentConversation).filter(SolutionAgentConversation.id == conv.id).first() is None
-    assert db.query(SolutionAgentRun).filter(SolutionAgentRun.conversation_id == conv.id).first() is None
-    assert db.query(SolutionAgentStep).filter(SolutionAgentStep.run_id == run.id).first() is None
+    assert db.query(SolutionAgentConversation).filter(SolutionAgentConversation.id == saved_conv_id).first() is None
+    assert db.query(SolutionAgentRun).filter(SolutionAgentRun.id == saved_run_id).first() is None
+    assert db.query(SolutionAgentStep).filter(SolutionAgentStep.run_id == saved_run_id).first() is None
     assert db.query(SolutionAgentMessage).filter(SolutionAgentMessage.conversation_id == conv.id).first() is None
