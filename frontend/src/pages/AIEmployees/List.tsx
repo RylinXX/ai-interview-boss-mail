@@ -12,12 +12,15 @@ import {
   DeleteOutlined,
   ExportOutlined,
   FileTextOutlined,
+  GlobalOutlined,
   LinkOutlined,
   PlusOutlined,
+  ReadOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
   SettingOutlined,
+  SolutionOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -98,7 +101,6 @@ const PRESET_SCENARIOS = [
   {
     icon: '💼',
     title: '金融风控商业模式盘点',
-    titleTag: '行业解决方案',
     subtitle: '梳理金融领域的核心商业模式与真实强证据案例',
     prompt: '请盘点数据库里关于金融服务与风控领域的关键商业模式、落地案例及强证据知识资产。',
     tag: '商业打法',
@@ -232,6 +234,20 @@ const AISolutionAssistantPage: React.FC = () => {
     }
   };
 
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await request.delete(`/solution-agent/conversations/${conversationId}`);
+      toast.success('已删除历史对话');
+      if (activeConversationId === conversationId) {
+        startNewChat();
+      }
+      fetchConversations();
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, '删除历史对话失败'));
+    }
+  };
+
   const handleSendPrompt = async (promptText: string) => {
     const textToSend = promptText.trim();
     if (!textToSend || submitting) return;
@@ -304,6 +320,45 @@ const AISolutionAssistantPage: React.FC = () => {
     }
   };
 
+  const scopeOptions = [
+    {
+      value: 'all',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+          <GlobalOutlined style={{ color: '#1890ff' }} />
+          全量知识与人才库
+        </span>
+      ),
+    },
+    {
+      value: 'resumes_only',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+          <ReadOutlined style={{ color: '#722ed1' }} />
+          仅人才能力档案
+        </span>
+      ),
+    },
+    {
+      value: 'cases_only',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+          <SolutionOutlined style={{ color: '#52c41a' }} />
+          仅案例打法与项目
+        </span>
+      ),
+    },
+    {
+      value: 'assets_only',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+          <FileTextOutlined style={{ color: '#fa8c16' }} />
+          仅强证据知识资产
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div
       className="ai-solution-assistant-page workbench-page"
@@ -334,23 +389,18 @@ const AISolutionAssistantPage: React.FC = () => {
           新建解决方案对话
         </Button>
 
-        {/* 检索范围设置 */}
-        <Card size="small" style={{ borderRadius: '8px' }} title={<span style={{ fontSize: '12px' }}><SettingOutlined /> 数据库 RAG 检索范围</span>}>
+        {/* 检索范围设置（精美图标样式） */}
+        <Card size="small" style={{ borderRadius: '8px' }} title={<span style={{ fontSize: '12px' }}><SettingOutlined /> RAG 检索范围选择</span>}>
           <Select
             value={searchScope}
             onChange={setSearchScope}
             style={{ width: '100%' }}
             size="small"
-            options={[
-              { value: 'all', label: '🌐 全量知识与人才库' },
-              { value: 'resumes_only', label: '🎓 仅人才能力档案' },
-              { value: 'cases_only', label: '💼 仅案例打法与项目' },
-              { value: 'assets_only', label: '📄 仅强证据知识资产' },
-            ]}
+            options={scopeOptions}
           />
         </Card>
 
-        {/* 历史对话列表 */}
+        {/* 历史对话列表（含鼠标悬浮删除按键与确认框） */}
         <Card
           size="small"
           style={{ flex: 1, borderRadius: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
@@ -380,10 +430,26 @@ const AISolutionAssistantPage: React.FC = () => {
                       fontSize: '12.5px',
                       color: activeConversationId === item.id ? '#1890ff' : 'var(--text-color, #333)',
                       fontWeight: activeConversationId === item.id ? 600 : 400,
+                      flex: 1,
                     }}
                   >
                     {item.title || '新对话'}
                   </Text>
+
+                  <Popconfirm
+                    title="确认删除该历史对话吗？"
+                    onConfirm={(e) => e && deleteConversation(item.id, e as any)}
+                    okText="删除"
+                    cancelText="取消"
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined style={{ color: '#ff4d4f', fontSize: '12px' }} />}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ padding: '0 4px', height: '22px', marginLeft: 4 }}
+                    />
+                  </Popconfirm>
                 </div>
               ))}
             </div>

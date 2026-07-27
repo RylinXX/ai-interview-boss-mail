@@ -194,6 +194,15 @@ def get_solution_agent_messages_route(
     return service.get_solution_agent_messages(db, current_user.id, conversation_id)
 
 
+@router.delete("/solution-agent/conversations/{conversation_id}")
+def delete_solution_agent_conversation_route(
+    conversation_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.delete_solution_agent_conversation(db, current_user.id, conversation_id)
+
+
 @router.get("/solution-agent/runs/{run_id}")
 def get_solution_agent_run_route(
     run_id: UUID,

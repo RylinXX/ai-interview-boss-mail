@@ -1783,6 +1783,29 @@ def get_solution_agent_messages(
     }
 
 
+def delete_solution_agent_conversation(
+    db: Session,
+    user_id: UUID,
+    conversation_id: UUID,
+) -> Dict[str, Any]:
+    conversation = (
+        db.query(SolutionAgentConversation)
+        .filter(
+            SolutionAgentConversation.id == conversation_id,
+            SolutionAgentConversation.created_by == user_id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Solution agent conversation not found")
+
+    db.query(SolutionAgentMessage).filter(SolutionAgentMessage.conversation_id == conversation_id).delete()
+    db.query(SolutionAgentRun).filter(SolutionAgentRun.conversation_id == conversation_id).delete()
+    db.delete(conversation)
+    db.commit()
+    return {"status": "success", "id": str(conversation_id)}
+
+
 def get_solution_agent_run(
     db: Session,
     user_id: UUID,
