@@ -625,99 +625,206 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="workbench-page dashboard-page">
-      <ModulePageHeader
-        compact
-        eyebrow={<><DatabaseOutlined /> 业务控制台</>}
-        title="业务总览"
-        description="集中查看人才样本、项目打法、任职经历与能力逻辑，优先处理证据缺口。"
-        actions={<Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>刷新数据</Button>}
-        steps={['样本入库', '结构解析', '证据补齐', '能力复用']}
-      />
-
       <AsyncState loading={loading} error={loadError} onRetry={() => fetchData(true)}>
         <>
-
-      {/* 精准且支持互动的核心卡片区 */}
-      <div className="consulting-metric-grid dashboard-metric-grid">
-        <Card
-          className="consulting-metric-card"
-          hoverable
-          onClick={() => handleMetricCardClick('projects', 'all')}
-          style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
-        >
-          <span className="metric-icon" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff' }}><DatabaseOutlined /></span>
-          <Text type="secondary">能力样本数</Text>
-          <strong>{resumeMetrics.total}</strong>
-          <span style={{ fontSize: '12px' }}>已入库的能力样本</span>
-        </Card>
-
-        <Card
-          className="consulting-metric-card"
-          hoverable
-          onClick={() => handleMetricCardClick('projects', 'all')}
-          style={{ cursor: 'pointer', transition: 'all 0.3s ease' }}
-        >
-          <span className="metric-icon" style={{ background: 'rgba(47, 194, 91, 0.1)', color: '#2fc25b' }}><ProjectOutlined /></span>
-          <Text type="secondary">项目经验积累</Text>
-          <strong>{projectLibrary?.project_count || 0}</strong>
-          <span style={{ fontSize: '12px' }}>可复用的业务打法素材</span>
-        </Card>
-
-        <Card
-          className="consulting-metric-card"
-          hoverable
-          onClick={() => handleMetricCardClick('projects', 'gaps')}
-          style={{ cursor: 'pointer', border: projectScope === 'gaps' && activeTab === 'projects' ? '1px solid #faad14' : '1px solid #d9d2c2', transition: 'all 0.3s ease' }}
-        >
-          <span className="metric-icon" style={{ background: 'rgba(250, 173, 20, 0.1)', color: '#faad14' }}><QuestionCircleOutlined /></span>
-          <Text type="secondary">结构商业缺口</Text>
-          <strong style={{ color: '#faad14' }}>{missingBusinessCount}</strong>
-          <span style={{ fontSize: '12px' }}>需进一步追问/补齐证据项</span>
-        </Card>
-
-        <Card
-          className="consulting-metric-card"
-        >
-          <span className="metric-icon" style={{ background: 'rgba(114, 46, 209, 0.1)', color: '#722ed1' }}><BulbOutlined /></span>
-          <Text type="secondary">样本解析成功率</Text>
-          <strong>{completionRate}%</strong>
-          <span style={{ fontSize: '11px', display: 'block', marginTop: 4 }}>
-            成功 <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{analyzed}</span> ·
-            解析中 <span style={{ color: '#1890ff', fontWeight: 'bold' }}>{processing}</span> ·
-            失败 <span style={{ color: '#f5222d', fontWeight: 'bold' }}>{failed}</span>
-          </span>
-        </Card>
-      </div>
-
-      {industrySummary.length > 0 && (
-        <Card className="dashboard-industry-filter-card">
-          <div className="dashboard-industry-scroll" aria-label="行业方向筛选">
-            <span className="dashboard-industry-label">行业方向筛选:</span>
-            <Tag.CheckableTag
-              checked={industryScope === 'all'}
-              onChange={() => setIndustryScope('all')}
-            >
-              全部行业 ({industrySummary.length})
-            </Tag.CheckableTag>
-            {industrySummary.map(item => {
-              const active = industryScope === item.industry_key;
-              return (
-                <Tag.CheckableTag
-                  key={item.industry_key}
-                  checked={active}
-                  onChange={() => setIndustryScope(active ? 'all' : item.industry_key)}
-                >
-                  {item.industry_label} ({item.resume_count}人 / {item.project_count}项目)
-                </Tag.CheckableTag>
-                );
-              })}
+          {/* 统一顶部操作栏 */}
+          <div className="dashboard-visual-toolbar">
+            <div className="dashboard-visual-toolbar-title">
+              <span className="metric-icon" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff', padding: '6px 10px', borderRadius: 6 }}>
+                <DatabaseOutlined />
+              </span>
+              <div>
+                <h3>业务数据总览与资产分析</h3>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  人才样本、行业打法、商业模式缺口与数据可视化沉淀中心
+                </Text>
+              </div>
+            </div>
+            <Space size="middle">
+              <Tag color="processing" style={{ margin: 0, padding: '4px 10px', fontSize: '12px' }}>
+                系统运行正常 · 实时沉淀
+              </Tag>
+              <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => fetchData(false)}>
+                刷新数据
+              </Button>
+            </Space>
           </div>
-        </Card>
-      )}
 
-      {/* 统一整合工作台（Tab 组合，告别冗长滚动） */}
-      <Card
-        className="workbench-main-workspace consulting-table-card"
+          {/* 首屏可视化图表与数据看板区 */}
+          <div className="dashboard-chart-grid">
+            {/* 图表 1: 样本解析成功率与状态环形图 */}
+            <Card
+              className="dashboard-chart-card"
+              title={<><BulbOutlined style={{ color: '#722ed1', marginRight: 6 }} /> 样本解析状态与成功率</>}
+            >
+              <div className="donut-chart-wrapper">
+                <div className="donut-svg-container">
+                  <svg width="140" height="140" viewBox="0 0 140 140">
+                    <circle cx="70" cy="70" r="52" fill="none" stroke="#f0f0f0" strokeWidth="16" />
+                    {/* 成功 segment */}
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      fill="none"
+                      stroke="#52c41a"
+                      strokeWidth="16"
+                      strokeDasharray={`${(analyzed / (resumeMetrics.total || 1)) * 326.7} 326.7`}
+                      strokeDashoffset="0"
+                      transform="rotate(-90 70 70)"
+                    />
+                    {/* 解析中 segment */}
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      fill="none"
+                      stroke="#1890ff"
+                      strokeWidth="16"
+                      strokeDasharray={`${(processing / (resumeMetrics.total || 1)) * 326.7} 326.7`}
+                      strokeDashoffset={`-${(analyzed / (resumeMetrics.total || 1)) * 326.7}`}
+                      transform="rotate(-90 70 70)"
+                    />
+                    {/* 失败 segment */}
+                    <circle
+                      cx="70"
+                      cy="70"
+                      r="52"
+                      fill="none"
+                      stroke="#f5222d"
+                      strokeWidth="16"
+                      strokeDasharray={`${(failed / (resumeMetrics.total || 1)) * 326.7} 326.7`}
+                      strokeDashoffset={`-${((analyzed + processing) / (resumeMetrics.total || 1)) * 326.7}`}
+                      transform="rotate(-90 70 70)"
+                    />
+                  </svg>
+                  <div className="donut-center-text">
+                    <div className="donut-center-rate">{completionRate}%</div>
+                    <div className="donut-center-label">成功率</div>
+                  </div>
+                </div>
+
+                <div className="donut-legend-list">
+                  <div className="donut-legend-item">
+                    <span><span className="donut-legend-dot" style={{ background: '#52c41a' }} />解析成功</span>
+                    <strong>{analyzed} <Text type="secondary">({Math.round((analyzed / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
+                  </div>
+                  <div className="donut-legend-item">
+                    <span><span className="donut-legend-dot" style={{ background: '#1890ff' }} />分析中</span>
+                    <strong>{processing} <Text type="secondary">({Math.round((processing / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
+                  </div>
+                  <div className="donut-legend-item">
+                    <span><span className="donut-legend-dot" style={{ background: '#f5222d' }} />需处理/失败</span>
+                    <strong>{failed} <Text type="secondary">({Math.round((failed / (resumeMetrics.total || 1)) * 100)}%)</Text></strong>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* 图表 2: 行业方向分布条形图 */}
+            <Card
+              className="dashboard-chart-card"
+              title={<><DatabaseOutlined style={{ color: '#1890ff', marginRight: 6 }} /> 行业方向沉淀分布</>}
+            >
+              <div className="industry-bar-chart-list">
+                {industrySummary.slice(0, 5).map(item => {
+                  const maxCount = Math.max(...industrySummary.map(i => i.resume_count), 1);
+                  const pct = Math.round((item.resume_count / maxCount) * 100);
+                  const isSelected = industryScope === item.industry_key;
+                  return (
+                    <div
+                      key={item.industry_key}
+                      className={`industry-bar-item${isSelected ? ' active' : ''}`}
+                      onClick={() => setIndustryScope(isSelected ? 'all' : item.industry_key)}
+                    >
+                      <div className="industry-bar-head">
+                        <Text strong style={{ fontSize: '12px' }}>{item.industry_label}</Text>
+                        <Text type="secondary" style={{ fontSize: '11px' }}>
+                          {item.resume_count}人 / {item.project_count}项目
+                        </Text>
+                      </div>
+                      <div className="industry-bar-track">
+                        <div
+                          className="industry-bar-fill"
+                          style={{
+                            width: `${pct}%`,
+                            background: isSelected ? 'var(--primary-color)' : item.industry_color || '#1890ff'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+
+            {/* 图表 3: 业务沉淀与缺口量化卡片 */}
+            <Card
+              className="dashboard-chart-card"
+              title={<><ProjectOutlined style={{ color: '#2fc25b', marginRight: 6 }} /> 业务资产与商业缺口量化</>}
+            >
+              <div className="asset-metrics-visual">
+                <div
+                  className="asset-metric-box"
+                  onClick={() => handleMetricCardClick('projects', 'all')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="asset-metric-info">
+                    <div className="asset-metric-icon-box" style={{ background: 'rgba(24, 144, 255, 0.1)', color: '#1890ff' }}>
+                      <DatabaseOutlined />
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>能力样本总数</Text>
+                      <span className="asset-metric-val" style={{ color: '#1890ff' }}>{resumeMetrics.total}</span>
+                    </div>
+                  </div>
+                  <Tag color="blue">已沉淀</Tag>
+                </div>
+
+                <div
+                  className="asset-metric-box"
+                  onClick={() => handleMetricCardClick('projects', 'all')}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div className="asset-metric-info">
+                    <div className="asset-metric-icon-box" style={{ background: 'rgba(47, 194, 91, 0.1)', color: '#2fc25b' }}>
+                      <ProjectOutlined />
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>项目经验打法</Text>
+                      <span className="asset-metric-val" style={{ color: '#2fc25b' }}>{projectLibrary?.project_count || 0}</span>
+                    </div>
+                  </div>
+                  <Tag color="green">可复用</Tag>
+                </div>
+
+                <div
+                  className="asset-metric-box"
+                  onClick={() => handleMetricCardClick('projects', 'gaps')}
+                  style={{
+                    cursor: 'pointer',
+                    borderColor: projectScope === 'gaps' ? '#faad14' : undefined,
+                    background: projectScope === 'gaps' ? 'rgba(250, 173, 20, 0.05)' : undefined
+                  }}
+                >
+                  <div className="asset-metric-info">
+                    <div className="asset-metric-icon-box" style={{ background: 'rgba(250, 173, 20, 0.1)', color: '#faad14' }}>
+                      <QuestionCircleOutlined />
+                    </div>
+                    <div>
+                      <Text type="secondary" style={{ fontSize: '12px', display: 'block' }}>结构商业缺口</Text>
+                      <span className="asset-metric-val" style={{ color: '#faad14' }}>{missingBusinessCount}</span>
+                    </div>
+                  </div>
+                  <Tag color="warning">待补齐证据</Tag>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* 统一整合工作台（Tab 划分: 项目经验 / 能力样本 / 工作经历） */}
+          <Card
+            className="workbench-main-workspace consulting-table-card"
         styles={{ body: { padding: '12px 24px 24px 24px' } }}
         style={{ borderRadius: '8px' }}
       >

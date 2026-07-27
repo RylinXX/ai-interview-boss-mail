@@ -18,7 +18,6 @@ export const ModulePageHeader: React.FC<ModulePageHeaderProps> = ({
   title,
   description,
   actions,
-  steps,
   compact = false,
 }) => (
   <section className={`module-page-header${compact ? ' module-page-header-compact' : ''}`}>
@@ -28,13 +27,6 @@ export const ModulePageHeader: React.FC<ModulePageHeaderProps> = ({
       <Text type="secondary">{description}</Text>
     </div>
     {actions ? <div className="module-page-header-actions">{actions}</div> : null}
-    {steps?.length ? (
-      <ol className="module-page-steps" aria-label={`${title}工作步骤`}>
-        {steps.map((step, index) => (
-          <li key={step}><strong>{String(index + 1).padStart(2, '0')}</strong>{step}</li>
-        ))}
-      </ol>
-    ) : null}
   </section>
 );
 
