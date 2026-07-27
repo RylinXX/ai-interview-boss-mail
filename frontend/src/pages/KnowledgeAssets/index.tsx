@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Card, Input, Pagination, Progress, Select, Space, Tag, Typography } from 'antd';
+import { App, Button, Card, Input, Pagination, Progress, Select, Segmented, Space, Table, Tag, Typography } from 'antd';
 import {
+  AppstoreOutlined,
   AuditOutlined,
   DatabaseOutlined,
   EyeOutlined,
@@ -8,6 +9,7 @@ import {
   ReloadOutlined,
   SafetyCertificateOutlined,
   TagsOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
@@ -123,6 +125,7 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assets, setAssets] = useState<KnowledgeAsset[]>([]);
   const [total, setTotal] = useState(0);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [serverMetrics, setServerMetrics] = useState({
     asset_total: 0,
     reviewed: 0,
@@ -142,7 +145,7 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [sourceType, setSourceType] = useState<string>();
   const [activeFilters, setActiveFilters] = useState<AssetFilters>({});
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(9);
+  const [pageSize, setPageSize] = useState(10);
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -232,6 +235,125 @@ const KnowledgeAssetsPage: React.FC = () => {
     activeFilters.sourceType ? `来源：${sourceTypeLabel[activeFilters.sourceType] || activeFilters.sourceType}` : null,
   ].filter(Boolean) as string[];
 
+  const columns = [
+    {
+      title: '资产标题与来源',
+      dataIndex: 'title',
+      key: 'title',
+      width: '32%',
+      render: (text: string, record: KnowledgeAsset) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <a
+            style={{ fontWeight: 600, fontSize: '14px', color: 'var(--primary-color, #1890ff)' }}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(`/knowledge-assets/${record.id}`);
+            }}
+          >
+            {text}
+          </a>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Tag color="blue" style={{ margin: 0 }}>
+              {sourceTypeLabel[record.source_type] || record.source_type}
+            </Tag>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              {getSourceLabel(record)}
+            </Text>
+            <Text type="secondary" style={{ fontSize: '12px' }}>
+              • 更新 {compactDate(record.updated_at || record.created_at)}
+            </Text>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '行业与主题',
+      key: 'tags',
+      width: '24%',
+      render: (_: any, record: KnowledgeAsset) => (
+        <Space direction="vertical" size={2}>
+          {record.industry_tags?.length ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px', marginRight: 4 }}>行业:</Text>
+              {renderTags(record.industry_tags, 'blue', 2)}
+            </div>
+          ) : null}
+          {record.business_topic_tags?.length ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px', marginRight: 4 }}>主题:</Text>
+              {renderTags(record.business_topic_tags, 'geekblue', 2)}
+            </div>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: '能证明/核心证据',
+      key: 'evidence',
+      width: '22%',
+      render: (_: any, record: KnowledgeAsset) => (
+        <Space direction="vertical" size={2}>
+          {record.proves?.length ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px', marginRight: 4 }}>证明:</Text>
+              {renderTags(record.proves, 'green', 2)}
+            </div>
+          ) : null}
+          {record.evidence_type_tags?.length ? (
+            <div>
+              <Text type="secondary" style={{ fontSize: '11px', marginRight: 4 }}>证据:</Text>
+              {renderTags(record.evidence_type_tags, 'gold', 2)}
+            </div>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
+      title: '资产质效',
+      key: 'scores',
+      width: '12%',
+      render: (_: any, record: KnowledgeAsset) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 90 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+            <Text type="secondary">强度</Text>
+            <Text strong style={{ color: scoreColor(record.evidence_strength_score) }}>{record.evidence_strength_score}</Text>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+            <Text type="secondary">置信度</Text>
+            <Text strong style={{ color: scoreColor(record.confidence_score) }}>{record.confidence_score}</Text>
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: '复核状态',
+      dataIndex: 'manual_review_status',
+      key: 'manual_review_status',
+      width: '90px',
+      render: (status: ReviewStatus) => (
+        <Tag color={reviewStatusMeta[status]?.color || 'default'} style={{ margin: 0 }}>
+          {reviewStatusMeta[status]?.label || status}
+        </Tag>
+      ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: '80px',
+      align: 'center' as const,
+      render: (_: any, record: KnowledgeAsset) => (
+        <Button
+          type="link"
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => navigate(`/knowledge-assets/${record.id}`)}
+        >
+          查看
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="knowledge-assets-page workbench-page">
       <ModulePageHeader
@@ -254,61 +376,77 @@ const KnowledgeAssetsPage: React.FC = () => {
         </div>
 
         <Card className="consulting-table-card" title="资产检索">
-        <div className="knowledge-assets-toolbar">
-          <Input
-            allowClear
-            prefix={<FileSearchOutlined />}
-            placeholder="搜索标题、摘要或原文"
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-            onPressEnter={applyFilters}
-          />
-          <Select
-            allowClear
-            showSearch
-            placeholder="行业"
-            value={industry}
-            options={taxonomy.industry_tags.map(value => ({ value, label: value }))}
-            onChange={setIndustry}
-          />
-          <Select
-            allowClear
-            showSearch
-            placeholder="业务主题"
-            value={topic}
-            options={taxonomy.business_topic_tags.map(value => ({ value, label: value }))}
-            onChange={setTopic}
-          />
-          <Select
-            allowClear
-            showSearch
-            placeholder="证据类型"
-            value={evidenceType}
-            options={taxonomy.evidence_type_tags.map(value => ({ value, label: value }))}
-            onChange={setEvidenceType}
-          />
-          <Select
-            allowClear
-            placeholder="复核状态"
-            value={reviewStatus}
-            options={reviewStatusOptions}
-            onChange={setReviewStatus}
-          />
-          <Select
-            allowClear
-            placeholder="来源类型"
-            value={sourceType}
-            options={sourceTypeOptions}
-            onChange={setSourceType}
-          />
-          <Space>
-            <Button type="primary" icon={<FileSearchOutlined />} onClick={applyFilters}>检索</Button>
-            <Button onClick={resetFilters}>重置</Button>
+        <div className="knowledge-assets-toolbar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center' }}>
+          <Space wrap size="small" style={{ flex: 1 }}>
+            <Input
+              allowClear
+              prefix={<FileSearchOutlined />}
+              placeholder="搜索标题、摘要或原文"
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              onPressEnter={applyFilters}
+              style={{ width: 220 }}
+            />
+            <Select
+              allowClear
+              showSearch
+              placeholder="行业"
+              value={industry}
+              options={taxonomy.industry_tags.map(value => ({ value, label: value }))}
+              onChange={setIndustry}
+              style={{ width: 130 }}
+            />
+            <Select
+              allowClear
+              showSearch
+              placeholder="业务主题"
+              value={topic}
+              options={taxonomy.business_topic_tags.map(value => ({ value, label: value }))}
+              onChange={setTopic}
+              style={{ width: 130 }}
+            />
+            <Select
+              allowClear
+              showSearch
+              placeholder="证据类型"
+              value={evidenceType}
+              options={taxonomy.evidence_type_tags.map(value => ({ value, label: value }))}
+              onChange={setEvidenceType}
+              style={{ width: 130 }}
+            />
+            <Select
+              allowClear
+              placeholder="复核状态"
+              value={reviewStatus}
+              options={reviewStatusOptions}
+              onChange={setReviewStatus}
+              style={{ width: 110 }}
+            />
+            <Select
+              allowClear
+              placeholder="来源类型"
+              value={sourceType}
+              options={sourceTypeOptions}
+              onChange={setSourceType}
+              style={{ width: 120 }}
+            />
+            <Space>
+              <Button type="primary" icon={<FileSearchOutlined />} onClick={applyFilters}>检索</Button>
+              <Button onClick={resetFilters}>重置</Button>
+            </Space>
           </Space>
+          <Segmented
+            value={viewMode}
+            onChange={val => setViewMode(val as 'table' | 'cards')}
+            options={[
+              { label: '条状高密', value: 'table', icon: <UnorderedListOutlined /> },
+              { label: '卡片平铺', value: 'cards', icon: <AppstoreOutlined /> },
+            ]}
+          />
         </div>
 
         {selectedFilters.length ? (
-          <div className="knowledge-selected-filters" aria-label="当前筛选条件">
+          <div className="knowledge-selected-filters" aria-label="当前筛选条件" style={{ marginTop: 12 }}>
             <Text type="secondary">已选条件</Text>
             <Space wrap size={[4, 4]}>{selectedFilters.map(item => <Tag key={item}>{item}</Tag>)}</Space>
           </div>
@@ -316,92 +454,118 @@ const KnowledgeAssetsPage: React.FC = () => {
 
         {assets.length ? (
           <>
-            <div className="knowledge-asset-card-grid" aria-busy={loading}>
-              {assets.map(record => (
-                <button
-                  type="button"
-                  className="knowledge-asset-tile"
-                  key={record.id}
-                  onClick={() => navigate(`/knowledge-assets/${record.id}`)}
-                >
-                  <div className="knowledge-asset-title-row">
-                    <span className="knowledge-asset-source">
-                      {sourceTypeLabel[record.source_type] || record.source_type}
-                    </span>
-                    <Tag color={reviewStatusMeta[record.manual_review_status]?.color || 'default'}>
-                      {reviewStatusMeta[record.manual_review_status]?.label || record.manual_review_status}
-                    </Tag>
-                  </div>
-                  <strong className="knowledge-asset-title">{record.title}</strong>
-                  <Text type="secondary" className="knowledge-asset-summary">
-                    {record.summary || '待补充摘要'}
-                  </Text>
-
-                  <div className="knowledge-asset-taxonomy">
-                    <section>
-                      <span>行业</span>
-                      {renderTags(record.industry_tags, 'blue', 3)}
-                    </section>
-                    <section>
-                      <span>主题</span>
-                      {renderTags(record.business_topic_tags, 'geekblue', 3)}
-                    </section>
-                    <section>
-                      <span>证据</span>
-                      {renderTags(record.evidence_type_tags, 'gold', 3)}
-                    </section>
-                  </div>
-
-                  <div className="knowledge-asset-proof-grid">
-                    <section>
-                      <span>能证明</span>
-                      {renderTags(record.proves, 'green', 2)}
-                    </section>
-                    <section>
-                      <span>来源</span>
-                      <Text>{getSourceLabel(record)}</Text>
-                    </section>
-                  </div>
-
-                  <div className="knowledge-asset-score-grid">
-                    {[
-                      ['证据强度', record.evidence_strength_score],
-                      ['数据验证', record.data_verification_score],
-                      ['商业价值', record.commercial_value_score],
-                      ['置信度', record.confidence_score],
-                    ].map(([label, value]) => (
-                      <div key={label as string}>
-                        <span>{label}</span>
-                        <Progress
-                          percent={Math.round(Number(value) || 0)}
-                          size="small"
-                          showInfo={false}
-                          strokeColor={scoreColor(Number(value) || 0)}
-                        />
+            {viewMode === 'table' ? (
+              <div style={{ marginTop: 16 }}>
+                <Table
+                  rowKey="id"
+                  dataSource={assets}
+                  columns={columns}
+                  loading={loading}
+                  pagination={{
+                    current: currentPage,
+                    pageSize: pageSize,
+                    total: total,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '15', '20', '30'],
+                    onChange: (page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    },
+                  }}
+                  scroll={{ x: 900 }}
+                  size="middle"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="knowledge-asset-card-grid" aria-busy={loading} style={{ marginTop: 16 }}>
+                  {assets.map(record => (
+                    <button
+                      type="button"
+                      className="knowledge-asset-tile"
+                      key={record.id}
+                      onClick={() => navigate(`/knowledge-assets/${record.id}`)}
+                    >
+                      <div className="knowledge-asset-title-row">
+                        <span className="knowledge-asset-source">
+                          {sourceTypeLabel[record.source_type] || record.source_type}
+                        </span>
+                        <Tag color={reviewStatusMeta[record.manual_review_status]?.color || 'default'}>
+                          {reviewStatusMeta[record.manual_review_status]?.label || record.manual_review_status}
+                        </Tag>
                       </div>
-                    ))}
-                  </div>
+                      <strong className="knowledge-asset-title">{record.title}</strong>
+                      <Text type="secondary" className="knowledge-asset-summary">
+                        {record.summary || '待补充摘要'}
+                      </Text>
 
-                  <div className="knowledge-asset-meta-row">
-                    <span>更新 {compactDate(record.updated_at || record.created_at)}</span>
-                    <span><EyeOutlined /> 查看详情</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="knowledge-assets-pagination">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={total}
-                showSizeChanger
-                pageSizeOptions={[6, 9, 12, 18]}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size);
-                }}
-              />
-            </div>
+                      <div className="knowledge-asset-taxonomy">
+                        <section>
+                          <span>行业</span>
+                          {renderTags(record.industry_tags, 'blue', 3)}
+                        </section>
+                        <section>
+                          <span>主题</span>
+                          {renderTags(record.business_topic_tags, 'geekblue', 3)}
+                        </section>
+                        <section>
+                          <span>证据</span>
+                          {renderTags(record.evidence_type_tags, 'gold', 3)}
+                        </section>
+                      </div>
+
+                      <div className="knowledge-asset-proof-grid">
+                        <section>
+                          <span>能证明</span>
+                          {renderTags(record.proves, 'green', 2)}
+                        </section>
+                        <section>
+                          <span>来源</span>
+                          <Text>{getSourceLabel(record)}</Text>
+                        </section>
+                      </div>
+
+                      <div className="knowledge-asset-score-grid">
+                        {[
+                          ['证据强度', record.evidence_strength_score],
+                          ['数据验证', record.data_verification_score],
+                          ['商业价值', record.commercial_value_score],
+                          ['置信度', record.confidence_score],
+                        ].map(([label, value]) => (
+                          <div key={label as string}>
+                            <span>{label}</span>
+                            <Progress
+                              percent={Math.round(Number(value) || 0)}
+                              size="small"
+                              showInfo={false}
+                              strokeColor={scoreColor(Number(value) || 0)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="knowledge-asset-meta-row">
+                        <span>更新 {compactDate(record.updated_at || record.created_at)}</span>
+                        <span><EyeOutlined /> 查看详情</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className="knowledge-assets-pagination">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={total}
+                    showSizeChanger
+                    pageSizeOptions={['9', '12', '18']}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </>
           ) : (
             <AsyncState empty emptyDescription="暂无符合条件的知识资产"><span /></AsyncState>
