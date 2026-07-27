@@ -154,12 +154,11 @@ const CustomerProjectsList: React.FC = () => {
                 dataSource={projects}
                 pagination={{ pageSize: 10 }}
                 tableLayout="fixed"
-                scroll={{ x: 1100 }}
                 columns={[
                   {
                     title: '项目案卷',
                     dataIndex: 'name',
-                    width: 240,
+                    width: '22%',
                     render: (value: string, record) => (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span className="dossier-code">{formatDossierCode(record.created_at)}</span>
@@ -171,7 +170,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '客户背景',
                     key: 'background',
-                    width: 180,
+                    width: '14%',
                     render: (_: unknown, record) => (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <Text strong style={{ color: '#2c3e50' }}>{record.industry || '行业待补充'}</Text>
@@ -182,7 +181,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '核心问题',
                     dataIndex: 'pain_points',
-                    width: 240,
+                    width: '24%',
                     render: (values: string[]) => (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
                         {(values || []).length > 0 ? (
@@ -200,7 +199,7 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '交付目标',
                     dataIndex: 'goals',
-                    width: 240,
+                    width: '24%',
                     render: (values: string[]) => (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 6px', width: '100%', overflow: 'hidden' }}>
                         {(values || []).length > 0 ? (
@@ -218,17 +217,15 @@ const CustomerProjectsList: React.FC = () => {
                   {
                     title: '交付状态',
                     dataIndex: 'status',
-                    width: 120,
+                    width: '8%',
                     align: 'center',
                     render: (value: string) => <Tag color="processing" style={{ margin: 0 }}>{statusLabel[value] || value}</Tag>,
                   },
                   {
                     title: '操作',
                     key: 'action',
-                    width: 110,
+                    width: '8%',
                     align: 'center',
-                    fixed: 'right',
-                    className: 'actions-column',
                     render: (_: unknown, record) => (
                       <Button
                         type="primary"

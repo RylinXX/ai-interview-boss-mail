@@ -193,26 +193,25 @@ const UsersList: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 152,
-      fixed: 'right' as const,
-      className: 'actions-column',
+      width: 220,
+      align: 'center' as const,
       render: (_: any, record: User) => (
-        <Space size="small">
-          <Tooltip title="编辑">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-          <Tooltip title={record.is_active ? '禁用' : '启用'}>
-            <Button
-              type="text"
-              icon={record.is_active ? <StopOutlined /> : <CheckCircleOutlined />}
-              onClick={() => handleToggleStatus(record)}
-              style={{ color: record.is_active ? '#ff4d4f' : '#52c41a' }}
-            />
-          </Tooltip>
+        <Space size={6} style={{ justifyContent: 'center', width: '100%' }}>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          >
+            编辑
+          </Button>
+          <Button
+            size="small"
+            danger={record.is_active}
+            icon={record.is_active ? <StopOutlined /> : <CheckCircleOutlined />}
+            onClick={() => handleToggleStatus(record)}
+          >
+            {record.is_active ? '禁用' : '启用'}
+          </Button>
           <Popconfirm
             title="确定删除该用户吗？"
             description="此操作不可恢复"
@@ -220,9 +219,9 @@ const UsersList: React.FC = () => {
             okText="确定"
             cancelText="取消"
           >
-            <Tooltip title="删除">
-              <Button type="text" danger icon={<DeleteOutlined />} />
-            </Tooltip>
+            <Button size="small" danger icon={<DeleteOutlined />}>
+              删除
+            </Button>
           </Popconfirm>
         </Space>
       ),
