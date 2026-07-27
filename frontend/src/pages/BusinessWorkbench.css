@@ -21,9 +21,10 @@
 
 .module-page-header {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 22px;
+  align-items: center;
   padding: 24px 30px;
   margin-bottom: 24px;
   border: 1px solid rgba(184, 138, 59, 0.32);
@@ -35,15 +36,6 @@
   box-shadow: 0 6px 20px rgba(184, 138, 59, 0.08), 0 2px 4px rgba(20, 33, 54, 0.03);
   color: #172033;
   overflow: hidden;
-}
-
-@media (min-width: 1280px) {
-  .module-page-header {
-    display: grid;
-    grid-template-columns: minmax(320px, 1fr) auto;
-    align-items: center;
-    gap: 14px 22px;
-  }
 }
 
 .module-page-header::before {
@@ -2174,18 +2166,8 @@ body.dark-mode .history-conv-item:hover {
    ========================================================================== */
 
 .module-page-header.has-metrics {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 16px;
-}
-
-@media (min-width: 1280px) {
-  .module-page-header.has-metrics {
-    display: grid;
-    grid-template-columns: minmax(320px, 1fr) auto;
-    align-items: center;
-  }
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 }
 
 .module-page-header-right {
@@ -2392,9 +2374,10 @@ body.dark-mode .embedded-metric-card .metric-title {
   overflow: hidden;
 }
 
+html[data-theme='dark'] .solution-sidebar-unified,
 body.dark-mode .solution-sidebar-unified {
-  background: #141e2e;
-  border-color: rgba(255, 255, 255, 0.12);
+  background: #141e2e !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .solution-sidebar-section-title {
@@ -2410,9 +2393,10 @@ body.dark-mode .solution-sidebar-unified {
   border-bottom: 1px dashed var(--border-color, #e8e8e8);
 }
 
+html[data-theme='dark'] .solution-sidebar-section-title,
 body.dark-mode .solution-sidebar-section-title {
-  color: #e2e8f0;
-  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0 !important;
+  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .solution-history-list {
@@ -2441,8 +2425,9 @@ body.dark-mode .solution-sidebar-section-title {
   background: rgba(0, 0, 0, 0.04);
 }
 
+html[data-theme='dark'] .solution-history-item:hover,
 body.dark-mode .solution-history-item:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 .solution-history-item.active {
@@ -2450,9 +2435,10 @@ body.dark-mode .solution-history-item:hover {
   border-color: rgba(24, 144, 255, 0.28);
 }
 
+html[data-theme='dark'] .solution-history-item.active,
 body.dark-mode .solution-history-item.active {
-  background: rgba(24, 144, 255, 0.18);
-  border-color: rgba(24, 144, 255, 0.45);
+  background: rgba(24, 144, 255, 0.18) !important;
+  border-color: rgba(24, 144, 255, 0.45) !important;
 }
 
 .solution-history-title {
@@ -2463,6 +2449,11 @@ body.dark-mode .solution-history-item.active {
   text-overflow: ellipsis;
   max-width: 190px;
   flex: 1;
+}
+
+html[data-theme='dark'] .solution-history-title,
+body.dark-mode .solution-history-title {
+  color: #cbd5e1;
 }
 
 .solution-history-item .delete-btn {
@@ -2487,6 +2478,55 @@ body.dark-mode .solution-history-item.active {
   background: rgba(255, 77, 79, 0.12);
 }
 
+/* 预设卡片深色适配 */
+.preset-prompt-card {
+  padding: 14px 16px;
+  background: #fafafa;
+  border-radius: 10px;
+  border: 1px solid #e8e8e8;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.preset-prompt-card:hover {
+  border-color: #1890ff;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.12);
+}
+
+html[data-theme='dark'] .preset-prompt-card,
+body.dark-mode .preset-prompt-card {
+  background: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme='dark'] .preset-prompt-card:hover,
+body.dark-mode .preset-prompt-card:hover {
+  background: #334155 !important;
+  border-color: #1890ff !important;
+}
+
+/* 底部输入框 Wrapper 深色适配 */
+.solution-chat-input-wrapper {
+  background: #f7f9fc;
+  border: 1px solid #e8e8e8;
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-top: auto;
+}
+
+html[data-theme='dark'] .solution-chat-input-wrapper,
+body.dark-mode .solution-chat-input-wrapper {
+  background: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html[data-theme='dark'] .solution-chat-input-wrapper textarea,
+body.dark-mode .solution-chat-input-wrapper textarea {
+  color: #f1f5f9 !important;
+}
+
 /* RAG Trace Collapsible Panel */
 .rag-trace-collapse {
   margin-top: 10px;
@@ -2496,6 +2536,7 @@ body.dark-mode .solution-history-item.active {
   overflow: hidden;
 }
 
+html[data-theme='dark'] .rag-trace-collapse,
 body.dark-mode .rag-trace-collapse {
   border-color: rgba(24, 144, 255, 0.3) !important;
   background: rgba(15, 23, 42, 0.6) !important;
@@ -2526,6 +2567,12 @@ body.dark-mode .rag-trace-collapse {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+html[data-theme='dark'] .rag-trace-evidence-item,
+body.dark-mode .rag-trace-evidence-item {
+  background: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
 }
 
 .rag-trace-evidence-item:hover {

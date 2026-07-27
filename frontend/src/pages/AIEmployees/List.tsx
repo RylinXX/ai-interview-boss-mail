@@ -587,15 +587,6 @@ const AISolutionAssistantPage: React.FC = () => {
                   <div
                     className="preset-prompt-card"
                     onClick={() => handleSendPrompt(item.prompt)}
-                    style={{
-                      padding: '14px 16px',
-                      background: 'var(--card-bg, #fafafa)',
-                      borderRadius: '10px',
-                      border: '1px solid var(--border-color, #e8e8e8)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.2s',
-                    }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-color, #262626)' }}>
@@ -787,7 +778,7 @@ const AISolutionAssistantPage: React.FC = () => {
         )}
 
         {/* 底部 ChatGPT 风格输入框区域（加高高度，辅助文案内嵌，发送固定右下侧） */}
-        <div style={{ background: 'var(--card-bg, #f7f9fc)', padding: '12px 16px', borderRadius: '12px', border: '1px solid var(--border-color, #e8e8e8)', marginTop: 'auto' }}>
+        <div className="solution-chat-input-wrapper">
           <Input.TextArea
             rows={3}
             value={inputText}
