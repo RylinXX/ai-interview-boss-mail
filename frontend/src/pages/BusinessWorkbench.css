@@ -2603,4 +2603,81 @@ body.dark-mode .solution-chat-input-wrapper textarea {
   color: #f8fafc !important;
 }
 
+/* ==========================================================================
+   Chat Message Bubbles (User & Assistant Light/Dark Mode Styling)
+   ========================================================================== */
+
+.chat-bubble {
+  padding: 14px 18px;
+  font-size: 14px;
+  line-height: 1.7;
+  transition: all 0.2s ease;
+}
+
+.chat-bubble-user {
+  background: rgba(24, 144, 255, 0.09);
+  border: 1px solid rgba(24, 144, 255, 0.25);
+  border-radius: 14px 14px 2px 14px;
+  color: #1f2937;
+}
+
+html[data-theme='dark'] .chat-bubble-user,
+body.dark-mode .chat-bubble-user {
+  background: rgba(24, 144, 255, 0.22) !important;
+  border-color: rgba(24, 144, 255, 0.45) !important;
+  color: #f8fafc !important;
+}
+
+.chat-bubble-assistant {
+  background: #ffffff;
+  border: 1px solid var(--border-color, #e8e8e8);
+  border-radius: 14px 14px 14px 2px;
+  color: #1f2937;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+html[data-theme='dark'] .chat-bubble-assistant,
+body.dark-mode .chat-bubble-assistant {
+  background: #1e293b !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+
+html[data-theme='dark'] .chat-bubble-assistant *,
+body.dark-mode .chat-bubble-assistant * {
+  color: #f8fafc !important;
+}
+
+html[data-theme='dark'] .chat-bubble-assistant h1,
+html[data-theme='dark'] .chat-bubble-assistant h2,
+html[data-theme='dark'] .chat-bubble-assistant h3,
+html[data-theme='dark'] .chat-bubble-assistant h4,
+html[data-theme='dark'] .chat-bubble-assistant strong,
+html[data-theme='dark'] .chat-bubble-assistant b,
+body.dark-mode .chat-bubble-assistant h1,
+body.dark-mode .chat-bubble-assistant h2,
+body.dark-mode .chat-bubble-assistant h3,
+body.dark-mode .chat-bubble-assistant h4,
+body.dark-mode .chat-bubble-assistant strong,
+body.dark-mode .chat-bubble-assistant b {
+  color: #ffffff !important;
+}
+
+html[data-theme='dark'] .chat-bubble-assistant code,
+body.dark-mode .chat-bubble-assistant code {
+  background: #0f172a !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+html[data-theme='dark'] .chat-main-card,
+body.dark-mode .chat-main-card {
+  background: #141e2e !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+
 

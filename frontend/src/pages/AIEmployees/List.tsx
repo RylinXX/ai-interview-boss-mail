@@ -662,19 +662,8 @@ const AISolutionAssistantPage: React.FC = () => {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
-                    {/* 消息气泡规范：用户靠右浅色底，AI靠左白色底 */}
-                    <div
-                      style={{
-                        background: msg.role === 'user' ? 'rgba(24, 144, 255, 0.09)' : 'var(--card-bg, #ffffff)',
-                        border: `1px solid ${msg.role === 'user' ? 'rgba(24, 144, 255, 0.25)' : 'var(--border-color, #e8e8e8)'}`,
-                        padding: '14px 18px',
-                        borderRadius: msg.role === 'user' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
-                        fontSize: '14px',
-                        lineHeight: '1.7',
-                        color: 'var(--text-color, #262626)',
-                        boxShadow: msg.role === 'assistant' ? '0 2px 8px rgba(0, 0, 0, 0.03)' : 'none',
-                      }}
-                    >
+                    {/* 消息气泡规范：用户靠右浅蓝/暗蓝，AI靠左柔和面板 */}
+                    <div className={`chat-bubble chat-bubble-${msg.role}`}>
                       {msg.role === 'assistant' ? (
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {msg.content}
