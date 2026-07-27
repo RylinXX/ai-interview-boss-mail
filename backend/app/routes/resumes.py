@@ -72,7 +72,7 @@ def get_resume_options_route(
 @router.get("/page", response_model=ResumePageResponse)
 def get_resume_page_route(
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=1000),
     candidate_name: str = None,
     parse_status: str = None,
     school_tag: Optional[str] = None,
