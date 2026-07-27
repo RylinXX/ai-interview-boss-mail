@@ -75,6 +75,8 @@ def get_resume_page_route(
     limit: int = Query(default=20, ge=1, le=100),
     candidate_name: str = None,
     parse_status: str = None,
+    school_tag: Optional[str] = None,
+    company_tag: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -84,6 +86,8 @@ def get_resume_page_route(
         limit=limit,
         candidate_name=candidate_name,
         parse_status=parse_status,
+        school_tag=school_tag,
+        company_tag=company_tag,
     )
 
 

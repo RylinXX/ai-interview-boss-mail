@@ -81,6 +81,9 @@ const ResumesList: React.FC = () => {
       };
       if (activeSearchName) params.candidate_name = activeSearchName;
       if (activeParseStatus) params.parse_status = activeParseStatus;
+      if (selectedSchoolTag !== 'all') params.school_tag = selectedSchoolTag;
+      if (selectedCompanyTag !== 'all') params.company_tag = selectedCompanyTag;
+
       const res = await request.get('/resumes/page', { params }) as {
         items: any[];
         total: number;
@@ -99,7 +102,7 @@ const ResumesList: React.FC = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [activeParseStatus, activeSearchName, currentPage, pageSize]);
+  }, [activeParseStatus, activeSearchName, currentPage, pageSize, selectedCompanyTag, selectedSchoolTag]);
 
   useEffect(() => {
     fetchResumes();
@@ -523,7 +526,10 @@ const ResumesList: React.FC = () => {
                 <Tag.CheckableTag
                   key={tag}
                   checked={selectedSchoolTag === tag}
-                  onChange={() => setSelectedSchoolTag(selectedSchoolTag === tag ? 'all' : tag)}
+                  onChange={() => {
+                    setSelectedSchoolTag(selectedSchoolTag === tag ? 'all' : tag);
+                    setCurrentPage(1);
+                  }}
                   style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
                 >
                   {tag === 'all' ? '全部院校' : tag}
@@ -537,7 +543,10 @@ const ResumesList: React.FC = () => {
                 <Tag.CheckableTag
                   key={tag}
                   checked={selectedCompanyTag === tag}
-                  onChange={() => setSelectedCompanyTag(selectedCompanyTag === tag ? 'all' : tag)}
+                  onChange={() => {
+                    setSelectedCompanyTag(selectedCompanyTag === tag ? 'all' : tag);
+                    setCurrentPage(1);
+                  }}
                   style={{ borderRadius: 12, padding: '1px 10px', fontSize: '12px' }}
                 >
                   {tag === 'all' ? '全部履历' : tag}
@@ -550,7 +559,11 @@ const ResumesList: React.FC = () => {
                 type="link"
                 size="small"
                 icon={<ClearOutlined />}
-                onClick={() => { setSelectedSchoolTag('all'); setSelectedCompanyTag('all'); }}
+                onClick={() => {
+                  setSelectedSchoolTag('all');
+                  setSelectedCompanyTag('all');
+                  setCurrentPage(1);
+                }}
                 style={{ fontSize: '12px', color: '#ff4d4f', paddingLeft: 4 }}
               >
                 重置标签筛选
@@ -563,13 +576,7 @@ const ResumesList: React.FC = () => {
               <Table
                 className="resume-intelligence-table"
                 rowKey="id"
-                dataSource={data.filter(record => {
-                  const schoolTags = record.school_tags || record.parsed_data?.school_tags || [];
-                  const companyTags = record.company_tags || record.parsed_data?.company_tags || [];
-                  if (selectedSchoolTag !== 'all' && !schoolTags.includes(selectedSchoolTag)) return false;
-                  if (selectedCompanyTag !== 'all' && !companyTags.includes(selectedCompanyTag)) return false;
-                  return true;
-                })}
+                dataSource={data}
                 columns={columns}
                 tableLayout="fixed"
                 scroll={{ x: 1120 }}

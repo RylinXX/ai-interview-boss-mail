@@ -1623,6 +1623,8 @@ def get_resume_page(
     limit: int = 20,
     candidate_name: str = None,
     parse_status: str = None,
+    school_tag: str = None,
+    company_tag: str = None,
 ) -> Dict[str, Any]:
     query = db.query(Resume).options(
         load_only(
@@ -1641,6 +1643,30 @@ def get_resume_page(
         query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
     if parse_status:
         query = query.filter(Resume.parse_status == parse_status)
+
+    if school_tag and school_tag != 'all':
+        if school_tag == "985院校":
+            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_985)[:35]]
+            query = query.filter(or_(*conds))
+        elif school_tag == "211院校":
+            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_211)[:30]]
+            query = query.filter(or_(*conds))
+        elif school_tag == "QS前30/海外名校":
+            conds = [Resume.raw_text.ilike(f"%{sch}%") for sch in list(QS_TOP30)[:25]]
+            query = query.filter(or_(*conds))
+        elif school_tag == "硕士学历":
+            query = query.filter(or_(Resume.raw_text.ilike("%硕士%"), Resume.raw_text.ilike("%研究生%"), Resume.raw_text.ilike("%Master%")))
+
+    if company_tag and company_tag != 'all':
+        if company_tag == "一线互联网/大厂":
+            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(TOP_INTERNET)[:25]]
+            query = query.filter(or_(*conds))
+        elif company_tag == "世界500强":
+            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(FORTUNE_500)[:25]]
+            query = query.filter(or_(*conds))
+        elif company_tag == "国央企/大型名企":
+            conds = [Resume.raw_text.ilike(f"%{comp}%") for comp in list(SOE_COMPANIES)[:20]]
+            query = query.filter(or_(*conds))
 
     total = query.count()
     rows = query.order_by(Resume.created_at.desc()).offset(max(skip, 0)).limit(limit).all()
