@@ -11,7 +11,8 @@ import re
 from typing import List, Optional
 
 
-SUPPORTED_RESUME_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
+SUPPORTED_RESUME_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}
+
 
 
 @dataclass(frozen=True)

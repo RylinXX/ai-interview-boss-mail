@@ -178,6 +178,15 @@ def read_file_content(file_path: str) -> str:
         elif ext in ('.txt', '.md', '.markdown'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+        elif ext.lower() in ('.png', '.jpg', '.jpeg', '.webp', '.bmp'):
+            try:
+                with open(file_path, 'rb') as img_f:
+                    encoded = base64.b64encode(img_f.read()).decode("ascii")
+                    mime = "image/jpeg" if ext.lower() in ('.jpg', '.jpeg') else f"image/{ext.lower()[1:]}"
+                    data_url = f"data:{mime};base64,{encoded}"
+                    content = extract_resume_text_from_images([data_url])
+            except Exception as e:
+                print(f"Error extracting image text from {file_path}: {e}")
         else:
             print(f"Unsupported file type: {ext}")
     except Exception as e:
