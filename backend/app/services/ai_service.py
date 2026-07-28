@@ -1,7 +1,9 @@
 from openai import OpenAI
 import os
+import re
 from typing import Dict, Any
 import json
+
 import httpx
 import base64
 from dotenv import load_dotenv
