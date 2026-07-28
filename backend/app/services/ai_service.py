@@ -136,6 +136,9 @@ def _completion_options(cfg: Dict[str, Any], json_response: bool = False) -> Dic
 
 def _parse_json_content(content: str) -> Any:
     text = (content or "").strip()
+    # Strip NUL bytes and ASCII control characters
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+
     if text.startswith("```"):
         lines = text.splitlines()
         if lines and lines[0].strip().startswith("```"):
@@ -146,12 +149,29 @@ def _parse_json_content(content: str) -> Any:
 
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end < start:
-            raise
-        return json.loads(text[start:end + 1])
+    except Exception:
+        pass
+
+    try:
+        import json_repair
+        return json_repair.repair_json(text, return_objects=True)
+    except Exception:
+        pass
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        sub_text = text[start:end + 1]
+        try:
+            return json.loads(sub_text)
+        except Exception:
+            try:
+                import json_repair
+                return json_repair.repair_json(sub_text, return_objects=True)
+            except Exception:
+                pass
+    return {}
+
 
 
 def _response_text(payload: Dict[str, Any]) -> str:

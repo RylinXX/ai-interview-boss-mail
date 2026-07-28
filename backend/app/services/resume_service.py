@@ -46,13 +46,60 @@ INDUSTRY_LABEL_PROFILES = RESUME_INDUSTRY_PROFILES
 DEFAULT_INDUSTRY_LABEL = DEFAULT_RESUME_INDUSTRY
 
 
+def sanitize_text(value: Any) -> Any:
+    if isinstance(value, str):
+        return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', value)
+    elif isinstance(value, dict):
+        return {k: sanitize_text(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [sanitize_text(v) for v in value]
+    return value
+
+
+def resolve_file_path(file_path: str) -> str:
+    if not file_path:
+        return ""
+    if os.path.exists(file_path):
+        return file_path
+    if file_path.startswith("uploads/") and os.path.exists(os.path.join("backend", file_path)):
+        return os.path.join("backend", file_path)
+    if not file_path.startswith("backend/") and os.path.exists(os.path.join("backend", file_path)):
+        return os.path.join("backend", file_path)
+    return file_path
+
+
 def _extract_pdf_text(file_path: str) -> str:
+    file_path = resolve_file_path(file_path)
     content = ""
-    with open(file_path, 'rb') as f:
-        reader = PyPDF2.PdfReader(f)
-        for page in reader.pages:
-            content += page.extract_text() or ""
-    return content
+
+    # Try PyMuPDF (fitz) first as it handles Chinese and complex font encodings much better
+    try:
+        import fitz
+        doc = fitz.open(file_path)
+        try:
+            pages_text = []
+            for page in doc:
+                pages_text.append(page.get_text() or "")
+            content = "\n".join(pages_text)
+        finally:
+            doc.close()
+    except Exception as exc:
+        print(f"PyMuPDF text extraction failed for {file_path}: {exc}")
+        content = ""
+
+    # Fallback to PyPDF2 if PyMuPDF returns no text
+    if not content.strip():
+        try:
+            with open(file_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                pages_text = []
+                for page in reader.pages:
+                    pages_text.append(page.extract_text() or "")
+                content = "\n".join(pages_text)
+        except Exception as exc:
+            print(f"PyPDF2 text extraction failed for {file_path}: {exc}")
+
+    return sanitize_text(content)
 
 
 def _looks_like_unreadable_pdf_text(text: str) -> bool:
@@ -106,8 +153,10 @@ def _extract_pdf_text_with_vision(file_path: str) -> str:
 
 
 def read_file_content(file_path: str) -> str:
+    file_path = resolve_file_path(file_path)
     _, ext = os.path.splitext(file_path)
     content = ""
+
     try:
         if ext == '.docx':
             doc = docx.Document(file_path)
@@ -133,7 +182,7 @@ def read_file_content(file_path: str) -> str:
             print(f"Unsupported file type: {ext}")
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
-    return content
+    return sanitize_text(content)
 
 from app.config.database import SessionLocal
 from fastapi import BackgroundTasks
