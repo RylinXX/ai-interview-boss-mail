@@ -222,7 +222,8 @@ const AISolutionAssistantPage: React.FC = () => {
 
   const fetchConversations = async () => {
     try {
-      const list = (await request.get('/ai-employee/conversations')) as ConversationSummary[];
+      const res = (await request.get('/solution-agent/conversations')) as any;
+      const list = Array.isArray(res) ? res : res?.items || [];
       setConversations(list || []);
     } catch {
       setConversations([]);
@@ -239,14 +240,13 @@ const AISolutionAssistantPage: React.FC = () => {
   const openConversation = async (id: string) => {
     setActiveConversationId(id);
     try {
-      const detail = (await request.get(`/ai-employee/conversations/${id}`)) as {
-        messages: Array<{ role: ChatRole; content: string; evidence?: any; solution?: any }>;
-      };
-      const formattedMsgs: ChatMessage[] = (detail.messages || []).map((m) => ({
+      const res = (await request.get(`/solution-agent/conversations/${id}/messages`)) as any;
+      const rawMsgs = Array.isArray(res) ? res : res?.items || res?.messages || [];
+      const formattedMsgs: ChatMessage[] = rawMsgs.map((m: any) => ({
         role: m.role,
         content: m.content,
-        evidence: m.evidence,
-        solution: m.solution,
+        evidence: m.sources || m.evidence || m.payload?.retrieved_evidence || [],
+        solution: m.payload?.solution || m.solution,
       }));
       setMessages(formattedMsgs);
       const lastAsst = [...formattedMsgs].reverse().find((m) => m.role === 'assistant' && m.solution);
@@ -261,7 +261,7 @@ const AISolutionAssistantPage: React.FC = () => {
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await request.delete(`/ai-employee/conversations/${id}`);
+      await request.delete(`/solution-agent/conversations/${id}`);
       toast.success('已删除该历史对话');
       if (activeConversationId === id) {
         startNewChat();

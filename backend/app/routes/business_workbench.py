@@ -197,7 +197,7 @@ def chat_with_ai_employee_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return service.chat_with_ai_employee(db, payload)
+    return service.chat_with_ai_employee(db, payload, current_user.id)
 
 
 @router.post("/ai-employees/feedback")

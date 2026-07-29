@@ -11,10 +11,13 @@ from app.models.models import (
     AIEmployeeRunStatus,
     CustomerProject,
     CustomerProjectStatus,
+    KnowledgeAsset,
     ProjectTask,
     ProjectTaskStatus,
-    KnowledgeAsset,
     Resume,
+    SolutionAgentConversation,
+    SolutionAgentMessage,
+    SolutionAgentRun,
     SolutionDocument,
 )
 from app.schemas.business_workbench import (
