@@ -223,7 +223,7 @@ const ResumesList: React.FC = () => {
         setTableLoading(false);
       }
     }
-  }, [activeParseStatus, activeSearchName, currentPage, pageSize, selectedCompanyTag, selectedSchoolTag, data.length]);
+  }, [activeParseStatus, activeSearchName, selectedPositionId, selectedScoreRange, selectedSchoolTag, selectedCompanyTag, currentPage, pageSize, data.length]);
 
   useEffect(() => {
     fetchResumes();
@@ -403,6 +403,9 @@ const ResumesList: React.FC = () => {
   const questionCount = data.reduce((sum, item) => sum + getQuestionCount(item), 0);
   const applyFilters = () => {
     const nextSearchName = searchName.trim();
+    setActiveSearchName(nextSearchName);
+    setActiveParseStatus(parseStatus);
+    setCurrentPage(1);
     updateUrlParams({
       candidate_name: nextSearchName,
       parse_status: parseStatus,
