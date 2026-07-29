@@ -62,6 +62,8 @@ const ResumesList: React.FC = () => {
 
   const queryName = searchParams.get('candidate_name') || '';
   const queryStatus = searchParams.get('parse_status') || undefined;
+  const queryPositionId = searchParams.get('position_id') || undefined;
+  const queryScoreRange = searchParams.get('score_range') || undefined;
   const querySchoolTag = searchParams.get('school_tag') || 'all';
   const queryCompanyTag = searchParams.get('company_tag') || 'all';
   const queryPage = Number(searchParams.get('page')) || 1;
@@ -70,6 +72,8 @@ const ResumesList: React.FC = () => {
   const initialFilterKey = JSON.stringify({
     name: queryName,
     status: queryStatus,
+    position: queryPositionId,
+    score: queryScoreRange,
     school: querySchoolTag,
     company: queryCompanyTag,
   });
@@ -88,6 +92,9 @@ const ResumesList: React.FC = () => {
   const [parseStatus, setParseStatus] = useState<string | undefined>(queryStatus);
   const [activeSearchName, setActiveSearchName] = useState(queryName);
   const [activeParseStatus, setActiveParseStatus] = useState<string | undefined>(queryStatus);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [selectedPositionId, setSelectedPositionId] = useState<string | undefined>(queryPositionId);
+  const [selectedScoreRange, setSelectedScoreRange] = useState<string | undefined>(queryScoreRange);
   const [selectedSchoolTag, setSelectedSchoolTag] = useState<string>(querySchoolTag);
   const [selectedCompanyTag, setSelectedCompanyTag] = useState<string>(queryCompanyTag);
   const [currentPage, setCurrentPage] = useState(queryPage);
@@ -97,10 +104,18 @@ const ResumesList: React.FC = () => {
   const [batchReparsing, setBatchReparsing] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  useEffect(() => {
+    request.get('/positions').then((res: any) => {
+      setPositions(res || []);
+    }).catch(() => {});
+  }, []);
+
   const updateUrlParams = useCallback((newParams: Record<string, any>) => {
     const params: Record<string, string> = {};
     if (newParams.candidate_name) params.candidate_name = newParams.candidate_name;
     if (newParams.parse_status) params.parse_status = newParams.parse_status;
+    if (newParams.position_id) params.position_id = newParams.position_id;
+    if (newParams.score_range) params.score_range = newParams.score_range;
     if (newParams.school_tag && newParams.school_tag !== 'all') params.school_tag = newParams.school_tag;
     if (newParams.company_tag && newParams.company_tag !== 'all') params.company_tag = newParams.company_tag;
     if (newParams.page && newParams.page > 1) params.page = String(newParams.page);
@@ -112,6 +127,8 @@ const ResumesList: React.FC = () => {
   useEffect(() => {
     const name = searchParams.get('candidate_name') || '';
     const status = searchParams.get('parse_status') || undefined;
+    const posId = searchParams.get('position_id') || undefined;
+    const score = searchParams.get('score_range') || undefined;
     const school = searchParams.get('school_tag') || 'all';
     const company = searchParams.get('company_tag') || 'all';
     const page = Number(searchParams.get('page')) || 1;
@@ -121,6 +138,8 @@ const ResumesList: React.FC = () => {
     setActiveSearchName(name);
     setParseStatus(status);
     setActiveParseStatus(status);
+    setSelectedPositionId(posId);
+    setSelectedScoreRange(score);
     setSelectedSchoolTag(school);
     setSelectedCompanyTag(company);
     setCurrentPage(page);
@@ -131,6 +150,8 @@ const ResumesList: React.FC = () => {
     const filterKey = JSON.stringify({
       name: activeSearchName,
       status: activeParseStatus,
+      position: selectedPositionId,
+      score: selectedScoreRange,
       school: selectedSchoolTag,
       company: selectedCompanyTag,
     });
@@ -163,6 +184,8 @@ const ResumesList: React.FC = () => {
       };
       if (activeSearchName) params.candidate_name = activeSearchName;
       if (activeParseStatus) params.parse_status = activeParseStatus;
+      if (selectedPositionId) params.position_id = selectedPositionId;
+      if (selectedScoreRange) params.score_range = selectedScoreRange;
       if (selectedSchoolTag !== 'all') params.school_tag = selectedSchoolTag;
       if (selectedCompanyTag !== 'all') params.company_tag = selectedCompanyTag;
 
@@ -383,6 +406,8 @@ const ResumesList: React.FC = () => {
     updateUrlParams({
       candidate_name: nextSearchName,
       parse_status: parseStatus,
+      position_id: selectedPositionId,
+      score_range: selectedScoreRange,
       school_tag: selectedSchoolTag,
       company_tag: selectedCompanyTag,
       page: 1,
@@ -440,8 +465,13 @@ const ResumesList: React.FC = () => {
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
               <Text strong style={{ fontSize: '14px' }}><SensitiveField value={text} kind="name" /></Text>
+              {record.position_name && (
+                <Tag color="geekblue" style={{ margin: 0, fontSize: '11px', lineHeight: '18px', fontWeight: 600 }}>
+                  🎯 {record.position_name}
+                </Tag>
+              )}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 5px' }}>
               {salary && salary !== '面议' && (
@@ -587,6 +617,51 @@ const ResumesList: React.FC = () => {
               style={{ width: 130 }}
             />
             <Select
+              placeholder="🎯 投递岗位"
+              allowClear
+              value={selectedPositionId}
+              onChange={val => {
+                setSelectedPositionId(val);
+                updateUrlParams({
+                  candidate_name: activeSearchName,
+                  parse_status: activeParseStatus,
+                  position_id: val,
+                  score_range: selectedScoreRange,
+                  school_tag: selectedSchoolTag,
+                  company_tag: selectedCompanyTag,
+                  page: 1,
+                  pageSize,
+                });
+              }}
+              style={{ width: 140 }}
+              options={positions.map((p: any) => ({ value: p.id, label: `🎯 ${p.title}` }))}
+            />
+            <Select
+              placeholder="⭐ 评估分筛选"
+              allowClear
+              value={selectedScoreRange}
+              onChange={val => {
+                setSelectedScoreRange(val);
+                updateUrlParams({
+                  candidate_name: activeSearchName,
+                  parse_status: activeParseStatus,
+                  position_id: selectedPositionId,
+                  score_range: val,
+                  school_tag: selectedSchoolTag,
+                  company_tag: selectedCompanyTag,
+                  page: 1,
+                  pageSize,
+                });
+              }}
+              style={{ width: 150 }}
+              options={[
+                { value: '80-100', label: '🏆 优秀 (80-100分)' },
+                { value: '60-79', label: '👍 良好 (60-79分)' },
+                { value: '0-59', label: '⚠️ 待提升 (60分以下)' },
+                { value: 'unscored', label: '❓ 未评分' },
+              ]}
+            />
+            <Select
               placeholder="分析状态"
               allowClear
               value={parseStatus}
@@ -609,6 +684,8 @@ const ResumesList: React.FC = () => {
                 updateUrlParams({
                   candidate_name: activeSearchName,
                   parse_status: activeParseStatus,
+                  position_id: selectedPositionId,
+                  score_range: selectedScoreRange,
                   school_tag: nextTag,
                   company_tag: selectedCompanyTag,
                   page: 1,
@@ -632,6 +709,8 @@ const ResumesList: React.FC = () => {
                 updateUrlParams({
                   candidate_name: activeSearchName,
                   parse_status: activeParseStatus,
+                  position_id: selectedPositionId,
+                  score_range: selectedScoreRange,
                   school_tag: selectedSchoolTag,
                   company_tag: nextTag,
                   page: 1,
@@ -649,6 +728,8 @@ const ResumesList: React.FC = () => {
             <Button onClick={() => {
               setSearchName('');
               setParseStatus(undefined);
+              setSelectedPositionId(undefined);
+              setSelectedScoreRange(undefined);
               setSelectedSchoolTag('all');
               setSelectedCompanyTag('all');
               setCurrentPage(1);

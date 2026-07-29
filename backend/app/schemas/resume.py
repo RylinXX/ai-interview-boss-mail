@@ -106,6 +106,8 @@ class ResumeListItemResponse(BaseModel):
     contact: Optional[str] = None
     email: Optional[str] = None
     match_score: Optional[int] = None
+    position_id: Optional[UUID] = None
+    position_name: Optional[str] = None
     parse_status: Optional[str] = None
     parse_error: Optional[str] = None
     experience_summary: Optional[str] = None

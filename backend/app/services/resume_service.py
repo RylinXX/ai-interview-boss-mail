@@ -1666,6 +1666,8 @@ def _resume_list_item(resume: Resume) -> Dict[str, Any]:
         "contact": resume.contact,
         "email": resume.email,
         "match_score": resume.match_score,
+        "position_id": resume.position_id,
+        "position_name": resume.position.title if resume.position else None,
         "parse_status": resume.parse_status,
         "parse_error": parse_error,
         "experience_summary": parsed_data.get("experience_summary"),
@@ -1687,16 +1689,22 @@ def get_resume_page(
     limit: int = 20,
     candidate_name: str = None,
     parse_status: str = None,
+    position_id: Optional[UUID] = None,
+    min_score: Optional[int] = None,
+    max_score: Optional[int] = None,
+    score_range: Optional[str] = None,
     school_tag: str = None,
     company_tag: str = None,
 ) -> Dict[str, Any]:
     query = db.query(Resume).options(
+        joinedload(Resume.position),
         load_only(
             Resume.id,
             Resume.candidate_name,
             Resume.contact,
             Resume.email,
             Resume.match_score,
+            Resume.position_id,
             Resume.parse_status,
             Resume.parse_error,
             Resume.parsed_data,
@@ -1707,6 +1715,24 @@ def get_resume_page(
         query = query.filter(Resume.candidate_name.ilike(f"%{candidate_name}%"))
     if parse_status:
         query = query.filter(Resume.parse_status == parse_status)
+    if position_id:
+        query = query.filter(Resume.position_id == position_id)
+
+    # Score range / overall evaluation score filtering
+    if score_range and score_range != 'all':
+        if score_range == "80-100":
+            query = query.filter(Resume.match_score >= 80, Resume.match_score <= 100)
+        elif score_range == "60-79":
+            query = query.filter(Resume.match_score >= 60, Resume.match_score <= 79)
+        elif score_range == "0-59":
+            query = query.filter(Resume.match_score >= 0, Resume.match_score <= 59)
+        elif score_range == "unscored":
+            query = query.filter(or_(Resume.match_score.is_(None), Resume.match_score < 0))
+    else:
+        if min_score is not None:
+            query = query.filter(Resume.match_score >= min_score)
+        if max_score is not None:
+            query = query.filter(Resume.match_score <= max_score)
 
     if school_tag and school_tag != 'all':
         if school_tag == "985院校":
