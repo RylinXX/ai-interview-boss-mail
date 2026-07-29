@@ -2122,7 +2122,7 @@ def _create_or_update_resume_asset(
     confidence = _confidence_from_asset(raw_text, inferred)
     fields = {
         "source_name": source_name,
-        "source_confidentiality": "anonymized",
+        "source_confidentiality": "internal",
         "raw_text": raw_text,
         "summary": raw_text[:240],
         "industry_tags": industry_tags,

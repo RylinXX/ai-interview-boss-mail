@@ -113,9 +113,7 @@ const scoreColor = (value: number) => {
 };
 
 const getSourceLabel = (record: KnowledgeAsset) => (
-  record.source_confidentiality === 'anonymized'
-    ? '已匿名化来源'
-    : record.source_name || record.source_confidentiality || '内部资料'
+  record.source_name || record.source_confidentiality || '内部资料'
 );
 
 const KnowledgeAssetsPage: React.FC = () => {
