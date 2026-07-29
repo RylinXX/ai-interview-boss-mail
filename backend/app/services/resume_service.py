@@ -1735,43 +1735,39 @@ def get_resume_page(
         if max_score is not None:
             query = query.filter(Resume.match_score <= max_score)
 
-    parsed_text = cast(Resume.parsed_data, String)
-
     if school_tag and school_tag != 'all':
-        sch_conds = [parsed_text.ilike(f"%{school_tag}%")]
+        sch_conds = [Resume.raw_text.ilike(f"%{school_tag}%"), cast(Resume.parsed_data, String).ilike(f"%{school_tag}%")]
         if school_tag == "985院校":
-            sch_conds.append(parsed_text.ilike("%985%"))
+            sch_conds.append(Resume.raw_text.ilike("%985%"))
             sch_conds.extend([Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_985)[:35]])
         elif school_tag == "211院校":
-            sch_conds.append(parsed_text.ilike("%211%"))
+            sch_conds.append(Resume.raw_text.ilike("%211%"))
             sch_conds.extend([Resume.raw_text.ilike(f"%{sch}%") for sch in list(UNIVERSITIES_211)[:30]])
         elif school_tag == "QS前30/海外名校":
-            sch_conds.extend([parsed_text.ilike("%QS%"), parsed_text.ilike("%海外%"), parsed_text.ilike("%留学生%")])
+            sch_conds.extend([Resume.raw_text.ilike("%QS%"), Resume.raw_text.ilike("%海外%"), Resume.raw_text.ilike("%留学生%")])
             sch_conds.extend([Resume.raw_text.ilike(f"%{sch}%") for sch in list(QS_TOP30)[:25]])
         elif school_tag == "硕士学历":
             sch_conds.extend([
                 Resume.raw_text.ilike("%硕士%"),
                 Resume.raw_text.ilike("%研究生%"),
                 Resume.raw_text.ilike("%Master%"),
-                parsed_text.ilike("%硕士%"),
-                parsed_text.ilike("%研究生%"),
             ])
         query = query.filter(or_(*sch_conds))
 
     if company_tag and company_tag != 'all':
-        comp_conds = [parsed_text.ilike(f"%{company_tag}%")]
+        comp_conds = [Resume.raw_text.ilike(f"%{company_tag}%"), cast(Resume.parsed_data, String).ilike(f"%{company_tag}%")]
         if company_tag == "一线互联网/大厂":
-            comp_conds.extend([parsed_text.ilike("%一线互联网%"), parsed_text.ilike("%大厂%")])
+            comp_conds.extend([Resume.raw_text.ilike("%一线互联网%"), Resume.raw_text.ilike("%大厂%")])
             comp_conds.extend([Resume.raw_text.ilike(f"%{comp}%") for comp in list(TOP_INTERNET)[:25]])
         elif company_tag == "世界500强":
-            comp_conds.append(parsed_text.ilike("%500强%"))
+            comp_conds.append(Resume.raw_text.ilike("%500强%"))
             comp_conds.extend([Resume.raw_text.ilike(f"%{comp}%") for comp in list(FORTUNE_500)[:25]])
         elif company_tag == "国央企/大型名企":
             comp_conds.extend([
-                parsed_text.ilike("%国央企%"),
-                parsed_text.ilike("%央企%"),
-                parsed_text.ilike("%国企%"),
-                parsed_text.ilike("%大型名企%"),
+                Resume.raw_text.ilike("%国央企%"),
+                Resume.raw_text.ilike("%央企%"),
+                Resume.raw_text.ilike("%国企%"),
+                Resume.raw_text.ilike("%大型名企%"),
             ])
             comp_conds.extend([Resume.raw_text.ilike(f"%{comp}%") for comp in list(SOE_COMPANIES)[:20]])
         query = query.filter(or_(*comp_conds))
