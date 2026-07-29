@@ -2678,13 +2678,18 @@ body.dark-mode .chat-bubble-assistant code {
    AI Solution Assistant Redesign (Corporate Dark Slate & Professional Palette)
    ========================================================================== */
 
-.ai-solution-assistant-page {
-  background-color: #f8fafc !important;
+.ai-solution-assistant-page.workbench-page {
+  background-color: transparent !important;
+  margin: -28px -32px -40px !important;
+  padding: 16px 24px !important;
+  height: calc(100vh - 72px) !important;
+  width: calc(100% + 64px) !important;
+  box-sizing: border-box !important;
 }
 
-html[data-theme='dark'] .ai-solution-assistant-page,
-body.dark-mode .ai-solution-assistant-page {
-  background-color: #0b1120 !important;
+html[data-theme='dark'] .ai-solution-assistant-page.workbench-page,
+body.dark-mode .ai-solution-assistant-page.workbench-page {
+  background-color: transparent !important;
 }
 
 .solution-sidebar-unified {

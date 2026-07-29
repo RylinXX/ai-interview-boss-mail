@@ -430,10 +430,8 @@ const AISolutionAssistantPage: React.FC = () => {
     <div
       className="ai-solution-assistant-page workbench-page"
       style={{
-        height: 'calc(100vh - 72px)',
         display: 'flex',
         gap: 16,
-        padding: '12px 16px',
         boxSizing: 'border-box',
       }}
     >
