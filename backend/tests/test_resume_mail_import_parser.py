@@ -78,7 +78,9 @@ def test_supported_resume_filenames():
     assert is_supported_resume_filename("candidate.pdf") is True
     assert is_supported_resume_filename("candidate.docx") is True
     assert is_supported_resume_filename("candidate.txt") is True
-    assert is_supported_resume_filename("candidate.png") is False
+    assert is_supported_resume_filename("candidate.png") is True
+    assert is_supported_resume_filename("avatar.png") is False
+
 
 
 def test_parse_mail_message_extracts_boss_attachment_and_hash():

@@ -5,8 +5,10 @@ from datetime import datetime
 import hashlib
 import imaplib
 import os
+import poplib
 from typing import Optional
 from uuid import uuid4
+
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -139,7 +141,152 @@ class ImapResumeMailClient:
         self._imap.uid("store", uid, "+FLAGS", r"(\Seen)")
 
 
+class Pop3ResumeMailClient:
+    def __init__(
+        self,
+        host: str,
+        port: int = 995,
+        username: str = "",
+        password: str = "",
+        use_ssl: bool = True,
+    ):
+        self.host = host
+        self.port = port or (995 if use_ssl else 110)
+        self.username = username
+        self.password = password
+        self.use_ssl = use_ssl
+        self._pop: Optional[poplib.POP3] = None
+
+    def __enter__(self) -> "Pop3ResumeMailClient":
+        try:
+            if self.use_ssl:
+                self._pop = poplib.POP3_SSL(self.host, self.port)
+            else:
+                self._pop = poplib.POP3(self.host, self.port)
+            self._pop.user(self.username)
+            self._pop.pass_(self.password)
+            return self
+        except Exception:
+            self._cleanup_connection()
+            raise
+
+    def __exit__(self, exc_type, exc, traceback) -> None:
+        self._cleanup_connection()
+
+    def _cleanup_connection(self) -> None:
+        if not self._pop:
+            return
+        try:
+            self._pop.quit()
+        except Exception:
+            pass
+        finally:
+            self._pop = None
+
+    def fetch_recent_messages(self, limit: int) -> list[ParsedMailMessage]:
+        if not self._pop:
+            raise RuntimeError("POP3 client is not connected")
+        try:
+            num_msgs, _ = self._pop.stat()
+        except Exception:
+            return []
+        if num_msgs == 0:
+            return []
+
+        start_idx = max(num_msgs - limit + 1, 1)
+        messages: list[ParsedMailMessage] = []
+        for i in range(num_msgs, start_idx - 1, -1):
+            try:
+                resp, lines, _ = self._pop.retr(i)
+                raw_bytes = b"\r\n".join(lines)
+                messages.append(parse_mail_message(raw_bytes, uid=f"pop3_{i}"))
+            except Exception:
+                continue
+        return messages
+
+    def mark_seen(self, uid: str) -> None:
+        pass
+
+
+class AutoResumeMailClient:
+    def __init__(self, config: SystemConfig):
+        self.config = config
+        self._active_client = None
+
+    def __enter__(self):
+        host = self.config.resume_mail_imap_host or ""
+        if "pop." in host.lower():
+            self._active_client = Pop3ResumeMailClient(
+                host=host,
+                port=self.config.resume_mail_imap_port or 995,
+                username=self.config.resume_mail_username,
+                password=self.config.resume_mail_password,
+                use_ssl=self.config.resume_mail_use_ssl is not False,
+            )
+            return self._active_client.__enter__()
+
+        try:
+            self._active_client = ImapResumeMailClient(
+                host=host,
+                port=self.config.resume_mail_imap_port or 993,
+                username=self.config.resume_mail_username,
+                password=self.config.resume_mail_password,
+                use_ssl=self.config.resume_mail_use_ssl is not False,
+            )
+            self._active_client.__enter__()
+            return self
+        except Exception:
+            pop_host = host.replace("imap.", "pop.") if "imap." in host else "pop.163.com"
+            self._active_client = Pop3ResumeMailClient(
+                host=pop_host,
+                port=995,
+                username=self.config.resume_mail_username,
+                password=self.config.resume_mail_password,
+                use_ssl=True,
+            )
+            return self._active_client.__enter__()
+
+    def __exit__(self, exc_type, exc, traceback):
+        if self._active_client:
+            self._active_client.__exit__(exc_type, exc, traceback)
+
+    def fetch_recent_messages(self, limit: int) -> list[ParsedMailMessage]:
+        if not self._active_client:
+            return []
+        try:
+            msgs = self._active_client.fetch_recent_messages(limit)
+            if msgs:
+                return msgs
+        except Exception:
+            pass
+
+        if isinstance(self._active_client, ImapResumeMailClient):
+            host = self.config.resume_mail_imap_host or ""
+            pop_host = host.replace("imap.", "pop.") if "imap." in host else "pop.163.com"
+            try:
+                pop_client = Pop3ResumeMailClient(
+                    host=pop_host,
+                    port=995,
+                    username=self.config.resume_mail_username,
+                    password=self.config.resume_mail_password,
+                    use_ssl=True,
+                )
+                with pop_client:
+                    return pop_client.fetch_recent_messages(limit)
+            except Exception:
+                pass
+        return []
+
+    def mark_seen(self, uid: str) -> None:
+        if self._active_client and hasattr(self._active_client, "mark_seen"):
+            try:
+                self._active_client.mark_seen(uid)
+            except Exception:
+                pass
+
+
 class ResumeMailImportService:
+
     def __init__(
         self, upload_root: str = "uploads/resumes", imap_client: Optional[object] = None
     ):
@@ -432,7 +579,7 @@ class ResumeMailImportService:
     def _get_config(self, db: Session) -> Optional[SystemConfig]:
         return db.query(SystemConfig).first()
 
-    def _create_imap_client(self, config: SystemConfig) -> ImapResumeMailClient:
+    def _create_imap_client(self, config: SystemConfig):
         missing = []
         if not config.resume_mail_imap_host:
             missing.append("resume_mail_imap_host")
@@ -445,13 +592,8 @@ class ResumeMailImportService:
                 f"Missing resume mail IMAP configuration: {', '.join(missing)}"
             )
 
-        return ImapResumeMailClient(
-            host=config.resume_mail_imap_host,
-            port=config.resume_mail_imap_port or 993,
-            username=config.resume_mail_username,
-            password=config.resume_mail_password,
-            use_ssl=config.resume_mail_use_ssl is not False,
-        )
+        return AutoResumeMailClient(config)
+
 
     def _mailbox(self, config: Optional[SystemConfig]) -> str:
         if config and config.resume_mail_username:

@@ -12,6 +12,8 @@ from typing import List, Optional
 
 
 SUPPORTED_RESUME_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".md", ".markdown", ".png", ".jpg", ".jpeg", ".webp"}
+IGNORED_ATTACHMENT_FILENAMES = {"avatar.png", "avatar.jpg", "logo.png", "logo.jpg", "image001.png", "image002.png", "icon.png"}
+
 
 
 
@@ -38,7 +40,12 @@ class ParsedMailMessage:
 
 
 def is_supported_resume_filename(filename: str) -> bool:
-    suffix = os.path.splitext(filename or "")[1].lower()
+    if not filename:
+        return False
+    fn_lower = filename.lower().strip()
+    if fn_lower in IGNORED_ATTACHMENT_FILENAMES:
+        return False
+    suffix = os.path.splitext(fn_lower)[1]
     return suffix in SUPPORTED_RESUME_EXTENSIONS
 
 
