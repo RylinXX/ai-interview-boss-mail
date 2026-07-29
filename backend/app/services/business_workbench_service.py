@@ -198,10 +198,21 @@ def _build_ai_employee_evidence_context(
     terms = _search_terms(query_text)
     safe_limit = max(1, min(int(payload.limit or 300), 1000))
 
+    knowledge_types = payload.knowledge_types or []
+    industries = payload.industries or []
+    roles = payload.roles or []
+
+    include_projects = not knowledge_types or "project_cases" in knowledge_types or "cases" in knowledge_types or "all" in knowledge_types
+    include_resumes = not knowledge_types or "work_cases" in knowledge_types or "resumes" in knowledge_types or "all" in knowledge_types
+    include_assets = not knowledge_types or "knowledge_assets" in knowledge_types or "assets" in knowledge_types or "all" in knowledge_types
+
+    resumes_query = db.query(Resume).filter(Resume.parse_status == "success", Resume.parsed_data.isnot(None))
+    if industries:
+        ind_conds = [cast(Resume.parsed_data, String).ilike(f"%{ind}%") for ind in industries]
+        resumes_query = resumes_query.filter(or_(*ind_conds))
+
     resumes = (
-        db.query(Resume)
-        .filter(Resume.parse_status == "success", Resume.parsed_data.isnot(None))
-        .order_by(Resume.created_at.desc(), Resume.id.desc())
+        resumes_query.order_by(Resume.created_at.desc(), Resume.id.desc())
         .limit(safe_limit)
         .all()
     )
@@ -212,55 +223,66 @@ def _build_ai_employee_evidence_context(
     for resume in resumes:
         parsed = resume.parsed_data or {}
         logic_analysis = parsed.get("logic_analysis")
-        for project in parsed.get("project_experiences") or []:
-            if not isinstance(project, dict):
-                continue
-            case_text = _text_blob(project, logic_analysis, resume.candidate_name).lower()
-            score = _score_text(case_text, terms)
-            if score <= 0:
-                continue
-            project_cases.append(
-                {
-                    "resume_id": str(resume.id),
-                    "candidate_name": resume.candidate_name,
-                    "project_name": project.get("name") or "未命名项目",
-                    "role": project.get("role"),
-                    "problem": project.get("problem"),
-                    "solution": project.get("solution"),
-                    "business_model": project.get("business_model"),
-                    "score": score,
-                }
-            )
-        for work in parsed.get("work_experiences") or []:
-            if not isinstance(work, dict):
-                continue
-            case_text = _text_blob(work, logic_analysis, resume.candidate_name).lower()
-            score = _score_text(case_text, terms)
-            if score <= 0:
-                continue
-            work_cases.append(
-                {
-                    "resume_id": str(resume.id),
-                    "candidate_name": resume.candidate_name,
-                    "company": work.get("company") or "未命名公司",
-                    "role": work.get("role"),
-                    "summary": work.get("summary"),
-                    "capabilities": _string_list(work.get("capabilities")),
-                    "score": score,
-                }
-            )
+        if include_projects:
+            for project in parsed.get("project_experiences") or []:
+                if not isinstance(project, dict):
+                    continue
+                case_text = _text_blob(project, logic_analysis, resume.candidate_name).lower()
+                score = _score_text(case_text, terms)
+                if roles and not any(r.lower() in case_text for r in roles):
+                    continue
+                if terms and score <= 0:
+                    continue
+                project_cases.append(
+                    {
+                        "resume_id": str(resume.id),
+                        "candidate_name": resume.candidate_name,
+                        "project_name": project.get("name") or "未命名项目",
+                        "role": project.get("role"),
+                        "problem": project.get("problem"),
+                        "solution": project.get("solution"),
+                        "business_model": project.get("business_model"),
+                        "score": score if terms else 10,
+                    }
+                )
+        if include_resumes:
+            for work in parsed.get("work_experiences") or []:
+                if not isinstance(work, dict):
+                    continue
+                case_text = _text_blob(work, logic_analysis, resume.candidate_name).lower()
+                score = _score_text(case_text, terms)
+                if roles and not any(r.lower() in case_text for r in roles):
+                    continue
+                if terms and score <= 0:
+                    continue
+                work_cases.append(
+                    {
+                        "resume_id": str(resume.id),
+                        "candidate_name": resume.candidate_name,
+                        "company": work.get("company") or "未命名公司",
+                        "role": work.get("role"),
+                        "summary": work.get("summary"),
+                        "capabilities": _string_list(work.get("capabilities")),
+                        "score": score if terms else 10,
+                    }
+                )
 
-    assets = (
-        db.query(KnowledgeAsset)
-        .order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc())
-        .limit(safe_limit)
-        .all()
-    )
-    for asset in assets:
-        score = _score_text(_knowledge_asset_text(asset), terms)
-        if score <= 0:
-            continue
-        knowledge_assets.append(_knowledge_asset_context_row(asset, score))
+    if include_assets:
+        assets_query = db.query(KnowledgeAsset)
+        if industries:
+            ind_conds = [cast(KnowledgeAsset.industry_tags, String).ilike(f"%{ind}%") for ind in industries]
+            assets_query = assets_query.filter(or_(*ind_conds))
+
+        assets = (
+            assets_query.order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc())
+            .limit(safe_limit)
+            .all()
+        )
+        for asset in assets:
+            score = _score_text(_knowledge_asset_text(asset), terms)
+            if terms and score <= 0:
+                continue
+            knowledge_assets.append(_knowledge_asset_context_row(asset, score if terms else 10))
 
     project_cases.sort(key=lambda item: item["score"], reverse=True)
     work_cases.sort(key=lambda item: item["score"], reverse=True)

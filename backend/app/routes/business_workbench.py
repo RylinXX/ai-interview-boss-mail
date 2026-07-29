@@ -200,6 +200,43 @@ def chat_with_ai_employee_route(
     return service.chat_with_ai_employee(db, payload)
 
 
+@router.post("/ai-employees/feedback")
+def submit_ai_employee_feedback_route(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.submit_ai_response_feedback(
+        db,
+        chat_id=payload.get("chat_id"),
+        feedback_type=payload.get("feedback_type", "useful"),
+        reason_tags=payload.get("reason_tags"),
+        comment=payload.get("comment"),
+    )
+
+
+@router.post("/ai-employees/save-to-knowledge-asset")
+def save_solution_to_knowledge_asset_route(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    title = payload.get("title") or "AI 解决方案"
+    summary = payload.get("summary") or "根据 AI 解决方案助手提炼生成的业务方案"
+    solution_data = payload.get("solution_data") or {}
+    industry_tag = payload.get("industry_tag") or "通用业务"
+    evidence_tags = payload.get("evidence_tags") or ["解决方案", "商业打法"]
+    asset = service.save_solution_to_knowledge_asset(
+        db,
+        title=title,
+        summary=summary,
+        solution_data=solution_data,
+        industry_tag=industry_tag,
+        evidence_tags=evidence_tags,
+    )
+    return {"status": "success", "asset_id": str(asset.id), "title": asset.title}
+
+
 @router.post("/project-tasks/{task_id}/ai-runs", response_model=AIEmployeeRunResponse)
 def create_ai_run_route(
     task_id: UUID,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Button, Card, Col, Descriptions, Dropdown, Empty, Form, Input, List, message, Modal, Progress, Row, Space, Spin, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
-import { ArrowLeftOutlined, DownOutlined, EditOutlined, FileMarkdownOutlined, FilePdfOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, DownOutlined, EditOutlined, FileMarkdownOutlined, FilePdfOutlined, ReloadOutlined, RobotOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -213,6 +213,20 @@ const ResumeDetail: React.FC = () => {
               </>
             ) : (
               <>
+                <Button
+                  type="primary"
+                  icon={<RobotOutlined />}
+                  onClick={() =>
+                    navigate(
+                      `/ai-employees?resume_id=${resume.id}&candidate_name=${encodeURIComponent(
+                        resume.candidate_name || ''
+                      )}`
+                    )
+                  }
+                  style={{ background: '#2563eb' }}
+                >
+                  发起 AI 方案咨询
+                </Button>
                 <Dropdown menu={{ items: exportItems }} disabled={!canExportReport}>
                   <Button icon={<FilePdfOutlined />} disabled={!canExportReport}>
                     导出报告 <DownOutlined />

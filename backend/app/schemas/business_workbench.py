@@ -115,16 +115,36 @@ class AIEmployeeChatRequest(BaseModel):
     project_materials: Optional[str] = None
     messages: List[AIEmployeeChatMessage] = []
     limit: int = 300
+    knowledge_types: Optional[List[str]] = None
+    industries: Optional[List[str]] = None
+    roles: Optional[List[str]] = None
 
 
 class AIEmployeeChatResponse(BaseModel):
     assistant_message: str
     solution: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]] = []
+    retrieved_project_count: int = 0
+    retrieved_resume_count: int = 0
     dynamic_workers: List[Dict[str, Any]] = []
     human_decision_points: List[str] = []
     model_used: bool = False
     fallback_used: bool = False
+
+
+class AIEmployeeFeedbackRequest(BaseModel):
+    chat_id: Optional[str] = None
+    feedback_type: str  # 'useful' or 'not_useful'
+    reason_tags: Optional[List[str]] = []
+    comment: Optional[str] = None
+
+
+class SaveSolutionToKnowledgeAssetRequest(BaseModel):
+    title: str
+    summary: str
+    solution_data: Dict[str, Any]
+    industry_tag: Optional[str] = "通用业务"
+    evidence_tags: Optional[List[str]] = []
 
 
 class AIEmployeeRunResponse(BaseModel):
