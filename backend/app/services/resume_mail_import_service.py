@@ -10,11 +10,13 @@ from typing import Optional
 from uuid import uuid4
 
 
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.models import (
     Position,
+    PositionStatus,
     Resume,
     ResumeMailImport,
     ResumeMailImportStatus,
@@ -471,7 +473,39 @@ class ResumeMailImportService:
         position_title: Optional[str],
         config: Optional[SystemConfig],
     ) -> Optional[Position]:
-        return None
+        if not position_title or not position_title.strip():
+            if config and config.resume_mail_default_position_id:
+                return db.query(Position).filter(Position.id == config.resume_mail_default_position_id).first()
+            return None
+
+        clean_title = position_title.strip()
+
+        # 1. Exact or case-insensitive match on Position.title
+        matched = (
+            db.query(Position)
+            .filter(func.lower(Position.title) == clean_title.lower())
+            .first()
+        )
+        if matched:
+            return matched
+
+        # 2. Substring match
+        all_positions = db.query(Position).all()
+        for pos in all_positions:
+            if pos.title and (pos.title.lower() in clean_title.lower() or clean_title.lower() in pos.title.lower()):
+                return pos
+
+        # 3. Auto-create new Position if no match exists
+        new_pos = Position(
+            title=clean_title,
+            department="通用招聘",
+            description=f"从邮件投递自动关联创建的岗位：{clean_title}",
+            requirements="从邮件简历解析导入",
+            status=PositionStatus.OPEN,
+        )
+        db.add(new_pos)
+        db.flush()
+        return new_pos
 
     def _save_attachment(self, attachment: ParsedAttachment) -> str:
         os.makedirs(self.upload_root, exist_ok=True)

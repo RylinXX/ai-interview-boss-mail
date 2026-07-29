@@ -69,12 +69,12 @@ def test_import_parsed_message_creates_resume_and_log(db, tmp_path, monkeypatch)
 
     assert summary.imported == 1
     assert summary.scanned_messages == 1
-    assert resume.position_id is None
+    assert resume.position_id is not None
     assert resume.source == "boss_mail"
     assert resume.source_attachment_hash == "c" * 64
     assert log.mailbox == "recruiting@example.com"
     assert log.status == ResumeMailImportStatus.IMPORTED.value
-    assert queued == [(resume.id, None, False)]
+    assert queued == [(resume.id, resume.position_id, False)]
 
 
 def test_import_parsed_message_skips_duplicate_attachment(db, tmp_path):
@@ -170,10 +170,11 @@ def test_import_parsed_message_logs_unsupported_attachment_skip(db, tmp_path):
     assert db.query(Resume).count() == 0
 
 
-def test_resume_mail_import_does_not_create_default_position(db, tmp_path):
+def test_resume_mail_import_creates_position_when_title_provided(db, tmp_path):
     service = ResumeMailImportService(upload_root=str(tmp_path))
-
-    assert service._resolve_position(db, position_title="AI 产品经理", config=None) is None
+    pos = service._resolve_position(db, position_title="AI 产品经理", config=None)
+    assert pos is not None
+    assert pos.title == "AI 产品经理"
 
 
 def test_import_keeps_mail_position_title_only_in_reasonless_log_context(db, tmp_path):
@@ -188,8 +189,8 @@ def test_import_keeps_mail_position_title_only_in_reasonless_log_context(db, tmp
     resume = db.query(Resume).one()
     log = db.query(ResumeMailImport).one()
     assert summary.imported == 1
-    assert resume.position_id is None
-    assert log.position_id is None
+    assert resume.position_id is not None
+    assert log.position_id is not None
 
 
 def test_import_saves_attachment_under_upload_root_preserving_suffix(db, tmp_path):

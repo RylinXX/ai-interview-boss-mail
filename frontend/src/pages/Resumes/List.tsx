@@ -774,6 +774,8 @@ const ResumesList: React.FC = () => {
                     updateUrlParams({
                       candidate_name: activeSearchName,
                       parse_status: activeParseStatus,
+                      position_id: selectedPositionId,
+                      score_range: selectedScoreRange,
                       school_tag: selectedSchoolTag,
                       company_tag: selectedCompanyTag,
                       page,
@@ -831,6 +833,8 @@ const ResumesList: React.FC = () => {
                       updateUrlParams({
                         candidate_name: activeSearchName,
                         parse_status: activeParseStatus,
+                        position_id: selectedPositionId,
+                        score_range: selectedScoreRange,
                         school_tag: selectedSchoolTag,
                         company_tag: selectedCompanyTag,
                         page,

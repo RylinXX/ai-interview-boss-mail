@@ -49,15 +49,27 @@ def is_supported_resume_filename(filename: str) -> bool:
     return suffix in SUPPORTED_RESUME_EXTENSIONS
 
 
-def extract_boss_position_title(subject: str) -> Optional[str]:
-    if not subject:
-        return None
-    match = re.search(r"应聘\s*([^|【\]]+)", subject, re.IGNORECASE)
-    if not match:
-        return None
-    title = match.group(1).strip()
-    title = re.sub(r"\s+", " ", title)
-    return title or None
+def extract_boss_position_title(subject: str, attachments: Optional[List[ParsedAttachment]] = None) -> Optional[str]:
+    if subject:
+        match = re.search(r"应聘\s*([^|【\]]+)", subject, re.IGNORECASE)
+        if not match:
+            match = re.search(r"求职\s*[:：]?\s*([^|【\]]+)", subject, re.IGNORECASE)
+        if match:
+            title = match.group(1).strip()
+            title = re.sub(r"\s+", " ", title)
+            if title:
+                return title
+
+    if attachments:
+        for att in attachments:
+            fn = getattr(att, "filename", "") or ""
+            match = re.search(r"【\s*([^_】]+)", fn)
+            if match:
+                title = match.group(1).strip()
+                if title:
+                    return title
+
+    return None
 
 
 def _decode_subject(value: Optional[str]) -> str:
@@ -118,6 +130,6 @@ def parse_mail_message(raw_message: bytes, uid: str) -> ParsedMailMessage:
         subject=subject,
         received_at=_safe_received_at(message.get("Date")),
         is_boss_resume=_is_boss_resume(sender, subject, body_text),
-        position_title=extract_boss_position_title(subject),
+        position_title=extract_boss_position_title(subject, attachments),
         attachments=attachments,
     )
