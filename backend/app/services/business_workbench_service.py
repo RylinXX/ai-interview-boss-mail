@@ -469,7 +469,7 @@ def _human_decision_points(solution: Dict[str, Any], workers: List[Dict[str, str
     return list(dict.fromkeys(points))
 
 
-def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[str, Any]:
+def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest, user_id: Optional[UUID] = None) -> Dict[str, Any]:
     context = _build_ai_employee_evidence_context(db, payload)
     llm_payload = {
         "user_profile": {
@@ -485,10 +485,14 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
             "candidate_count": context["candidate_count"],
         },
         "instruction": (
-            "你是一个可检索私有能力样本和知识资产的AI员工。请先基于客户需求、已上传人才/项目经验、"
-            "知识资产给出解决方案，再动态定义本方案需要的AI执行员工。"
-            "如果证据不足，仍要输出可讨论的待确认方案，并明确哪些是依据、哪些是假设。"
-            "强调AI完成50%-70%的整理、生成和初稿，人工负责关键判断。"
+            "你是一个专业的 AI 解决方案顾问。请严格按照以下六段式结构输出深度解决方案：\n"
+            "一、客户痛点诊断\n"
+            "二、核心打法与业务逻辑\n"
+            "三、落地执行路径（阶段/步骤）\n"
+            "四、匹配专家/人才推荐\n"
+            "五、参考案例与数据依据（引用私有知识库）\n"
+            "六、已知风险与注意事项\n"
+            "强调无引用不编造，观点与建议须有真实私有资产支撑。"
         ),
     }
     generated = generate_solution_agent_response(llm_payload)
@@ -497,14 +501,14 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
     workers = _build_dynamic_workers(solution, payload.requirement)
     human_points = _human_decision_points(solution, workers)
     solution = {
-        "title": solution.get("title") or "AI 员工解决方案",
+        "title": solution.get("title") or "AI 业务解决方案",
         "summary": solution.get("summary") or "",
         "recommended_solutions": solution.get("recommended_solutions") or [],
         "needed_capabilities": _string_list(solution.get("needed_capabilities")),
         "risks": _string_list(solution.get("risks")),
         "next_questions": _string_list(solution.get("next_questions")),
         "knowledge_context": {
-            "project_count": len(context["project_cases"]),
+            "project_count": context.get("retrieved_project_count", len(context["project_cases"])),
             "work_count": len(context["work_cases"]),
             "knowledge_asset_count": len(context["knowledge_assets"]),
             "candidate_count": context["candidate_count"],
@@ -515,10 +519,38 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest) -> Dict[s
         "dynamic_workers": workers,
     }
     assistant_message = _format_standard_solution_markdown(payload, solution, context)
+    retrieved_evidence = context["knowledge_assets"][:4] + context["project_cases"][:6] + context["work_cases"][:4]
+
+    conversation_id = None
+    if user_id:
+        from app.services import knowledge_asset_service
+        try:
+            persisted = knowledge_asset_service._persist_solution_agent_interaction(
+                db,
+                payload=knowledge_asset_service.SolutionAgentRequest(
+                    requirement=payload.requirement,
+                    search_scope="all",
+                ),
+                result={
+                    "assistant_message": assistant_message,
+                    "solution": solution,
+                    "retrieved_evidence": retrieved_evidence,
+                    "model_used": not fallback_used,
+                    "fallback_used": fallback_used,
+                },
+                user_id=user_id,
+            )
+            conversation_id = persisted.get("conversation_id")
+        except Exception:
+            pass
+
     return {
+        "conversation_id": conversation_id,
         "assistant_message": assistant_message,
         "solution": solution,
-        "retrieved_evidence": context["knowledge_assets"][:4] + context["project_cases"][:6] + context["work_cases"][:4],
+        "retrieved_evidence": retrieved_evidence,
+        "retrieved_project_count": context.get("retrieved_project_count", len(context["project_cases"])),
+        "retrieved_resume_count": context.get("retrieved_resume_count", context["candidate_count"]),
         "dynamic_workers": workers,
         "human_decision_points": human_points,
         "model_used": not fallback_used,
