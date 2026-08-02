@@ -31,12 +31,12 @@ class ResumeMailImportScheduler:
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
-            interval = 120
+            interval = 600
             db = SessionLocal()
             try:
                 config = db.query(SystemConfig).first()
                 if config:
-                    interval = max(config.resume_mail_poll_interval_seconds or 120, 30)
+                    interval = max(config.resume_mail_poll_interval_seconds or 600, 180)
                     if config.resume_mail_import_enabled:
                         ResumeMailImportService().sync_once(db)
             except Exception as exc:

@@ -120,21 +120,34 @@ class ImapResumeMailClient:
         if not self._imap:
             raise RuntimeError("IMAP client is not connected")
 
-        status, data = self._imap.uid("search", None, "ALL")
-        if status != "OK" or not data:
-            return []
+        # 1. First prioritize UNSEEN (unread) messages to avoid mass fetching old emails
+        status, data = self._imap.uid("search", None, "UNSEEN")
+        uids = data[0].split() if (status == "OK" and data and data[0]) else []
 
-        uids = data[0].split()[-limit:]
+        # 2. If no UNSEEN messages, fallback to scanning only the most recent 10 messages
+        if not uids:
+            status, data = self._imap.uid("search", None, "ALL")
+            if status == "OK" and data and data[0]:
+                uids = data[0].split()[-min(limit, 10):]
+            else:
+                return []
+
         messages: list[ParsedMailMessage] = []
         for raw_uid in uids:
             uid = raw_uid.decode("utf-8", errors="ignore")
-            status, fetched = self._imap.uid("fetch", raw_uid, "(RFC822)")
-            if status != "OK" or not fetched:
-                continue
-            for item in fetched:
-                if isinstance(item, tuple) and len(item) > 1 and item[1]:
-                    messages.append(parse_mail_message(item[1], uid=uid))
+            try:
+                status, fetched = self._imap.uid("fetch", raw_uid, "(BODY.PEEK[])")
+                if status != "OK" or not fetched:
+                    continue
+                for item in fetched:
+                    if isinstance(item, tuple) and len(item) > 1 and item[1]:
+                        messages.append(parse_mail_message(item[1], uid=uid))
+                        break
+            except Exception as exc:
+                if "volume limit exceed" in str(exc).lower():
+                    print(f"[IMAP] NetEase rate limit reached for UID {uid}, pausing batch.")
                     break
+                continue
         return messages
 
     def mark_seen(self, uid: str) -> None:
