@@ -127,7 +127,7 @@ const Login: React.FC = () => {
           <div className="login-card-head">
             <Text className="eyebrow">Secure Access</Text>
             <Title level={2}>登录工作台</Title>
-            <Text type="secondary">使用管理员演示账号进入系统</Text>
+            <Text type="secondary">请使用您的企业账号密码登录系统</Text>
           </div>
 
         <Form
@@ -143,7 +143,7 @@ const Login: React.FC = () => {
             label="邮箱"
             rules={[{ required: true, message: '请输入邮箱' }]}
           >
-            <Input prefix={<UserOutlined />} placeholder="邮箱 (admin@example.com)" autoComplete="username" />
+            <Input prefix={<UserOutlined />} placeholder="请输入工作邮箱" autoComplete="username" />
           </Form.Item>
 
           <Form.Item
@@ -151,7 +151,7 @@ const Login: React.FC = () => {
             label="密码"
             rules={[{ required: true, message: '请输入密码' }]}
           >
-            <Input.Password prefix={<LockOutlined />} placeholder="密码 (admin123)" autoComplete="current-password" />
+            <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" autoComplete="current-password" />
           </Form.Item>
 
           <Form.Item>
@@ -159,11 +159,6 @@ const Login: React.FC = () => {
               进入系统
             </Button>
           </Form.Item>
-
-          <div className="demo-account">
-            <CheckCircleOutlined />
-            <Text>默认账号：admin@example.com / admin123</Text>
-          </div>
         </Form>
       </Card>
       </section>
