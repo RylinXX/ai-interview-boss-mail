@@ -623,6 +623,57 @@ const SystemSettingsPage: React.FC = () => {
     },
   ];
 
+const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
+  deepseek: [
+    { label: 'deepseek-chat (DeepSeek-V3 推荐)', value: 'deepseek-chat' },
+    { label: 'deepseek-reasoner (DeepSeek-R1 推理模型)', value: 'deepseek-reasoner' },
+  ],
+  dashscope: [
+    { label: 'qwen-max (通义千问 Flagship 推荐)', value: 'qwen-max' },
+    { label: 'qwen-plus (通用增强型)', value: 'qwen-plus' },
+    { label: 'qwen-turbo (极速高性价比)', value: 'qwen-turbo' },
+    { label: 'qwen-long (超长上下文)', value: 'qwen-long' },
+    { label: 'qwen2.5-72b-instruct (开源 Flagship)', value: 'qwen2.5-72b-instruct' },
+  ],
+  volcengine: [
+    { label: 'doubao-pro-32k (豆包 Pro 32K 推荐)', value: 'doubao-pro-32k' },
+    { label: 'doubao-pro-128k (豆包 Pro 128K 长文本)', value: 'doubao-pro-128k' },
+    { label: 'doubao-lite-32k (豆包 Lite 极速)', value: 'doubao-lite-32k' },
+    { label: 'doubao-seed-2-0-pro-260215', value: 'doubao-seed-2-0-pro-260215' },
+  ],
+  custom: [
+    { label: 'gpt-4o (OpenAI 官方)', value: 'gpt-4o' },
+    { label: 'gpt-4o-mini', value: 'gpt-4o-mini' },
+    { label: 'claude-3-5-sonnet', value: 'claude-3-5-sonnet' },
+    { label: 'llama3.1', value: 'llama3.1' },
+  ],
+};
+
+const embeddingModelOptionsMap: Record<string, { label: string; value: string }[]> = {
+  dashscope: [
+    { label: 'text-embedding-v3 (阿里百炼 v3 推荐)', value: 'text-embedding-v3' },
+    { label: 'bge-large-zh (BAAI BGE 中文大模型 推荐)', value: 'bge-large-zh' },
+    { label: 'bge-m3 (BGE M3 多语言向量模型)', value: 'bge-m3' },
+    { label: 'text-embedding-v2', value: 'text-embedding-v2' },
+  ],
+  deepseek: [
+    { label: 'bge-large-zh (BAAI BGE 中文大模型 推荐)', value: 'bge-large-zh' },
+    { label: 'bge-m3 (BGE M3 向量模型)', value: 'bge-m3' },
+    { label: 'text-embedding-3-small (OpenAI 兼容)', value: 'text-embedding-3-small' },
+    { label: 'text-embedding-3-large (OpenAI 兼容)', value: 'text-embedding-3-large' },
+  ],
+  volcengine: [
+    { label: 'doubao-embedding (字节火山向量引擎)', value: 'doubao-embedding' },
+    { label: 'doubao-embedding-large', value: 'doubao-embedding-large' },
+  ],
+  local: [
+    { label: 'local_hashing_vectorizer (系统内置轻量特征向量)', value: 'local_hashing_vectorizer' },
+  ],
+};
+
+  const selectedLLMProvider = Form.useWatch('llm_provider', form) || 'dashscope';
+  const selectedEmbeddingProvider = Form.useWatch('embedding_provider', form) || 'dashscope';
+
   return (
     <div className="settings-system-page workbench-page">
       <section className="consulting-hero">
@@ -703,10 +754,20 @@ const SystemSettingsPage: React.FC = () => {
 
           <Form.Item
             name="llm_model"
-            label="Model 模型名称"
-            rules={[{ required: true, message: '请输入 Model' }]}
+            label="Model 模型名称（选择下拉列表或手动搜索/自定义）"
+            rules={[{ required: true, message: '请选择或输入 Model 模型名称' }]}
           >
-            <Input placeholder="例如：deepseek-chat / qwen-max / doubao-pro-32k" autoComplete="off" name="llm_model_field" />
+            <Select
+              showSearch
+              placeholder="下拉选择大模型，如 deepseek-chat / qwen-max / doubao-pro-32k"
+              options={
+                llmModelOptionsMap[selectedLLMProvider] || [
+                  ...llmModelOptionsMap.deepseek,
+                  ...llmModelOptionsMap.dashscope,
+                  ...llmModelOptionsMap.volcengine,
+                ]
+              }
+            />
           </Form.Item>
 
           <Form.Item
@@ -774,8 +835,17 @@ const SystemSettingsPage: React.FC = () => {
             <Input placeholder="例如：https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
           </Form.Item>
 
-          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称">
-            <Input placeholder="例如：text-embedding-v3 / bge-large-zh / bge-m3" autoComplete="off" />
+          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称（选择下拉列表或手动搜索/自定义）">
+            <Select
+              showSearch
+              placeholder="下拉选择向量模型，如 text-embedding-v3 / bge-large-zh / bge-m3"
+              options={
+                embeddingModelOptionsMap[selectedEmbeddingProvider] || [
+                  ...embeddingModelOptionsMap.dashscope,
+                  ...embeddingModelOptionsMap.deepseek,
+                ]
+              }
+            />
           </Form.Item>
 
           <Form.Item
