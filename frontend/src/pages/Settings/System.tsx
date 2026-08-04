@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Card, Form, Input, Space, Typography, message, Result, Switch, InputNumber, Divider, Tabs, Alert, Tag, Tooltip, Select, Table } from 'antd';
+import { Button, Card, Form, Input, Space, Typography, message, Result, Switch, InputNumber, Divider, Tabs, Alert, Tag, Tooltip, Select, Table, AutoComplete } from 'antd';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { useAuth } from '../../contexts/AuthContext';
 import '../BusinessWorkbench.css';
@@ -630,7 +630,7 @@ const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
   ],
   dashscope: [
     { label: 'qwen-max (阿里通义千问 Qwen-Max 旗舰)', value: 'qwen-max' },
-    { label: 'kimi3 (月之暗面 Kimi3 旗舰)', value: 'kimi3' },
+    { label: 'kimi-k3 (月之暗面 Kimi K3 旗舰)', value: 'kimi-k3' },
     { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰)', value: 'deepseek-v4-pro' },
     { label: 'deepseek-v4-flash (DeepSeek V4 Flash 极速)', value: 'deepseek-v4-flash' },
     { label: 'glm-5.2 (智谱 GLM 5.2 旗舰)', value: 'glm-5.2' },
@@ -751,18 +751,21 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
 
           <Form.Item
             name="llm_model"
-            label="Model 模型名称（选择下拉列表或手动搜索/自定义）"
+            label="Model 模型名称（可下拉点选推荐模型，亦可直接自由输入保存任意自定义模型）"
             rules={[{ required: true, message: '请选择或输入 Model 模型名称' }]}
           >
-            <Select
-              showSearch
-              placeholder="下拉选择大模型，如 deepseek-chat / qwen-max / doubao-pro-32k"
+            <AutoComplete
               options={
                 llmModelOptionsMap[selectedLLMProvider] || [
                   ...llmModelOptionsMap.deepseek,
                   ...llmModelOptionsMap.dashscope,
                   ...llmModelOptionsMap.volcengine,
                 ]
+              }
+              placeholder="下拉点选推荐模型或自由输入，如 kimi-k3 / deepseek-v4-pro"
+              filterOption={(inputValue, option) =>
+                (option?.label ?? '').toLowerCase().includes(inputValue.toLowerCase()) ||
+                (option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
               }
             />
           </Form.Item>
@@ -832,15 +835,18 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
             <Input placeholder="例如：https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
           </Form.Item>
 
-          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称（选择下拉列表或手动搜索/自定义）">
-            <Select
-              showSearch
-              placeholder="下拉选择向量模型，如 text-embedding-v3 / bge-large-zh / bge-m3"
+          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称（可下拉点选推荐模型，亦可直接自由输入）">
+            <AutoComplete
               options={
                 embeddingModelOptionsMap[selectedEmbeddingProvider] || [
                   ...embeddingModelOptionsMap.dashscope,
                   ...embeddingModelOptionsMap.deepseek,
                 ]
+              }
+              placeholder="下拉点选推荐模型或自由输入，如 text-embedding-v3 / bge-large-zh"
+              filterOption={(inputValue, option) =>
+                (option?.label ?? '').toLowerCase().includes(inputValue.toLowerCase()) ||
+                (option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
               }
             />
           </Form.Item>
