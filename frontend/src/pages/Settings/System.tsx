@@ -627,9 +627,15 @@ const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
   deepseek: [
     { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰推荐)', value: 'deepseek-v4-pro' },
     { label: 'deepseek-v4-flash (DeepSeek V4 Flash 极速)', value: 'deepseek-v4-flash' },
+    { label: 'deepseek-chat (DeepSeek V3 对话模型)', value: 'deepseek-chat' },
+    { label: 'deepseek-reasoner (DeepSeek R1 推理模型)', value: 'deepseek-reasoner' },
   ],
   dashscope: [
     { label: 'qwen-max (阿里通义千问 Qwen-Max 旗舰)', value: 'qwen-max' },
+    { label: 'qwen-plus (通义千问 Qwen-Plus 增强型)', value: 'qwen-plus' },
+    { label: 'qwen-turbo (通义千问 Qwen-Turbo 极速型)', value: 'qwen-turbo' },
+    { label: 'qwen-long (通义千问 Qwen-Long 长文本)', value: 'qwen-long' },
+    { label: 'qwen2.5-72b-instruct (通义千问 72B 开源旗舰)', value: 'qwen2.5-72b-instruct' },
     { label: 'kimi-k3 (月之暗面 Kimi K3 旗舰)', value: 'kimi-k3' },
     { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰)', value: 'deepseek-v4-pro' },
     { label: 'deepseek-v4-flash (DeepSeek V4 Flash 极速)', value: 'deepseek-v4-flash' },
@@ -637,6 +643,9 @@ const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
   ],
   volcengine: [
     { label: 'doubao-seed-2-0-pro-260215 (豆包 Seed 2.0 Pro 专属额度)', value: 'doubao-seed-2-0-pro-260215' },
+    { label: 'doubao-pro-32k (豆包 Pro 32K 推荐)', value: 'doubao-pro-32k' },
+    { label: 'doubao-pro-128k (豆包 Pro 128K 长文本)', value: 'doubao-pro-128k' },
+    { label: 'doubao-lite-32k (豆包 Lite 极速)', value: 'doubao-lite-32k' },
   ],
   custom: [
     { label: 'gpt-4o (OpenAI 官方)', value: 'gpt-4o' },
