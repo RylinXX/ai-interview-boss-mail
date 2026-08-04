@@ -632,10 +632,11 @@ const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
     { label: 'qwen-max (阿里通义千问 Qwen-Max 旗舰)', value: 'qwen-max' },
     { label: 'kimi3 (月之暗面 Kimi3 旗舰)', value: 'kimi3' },
     { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰)', value: 'deepseek-v4-pro' },
+    { label: 'deepseek-v4-flash (DeepSeek V4 Flash 极速)', value: 'deepseek-v4-flash' },
+    { label: 'glm-5.2 (智谱 GLM 5.2 旗舰)', value: 'glm-5.2' },
   ],
   volcengine: [
-    { label: 'doubao-seed-2-0-pro-260215 (豆包 Seed 2.0 Pro 推荐)', value: 'doubao-seed-2-0-pro-260215' },
-    { label: 'doubao-seed-2-0-pro', value: 'doubao-seed-2-0-pro' },
+    { label: 'doubao-seed-2-0-pro-260215 (豆包 Seed 2.0 Pro 专属额度)', value: 'doubao-seed-2-0-pro-260215' },
   ],
   custom: [
     { label: 'gpt-4o (OpenAI 官方)', value: 'gpt-4o' },
