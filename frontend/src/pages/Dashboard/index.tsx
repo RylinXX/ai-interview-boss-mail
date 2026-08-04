@@ -16,6 +16,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { useNavigate } from 'react-router-dom';
 import { AsyncState, ModulePageHeader, ResponsiveDataView, SensitiveField } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
@@ -117,6 +118,7 @@ const itemMatchesIndustry = (item: any, industryKey: string) => {
 
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [resumeMetrics, setResumeMetrics] = useState<ResumeMetrics>(EMPTY_RESUME_METRICS);
   const [summary, setSummary] = useState<ExperienceSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
@@ -856,9 +858,19 @@ const Dashboard: React.FC = () => {
                     📊 知识资产、人才样本与项目打法库
                   </span>
                 </div>
-                <Text type="secondary" style={{ fontSize: '12px', fontWeight: 400 }}>
-                  按板块查看提炼的项目打法、能力证据与履历画像
-                </Text>
+                <Space>
+                  <Text type="secondary" style={{ fontSize: '12px', fontWeight: 400 }}>
+                    按板块查看提炼的项目打法、能力证据与履历画像
+                  </Text>
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ fontWeight: 600, paddingRight: 0 }}
+                    onClick={() => navigate(`/knowledge-assets?tab=${activeTab}`)}
+                  >
+                    进入【知识资产库】大厅 ➔
+                  </Button>
+                </Space>
               </div>
             )}
             styles={{ body: { padding: '16px 24px 24px 24px' } }}
