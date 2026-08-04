@@ -265,30 +265,68 @@ const KnowledgeAssetsPage: React.FC = () => {
       const rawWorks = summaryRes?.work_experiences || [];
       const allResumes = Array.isArray(resumeListRes) ? resumeListRes : resumeListRes?.items || [];
 
+      // Build quick lookup map for resume capability tags
+      const resumeTagMap: Record<string, string[]> = {};
+      allResumes.forEach((r: any) => {
+        const id = r.id || r._id;
+        const tags = ensureArray(
+          r.parsed_data?.capability_tags ||
+          r.parsed_data?.tags ||
+          r.parsed_data?.skills ||
+          r.capability_tags ||
+          r.skills ||
+          r.tags
+        );
+        if (id && tags.length > 0) {
+          resumeTagMap[id] = tags;
+        }
+      });
+
       // Map logic analyses into candidate capability assets
-      let candList: CandidateAsset[] = rawLogic.map((c: any, idx: number) => ({
-        _rowKey: c.id || c.resume_id || `cand_${idx}`,
-        candidate_name: c.candidate_name || '专家样本',
-        resume_id: c.resume_id || c.id || '',
-        industry_label: c.industry_label || c.industry || '综合领域',
-        analysis: c.analysis || c.summary || c.logic_analysis || '能力论证链完备，具备高复杂场景交付能力',
-        source_name: c.source_name || c.current_company || '履历出处',
-        capability_tags: ensureArray(c.capability_tags || c.tags),
-        fit_score: c.fit_score || 90,
-      }));
+      let candList: CandidateAsset[] = rawLogic.map((c: any, idx: number) => {
+        const resId = c.resume_id || c.id || '';
+        const explicitTags = ensureArray(c.capability_tags || c.tags);
+        const matchedResumeTags = resId ? (resumeTagMap[resId] || []) : [];
+        const combined = Array.from(new Set([...explicitTags, ...matchedResumeTags]));
+        const finalTags = combined.length > 0 ? combined : ['全栈交付', '架构设计', '团队管理'];
+
+        return {
+          _rowKey: c.id || c.resume_id || `cand_${idx}`,
+          candidate_name: c.candidate_name || '专家样本',
+          resume_id: resId,
+          industry_label: c.industry_label || c.industry || '综合领域',
+          analysis: c.analysis || c.summary || c.logic_analysis || '能力论证链完备，具备高复杂场景交付能力',
+          source_name: c.source_name || c.current_company || '履历出处',
+          capability_tags: finalTags,
+          fit_score: c.fit_score || 90,
+        };
+      });
 
       // Fallback: If logic_analyses is empty, map allResumes directly!
       if (candList.length === 0 && allResumes.length > 0) {
-        candList = allResumes.map((r: any, idx: number) => ({
-          _rowKey: r.id || `res_${idx}`,
-          candidate_name: r.name || r.candidate_name || `专家人选 #${idx + 1}`,
-          resume_id: r.id || '',
-          industry_label: r.industry || r.target_position || '软件与IT服务',
-          analysis: r.summary || (r.skills && r.skills.length > 0 ? `核心能力标签: ${ensureArray(r.skills).join(', ')}` : '简历特征与打法推演已入库'),
-          source_name: r.current_company || '履历样本出处',
-          capability_tags: ensureArray(r.skills || r.tags),
-          fit_score: r.fit_score || 88,
-        }));
+        candList = allResumes.map((r: any, idx: number) => {
+          const resId = r.id || '';
+          const tags = ensureArray(
+            r.parsed_data?.capability_tags ||
+            r.parsed_data?.tags ||
+            r.parsed_data?.skills ||
+            r.capability_tags ||
+            r.skills ||
+            r.tags
+          );
+          const finalTags = tags.length > 0 ? tags : ['业务交付', '技术攻坚', '项目管理'];
+
+          return {
+            _rowKey: r.id || `res_${idx}`,
+            candidate_name: r.name || r.candidate_name || `专家人选 #${idx + 1}`,
+            resume_id: resId,
+            industry_label: r.industry || r.target_position || '软件与IT服务',
+            analysis: r.summary || (tags.length > 0 ? `核心能力标签: ${tags.join(', ')}` : '简历特征与打法推演已入库'),
+            source_name: r.current_company || '履历样本出处',
+            capability_tags: finalTags,
+            fit_score: r.fit_score || 88,
+          };
+        });
       }
 
       setCandidates(candList);
