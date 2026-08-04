@@ -668,6 +668,52 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
   ],
 };
 
+const CustomModelSelect: React.FC<{
+  value?: string;
+  onChange?: (val: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+}> = ({ value, onChange, options, placeholder }) => {
+  const [searchValue, setSearchValue] = useState('');
+
+  const displayOptions = React.useMemo(() => {
+    const list = [...options];
+    if (value && !list.some((o) => o.value === value)) {
+      list.unshift({ label: `${value} (当前已配置模型)`, value });
+    }
+    if (
+      searchValue &&
+      !list.some(
+        (o) =>
+          o.value.toLowerCase() === searchValue.toLowerCase() ||
+          o.label.toLowerCase() === searchValue.toLowerCase()
+      )
+    ) {
+      list.unshift({ label: `✨ 提交自定义模型: "${searchValue}"`, value: searchValue });
+    }
+    return list;
+  }, [options, value, searchValue]);
+
+  return (
+    <Select
+      showSearch
+      allowClear
+      value={value}
+      onChange={onChange}
+      onSearch={(t) => setSearchValue(t)}
+      placeholder={placeholder}
+      options={displayOptions}
+      filterOption={(input, option) => {
+        if (!input) return true;
+        const valStr = String(option?.value ?? '').toLowerCase();
+        const labelStr = String(option?.label ?? '').toLowerCase();
+        const inputStr = input.toLowerCase();
+        return valStr.includes(inputStr) || labelStr.includes(inputStr);
+      }}
+    />
+  );
+};
+
   const selectedLLMProvider = Form.useWatch('llm_provider', form) || 'dashscope';
   const selectedEmbeddingProvider = Form.useWatch('embedding_provider', form) || 'dashscope';
 
@@ -720,7 +766,7 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
             <Select
               options={[
                 { label: 'DeepSeek 官方 API (api.deepseek.com)', value: 'deepseek' },
-                { label: '阿里百炼 聚合通道 (Qwen/Kimi3/DeepSeek)', value: 'dashscope' },
+                { label: '阿里百炼 聚合通道 (Qwen/Kimi-K3/DeepSeek/GLM-5.2)', value: 'dashscope' },
                 { label: '字节火山引擎 (Ark / 豆包大模型)', value: 'volcengine' },
                 { label: '自定义 OpenAI 兼容接口', value: 'custom' },
               ]}
@@ -751,10 +797,10 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
 
           <Form.Item
             name="llm_model"
-            label="Model 模型名称（可下拉点选推荐模型，亦可直接自由输入保存任意自定义模型）"
+            label="Model 模型名称（点击查看完整推荐下拉，输入自定义名称自动添加）"
             rules={[{ required: true, message: '请选择或输入 Model 模型名称' }]}
           >
-            <AutoComplete
+            <CustomModelSelect
               options={
                 llmModelOptionsMap[selectedLLMProvider] || [
                   ...llmModelOptionsMap.deepseek,
@@ -762,11 +808,7 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
                   ...llmModelOptionsMap.volcengine,
                 ]
               }
-              placeholder="下拉点选推荐模型或自由输入，如 kimi-k3 / deepseek-v4-pro"
-              filterOption={(inputValue, option) =>
-                (option?.label ?? '').toLowerCase().includes(inputValue.toLowerCase()) ||
-                (option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
-              }
+              placeholder="点击点选推荐模型或输入自定义模型名称，如 kimi-k3 / deepseek-v4-pro"
             />
           </Form.Item>
 
@@ -835,19 +877,15 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
             <Input placeholder="例如：https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
           </Form.Item>
 
-          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称（可下拉点选推荐模型，亦可直接自由输入）">
-            <AutoComplete
+          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称（点击查看完整推荐下拉，输入自定义名称自动添加）">
+            <CustomModelSelect
               options={
                 embeddingModelOptionsMap[selectedEmbeddingProvider] || [
                   ...embeddingModelOptionsMap.dashscope,
                   ...embeddingModelOptionsMap.deepseek,
                 ]
               }
-              placeholder="下拉点选推荐模型或自由输入，如 text-embedding-v3 / bge-large-zh"
-              filterOption={(inputValue, option) =>
-                (option?.label ?? '').toLowerCase().includes(inputValue.toLowerCase()) ||
-                (option?.value ?? '').toLowerCase().includes(inputValue.toLowerCase())
-              }
+              placeholder="点击点选推荐模型或输入自定义向量模型，如 text-embedding-v3 / bge-large-zh"
             />
           </Form.Item>
 
