@@ -3,6 +3,7 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
   Input,
   Pagination,
   Progress,
@@ -15,6 +16,7 @@ import {
   Typography,
   Empty,
   Badge,
+  Tooltip,
 } from 'antd';
 import {
   AppstoreOutlined,
@@ -39,7 +41,7 @@ import request, { getApiErrorMessage } from '../../utils/request';
 import { AsyncState, ModulePageHeader, SensitiveField } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
-const { Text, Title } = Typography;
+const { Text, Title, Paragraph } = Typography;
 
 type ReviewStatus = 'unreviewed' | 'reviewed' | 'needs_revision';
 
@@ -185,6 +187,7 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectAsset[]>([]);
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
+  const [showBusinessModelColumn, setShowBusinessModelColumn] = useState<boolean>(false);
 
   // Tab 2: Talent Capabilities
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -265,11 +268,17 @@ const KnowledgeAssetsPage: React.FC = () => {
       const rawWorks = summaryRes?.work_experiences || [];
       const allResumes = Array.isArray(resumeListRes) ? resumeListRes : resumeListRes?.items || [];
 
-      // Build quick lookup map for resume capability tags
-      const resumeTagMap: Record<string, string[]> = {};
+      // Build quick lookup map for resume tags and match score
+      const resumeMap: Record<string, { tags: string[]; score: number; name: string }> = {};
+      const resumeNameMap: Record<string, { tags: string[]; score: number }> = {};
+
       allResumes.forEach((r: any) => {
         const id = r.id || r._id;
-        const tags = ensureArray(
+        const name = (r.name || r.candidate_name || '').trim();
+
+        const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
+        const companyTags = ensureArray(r.company_tags || r.parsed_data?.company_tags);
+        const skillTags = ensureArray(
           r.parsed_data?.capability_tags ||
           r.parsed_data?.tags ||
           r.parsed_data?.skills ||
@@ -277,18 +286,35 @@ const KnowledgeAssetsPage: React.FC = () => {
           r.skills ||
           r.tags
         );
-        if (id && tags.length > 0) {
-          resumeTagMap[id] = tags;
+
+        const allTags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
+        const score = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 85;
+
+        const info = { tags: allTags, score, name };
+
+        if (id) {
+          resumeMap[id] = info;
+        }
+        if (name) {
+          resumeNameMap[name] = info;
         }
       });
 
       // Map logic analyses into candidate capability assets
       let candList: CandidateAsset[] = rawLogic.map((c: any, idx: number) => {
         const resId = c.resume_id || c.id || '';
+        const name = (c.candidate_name || '').trim();
+
+        const matchedByResId = resId ? resumeMap[resId] : null;
+        const matchedByName = name ? resumeNameMap[name] : null;
+        const matched = matchedByResId || matchedByName;
+
         const explicitTags = ensureArray(c.capability_tags || c.tags);
-        const matchedResumeTags = resId ? (resumeTagMap[resId] || []) : [];
-        const combined = Array.from(new Set([...explicitTags, ...matchedResumeTags]));
-        const finalTags = combined.length > 0 ? combined : ['全栈交付', '架构设计', '团队管理'];
+        const resumeTags = matched?.tags || [];
+        const combinedTags = Array.from(new Set([...resumeTags, ...explicitTags]));
+        const finalTags = combinedTags.length > 0 ? combinedTags : ['全栈交付', '架构设计', '团队管理'];
+
+        const finalScore = matched?.score ?? c.match_score ?? c.fit_score ?? c.score ?? 85;
 
         return {
           _rowKey: c.id || c.resume_id || `cand_${idx}`,
@@ -298,7 +324,7 @@ const KnowledgeAssetsPage: React.FC = () => {
           analysis: c.analysis || c.summary || c.logic_analysis || '能力论证链完备，具备高复杂场景交付能力',
           source_name: c.source_name || c.current_company || '履历出处',
           capability_tags: finalTags,
-          fit_score: c.fit_score || 90,
+          fit_score: finalScore,
         };
       });
 
@@ -306,7 +332,9 @@ const KnowledgeAssetsPage: React.FC = () => {
       if (candList.length === 0 && allResumes.length > 0) {
         candList = allResumes.map((r: any, idx: number) => {
           const resId = r.id || '';
-          const tags = ensureArray(
+          const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
+          const companyTags = ensureArray(r.company_tags || r.parsed_data?.company_tags);
+          const skillTags = ensureArray(
             r.parsed_data?.capability_tags ||
             r.parsed_data?.tags ||
             r.parsed_data?.skills ||
@@ -314,7 +342,9 @@ const KnowledgeAssetsPage: React.FC = () => {
             r.skills ||
             r.tags
           );
+          const tags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
           const finalTags = tags.length > 0 ? tags : ['业务交付', '技术攻坚', '项目管理'];
+          const finalScore = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 88;
 
           return {
             _rowKey: r.id || `res_${idx}`,
@@ -324,7 +354,7 @@ const KnowledgeAssetsPage: React.FC = () => {
             analysis: r.summary || (tags.length > 0 ? `核心能力标签: ${tags.join(', ')}` : '简历特征与打法推演已入库'),
             source_name: r.current_company || '履历样本出处',
             capability_tags: finalTags,
-            fit_score: r.fit_score || 88,
+            fit_score: finalScore,
           };
         });
       }
@@ -507,7 +537,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '项目打法与样本出处',
       dataIndex: 'name',
       key: 'name',
-      width: 260,
+      width: showBusinessModelColumn ? '25%' : '35%',
       render: (text: string, record: ProjectAsset) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
@@ -524,27 +554,40 @@ const KnowledgeAssetsPage: React.FC = () => {
         </div>
       ),
     },
-    {
-      title: '商业模式与打法核心',
-      dataIndex: 'business_model',
-      key: 'business_model',
-      width: 380,
-      render: (text: string, record: ProjectAsset) => {
-        const content = text || record.problem || '商业模式待进一步提炼';
-        return (
-          <div style={{ wordBreak: 'break-all', whiteSpace: 'normal', lineHeight: '1.6' }}>
-            <Text style={{ fontSize: '13px', color: '#334155' }}>
-              {content}
-            </Text>
-          </div>
-        );
-      },
-    },
+    ...(showBusinessModelColumn
+      ? [
+          {
+            title: '商业模式与打法核心',
+            dataIndex: 'business_model',
+            key: 'business_model',
+            width: '30%',
+            render: (text: string, record: ProjectAsset) => {
+              const content = text || record.problem || '商业模式待进一步提炼';
+              return (
+                <Paragraph
+                  ellipsis={{ rows: 2, expandable: true, symbol: '展开' }}
+                  style={{
+                    margin: 0,
+                    fontSize: '13px',
+                    color: '#334155',
+                    lineHeight: '1.6',
+                    whiteSpace: 'normal',
+                    overflowWrap: 'break-word',
+                    wordBreak: 'normal',
+                  }}
+                >
+                  {content}
+                </Paragraph>
+              );
+            },
+          },
+        ]
+      : []),
     {
       title: '缺失证据链',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: 220,
+      width: showBusinessModelColumn ? '20%' : '25%',
       render: (items: any) => {
         const arr = ensureArray(items);
         return arr.length ? (
@@ -564,13 +607,13 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '预估打法方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: 220,
+      width: showBusinessModelColumn ? '20%' : '25%',
       render: (items: any) => renderTags(items, 'geekblue', 2),
     },
     {
       title: '操作',
       key: 'action',
-      width: 140,
+      width: '15%',
       align: 'center' as const,
       render: (_: any, record: ProjectAsset) => (
         <Space size="small">
@@ -843,14 +886,23 @@ const KnowledgeAssetsPage: React.FC = () => {
               children: (
                 <div style={{ paddingTop: 8 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', marginBottom: 16 }}>
-                    <Input
-                      allowClear
-                      prefix={<SearchOutlined />}
-                      placeholder="搜索项目名称、主导人、商业模式或打法关键字..."
-                      value={projectKeyword}
-                      onChange={(e) => setProjectKeyword(e.target.value)}
-                      style={{ width: 320 }}
-                    />
+                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Input
+                        allowClear
+                        prefix={<SearchOutlined />}
+                        placeholder="搜索项目名称、主导人、商业模式或打法关键字..."
+                        value={projectKeyword}
+                        onChange={(e) => setProjectKeyword(e.target.value)}
+                        style={{ width: 320 }}
+                      />
+                      <Checkbox
+                        checked={showBusinessModelColumn}
+                        onChange={(e) => setShowBusinessModelColumn(e.target.checked)}
+                        style={{ fontSize: '13px', color: '#475569' }}
+                      >
+                        显示「商业模式与打法核心」列
+                      </Checkbox>
+                    </div>
                     <Segmented
                       value={projectScope}
                       onChange={(val) => setProjectScope(val as 'all' | 'gaps')}
@@ -867,7 +919,7 @@ const KnowledgeAssetsPage: React.FC = () => {
                     dataSource={filteredProjects}
                     columns={projectColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
-                    scroll={{ x: 1220 }}
+                    scroll={showBusinessModelColumn ? { x: 1140 } : undefined}
                     size="middle"
                   />
                 </div>
