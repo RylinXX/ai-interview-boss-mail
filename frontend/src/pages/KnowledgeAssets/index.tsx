@@ -92,6 +92,7 @@ interface CandidateAsset {
   source_name?: string;
   capability_tags?: string[];
   fit_score?: number;
+  match_score?: number;
 }
 
 interface WorkExperienceAsset {
@@ -187,7 +188,6 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [projects, setProjects] = useState<ProjectAsset[]>([]);
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
-  const [showBusinessModelColumn, setShowBusinessModelColumn] = useState<boolean>(false);
 
   // Tab 2: Talent Capabilities
   const [candidatesLoading, setCandidatesLoading] = useState(false);
@@ -537,7 +537,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '项目打法与样本出处',
       dataIndex: 'name',
       key: 'name',
-      width: showBusinessModelColumn ? '25%' : '35%',
+      width: '38%',
       render: (text: string, record: ProjectAsset) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
@@ -554,40 +554,11 @@ const KnowledgeAssetsPage: React.FC = () => {
         </div>
       ),
     },
-    ...(showBusinessModelColumn
-      ? [
-          {
-            title: '商业模式与打法核心',
-            dataIndex: 'business_model',
-            key: 'business_model',
-            width: '30%',
-            render: (text: string, record: ProjectAsset) => {
-              const content = text || record.problem || '商业模式待进一步提炼';
-              return (
-                <Paragraph
-                  ellipsis={{ rows: 2, expandable: true, symbol: '展开' }}
-                  style={{
-                    margin: 0,
-                    fontSize: '13px',
-                    color: '#334155',
-                    lineHeight: '1.6',
-                    whiteSpace: 'normal',
-                    overflowWrap: 'break-word',
-                    wordBreak: 'normal',
-                  }}
-                >
-                  {content}
-                </Paragraph>
-              );
-            },
-          },
-        ]
-      : []),
     {
       title: '缺失证据链',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: showBusinessModelColumn ? '20%' : '25%',
+      width: '24%',
       render: (items: any) => {
         const arr = ensureArray(items);
         return arr.length ? (
@@ -607,13 +578,13 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '预估打法方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: showBusinessModelColumn ? '20%' : '25%',
+      width: '24%',
       render: (items: any) => renderTags(items, 'geekblue', 2),
     },
     {
       title: '操作',
       key: 'action',
-      width: '15%',
+      width: '14%',
       align: 'center' as const,
       render: (_: any, record: ProjectAsset) => (
         <Space size="small">
@@ -673,20 +644,43 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '能力标签矩阵',
       dataIndex: 'capability_tags',
       key: 'capability_tags',
-      width: '240px',
-      render: (tags: any) => renderTags(tags, 'geekblue', 3),
+      width: 280,
+      render: (tags: any) => {
+        const arr = ensureArray(tags);
+        return arr.length ? (
+          <Space wrap size={[4, 4]}>
+            {arr.map((item) => {
+              const isSchool = item.includes('院校') || item.includes('985') || item.includes('211') || item.includes('学历') || item.includes('硕士') || item.includes('博士') || item.includes('本科');
+              const isCompany = item.includes('500强') || item.includes('大厂') || item.includes('互联网') || item.includes('知名');
+              const color = isSchool ? (item.includes('985') ? 'purple' : item.includes('211') ? 'cyan' : 'blue') : isCompany ? (item.includes('500强') ? 'gold' : item.includes('互联网') ? 'volcano' : 'blue') : 'geekblue';
+              const icon = isSchool ? '🎓 ' : isCompany ? '🏢 ' : '';
+              return (
+                <Tag color={color} key={item} style={{ margin: 0, fontWeight: 600, fontSize: '11px', lineHeight: '18px' }}>
+                  {icon}{item}
+                </Tag>
+              );
+            })}
+          </Space>
+        ) : (
+          <Text type="secondary">待补充</Text>
+        );
+      },
     },
     {
       title: '能力验证评分',
       dataIndex: 'fit_score',
       key: 'fit_score',
-      width: '130px',
-      render: (score: number) => (
-        <Space>
-          <Progress type="circle" percent={score || 90} width={36} strokeColor="#10b981" />
-          <Text strong style={{ color: '#10b981' }}>{score || 90}分</Text>
-        </Space>
-      ),
+      width: 130,
+      render: (score: number, record: CandidateAsset) => {
+        const val = record.fit_score ?? record.match_score ?? score ?? 85;
+        const color = val >= 80 ? '#10b981' : val >= 60 ? '#f59e0b' : '#ef4444';
+        return (
+          <Space>
+            <Progress type="circle" percent={val} width={36} strokeColor={color} format={() => val} />
+            <Text strong style={{ color }}>{val}分</Text>
+          </Space>
+        );
+      },
     },
     {
       title: '操作',
@@ -886,23 +880,14 @@ const KnowledgeAssetsPage: React.FC = () => {
               children: (
                 <div style={{ paddingTop: 8 }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Input
-                        allowClear
-                        prefix={<SearchOutlined />}
-                        placeholder="搜索项目名称、主导人、商业模式或打法关键字..."
-                        value={projectKeyword}
-                        onChange={(e) => setProjectKeyword(e.target.value)}
-                        style={{ width: 320 }}
-                      />
-                      <Checkbox
-                        checked={showBusinessModelColumn}
-                        onChange={(e) => setShowBusinessModelColumn(e.target.checked)}
-                        style={{ fontSize: '13px', color: '#475569' }}
-                      >
-                        显示「商业模式与打法核心」列
-                      </Checkbox>
-                    </div>
+                    <Input
+                      allowClear
+                      prefix={<SearchOutlined />}
+                      placeholder="搜索项目名称、主导人、商业模式或打法关键字..."
+                      value={projectKeyword}
+                      onChange={(e) => setProjectKeyword(e.target.value)}
+                      style={{ width: 320 }}
+                    />
                     <Segmented
                       value={projectScope}
                       onChange={(val) => setProjectScope(val as 'all' | 'gaps')}
@@ -919,7 +904,6 @@ const KnowledgeAssetsPage: React.FC = () => {
                     dataSource={filteredProjects}
                     columns={projectColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
-                    scroll={showBusinessModelColumn ? { x: 1140 } : undefined}
                     size="middle"
                   />
                 </div>
