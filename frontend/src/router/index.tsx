@@ -4,20 +4,44 @@ import { Spin } from 'antd';
 import AppLayout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 
-const Login = lazy(() => import('../pages/Login'));
-const Dashboard = lazy(() => import('../pages/Dashboard'));
-const CustomerProjectsList = lazy(() => import('../pages/CustomerProjects/List'));
-const CustomerProjectDetail = lazy(() => import('../pages/CustomerProjects/Detail'));
-const AIEmployeesList = lazy(() => import('../pages/AIEmployees/List'));
-const KnowledgeAssets = lazy(() => import('../pages/KnowledgeAssets'));
-const KnowledgeAssetIntake = lazy(() => import('../pages/KnowledgeAssets/Intake'));
-const KnowledgeAssetDetail = lazy(() => import('../pages/KnowledgeAssets/Detail'));
-const ResumesList = lazy(() => import('../pages/Resumes/List'));
-const ResumeUpload = lazy(() => import('../pages/Resumes/Upload'));
-const ResumeDetail = lazy(() => import('../pages/Resumes/Detail'));
-const UsersList = lazy(() => import('../pages/Settings/Users'));
-const ProfileSettings = lazy(() => import('../pages/Settings/Profile'));
-const SystemSettingsPage = lazy(() => import('../pages/Settings/System'));
+const safeLazy = (importFn: () => Promise<any>) =>
+  lazy(async () => {
+    try {
+      return await importFn();
+    } catch (error: any) {
+      const isChunkError =
+        error?.name === 'ChunkLoadError' ||
+        /failed to fetch dynamically imported module/i.test(error?.message || '') ||
+        /importing a module script failed/i.test(error?.message || '');
+
+      if (isChunkError) {
+        const reloadKey = 'chunk_reload_timestamp';
+        const lastReload = sessionStorage.getItem(reloadKey);
+        const now = Date.now();
+        if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
+          sessionStorage.setItem(reloadKey, String(now));
+          window.location.reload();
+          return new Promise(() => {});
+        }
+      }
+      throw error;
+    }
+  });
+
+const Login = safeLazy(() => import('../pages/Login'));
+const Dashboard = safeLazy(() => import('../pages/Dashboard'));
+const CustomerProjectsList = safeLazy(() => import('../pages/CustomerProjects/List'));
+const CustomerProjectDetail = safeLazy(() => import('../pages/CustomerProjects/Detail'));
+const AIEmployeesList = safeLazy(() => import('../pages/AIEmployees/List'));
+const KnowledgeAssets = safeLazy(() => import('../pages/KnowledgeAssets'));
+const KnowledgeAssetIntake = safeLazy(() => import('../pages/KnowledgeAssets/Intake'));
+const KnowledgeAssetDetail = safeLazy(() => import('../pages/KnowledgeAssets/Detail'));
+const ResumesList = safeLazy(() => import('../pages/Resumes/List'));
+const ResumeUpload = safeLazy(() => import('../pages/Resumes/Upload'));
+const ResumeDetail = safeLazy(() => import('../pages/Resumes/Detail'));
+const UsersList = safeLazy(() => import('../pages/Settings/Users'));
+const ProfileSettings = safeLazy(() => import('../pages/Settings/Profile'));
+const SystemSettingsPage = safeLazy(() => import('../pages/Settings/System'));
 
 const PageFallback = () => (
   <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
@@ -30,6 +54,42 @@ const lazyPage = (page: React.ReactNode) => (
     {page}
   </Suspense>
 );
+
+const RouteErrorBoundary = () => {
+  const handleReload = () => {
+    sessionStorage.removeItem('chunk_reload_timestamp');
+    window.location.reload();
+  };
+
+  return (
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '70vh', padding: '24px' }}>
+      <div style={{ textAlign: 'center', maxWidth: 460 }}>
+        <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#1e293b', marginBottom: 12 }}>
+          ⚡ 系统代码已更新为最新版本
+        </h2>
+        <p style={{ color: '#64748b', fontSize: '14px', lineHeight: 1.6, marginBottom: 20 }}>
+          新版本资源文件已部署生效，点击下方按钮即可刷新同步载入最新功能。
+        </p>
+        <button
+          type="button"
+          onClick={handleReload}
+          style={{
+            background: '#2563eb',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 24px',
+            borderRadius: '6px',
+            fontSize: '14px',
+            cursor: 'pointer',
+            fontWeight: 500,
+          }}
+        >
+          一键刷新载入最新版本
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -54,6 +114,7 @@ const router = createBrowserRouter([
   {
     path: '/login',
     element: lazyPage(<Login />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/',
@@ -62,9 +123,10 @@ const router = createBrowserRouter([
         <AppLayout />
       </ProtectedRoute>
     ),
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
-        path: '/',
+        index: true,
         element: <Navigate to="/dashboard" replace />,
       },
       {
@@ -72,8 +134,8 @@ const router = createBrowserRouter([
         element: lazyPage(<Dashboard />),
       },
       {
-        path: 'industry-agent',
-        element: <Navigate to="/ai-solution-assistant" replace />,
+        path: 'workbench',
+        element: lazyPage(<AIEmployeesList />),
       },
       {
         path: 'customer-projects',
@@ -82,18 +144,6 @@ const router = createBrowserRouter([
       {
         path: 'customer-projects/:id',
         element: lazyPage(<CustomerProjectDetail />),
-      },
-      {
-        path: 'ai-solution-assistant',
-        element: lazyPage(<AIEmployeesList />),
-      },
-      {
-        path: 'ai-employees',
-        element: <Navigate to="/ai-solution-assistant" replace />,
-      },
-      {
-        path: 'ai-product-manager',
-        element: <Navigate to="/ai-solution-assistant" replace />,
       },
       {
         path: 'knowledge-assets',
