@@ -75,12 +75,14 @@ type ResumeMailLog = {
 };
 
 type PromptConfigItem = {
-  name: string;
-  key: string;
-  description: string;
-  system_prompt: string;
-  user_template: string;
-  variable_hints: string[];
+  name?: string;
+  key?: string;
+  description?: string;
+  system?: string;
+  system_prompt?: string;
+  user?: string;
+  user_template?: string;
+  variable_hints?: string[];
 };
 
 type PromptConfigs = Record<string, PromptConfigItem>;
@@ -192,29 +194,35 @@ const CustomModelSelect: React.FC<{
   );
 };
 
-// Sub-component for individual Prompt configuration card to avoid Invalid Hook Calls
+// Sub-component for individual Prompt configuration card
 const PromptConfigCard: React.FC<{
   configKey: string;
   config: PromptConfigItem;
   commonVariables: string[];
-  onSave: (key: string, values: { system_prompt: string; user_template: string }) => Promise<void>;
+  onSave: (key: string, values: { system: string; user: string }) => Promise<void>;
   onReset: (key: string) => Promise<void>;
 }> = ({ configKey, config, commonVariables, onSave, onReset }) => {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
 
+  const initialSystem = config.system || config.system_prompt || '';
+  const initialUser = config.user || config.user_template || '';
+
   useEffect(() => {
     form.setFieldsValue({
-      system_prompt: config.system_prompt,
-      user_template: config.user_template,
+      system_prompt: initialSystem,
+      user_template: initialUser,
     });
-  }, [config, form]);
+  }, [initialSystem, initialUser, form]);
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields();
       setSaving(true);
-      await onSave(configKey, values);
+      await onSave(configKey, {
+        system: values.system_prompt,
+        user: values.user_template,
+      });
     } catch (e: any) {
       if (e?.errorFields) {
         message.error('请填写完整的 System Prompt 与 User Template');
@@ -438,8 +446,9 @@ const SystemSettingsPage: React.FC = () => {
   const fetchPromptConfigs = async () => {
     setPromptLoading(true);
     try {
-      const res = (await request.get('/settings/prompts')) as PromptConfigs;
-      setPromptConfigs(res || {});
+      const res = (await request.get('/settings/prompts')) as any;
+      const dict = res?.prompts || res || {};
+      setPromptConfigs(dict);
     } catch (e) {
       message.error(getApiErrorMessage(e, '获取提示词配置失败'));
     } finally {
@@ -604,7 +613,7 @@ const SystemSettingsPage: React.FC = () => {
     }
   };
 
-  const savePromptConfig = async (key: string, values: { system_prompt: string; user_template: string }) => {
+  const savePromptConfig = async (key: string, values: { system: string; user: string }) => {
     try {
       await request.put(`/settings/prompts/${key}`, values);
       message.success('提示词模板更新成功');
