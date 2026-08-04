@@ -267,11 +267,11 @@ const AppLayout: React.FC = () => {
       className: 'workflow-nav-item workflow-nav-item-last',
     },
     {
-      key: '/settings/users',
+      key: '/settings/system',
       icon: <SettingOutlined />,
-      label: '用户管理',
-      description: '内部成员、角色与访问权限',
-      tag: '访问控制',
+      label: '系统设置',
+      description: '大模型、向量引擎、成员权限与系统运行配置',
+      tag: '系统配置',
       roles: ['admin'],
     },
   ];

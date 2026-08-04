@@ -121,7 +121,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'settings/users',
-        element: lazyPage(<UsersList />),
+        element: <Navigate to="/settings/system?tab=users" replace />,
       },
       {
         path: 'settings/profile',
