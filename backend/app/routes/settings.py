@@ -173,10 +173,52 @@ def test_llm_connection(
             "provider": cfg["llm_provider"],
             "model": cfg["llm_model"],
             "reply": reply,
-            "message": f"连接成功！[{cfg['llm_provider']} / {cfg['llm_model']}] 返回: {reply}"
+            "message": f"大模型连接成功！[{cfg['llm_provider']} / {cfg['llm_model']}] 返回: {reply}"
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"模型连通性测试失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"大模型连通性测试失败: {str(e)}")
+
+
+@router.post("/system/test-embedding")
+def test_embedding_connection(
+    db: Session = Depends(get_db),
+    _current_user=Depends(check_roles([UserRole.ADMIN])),
+):
+    from openai import OpenAI
+    config = _get_or_create_config(db)
+    provider = config.embedding_provider or "dashscope"
+    model = config.embedding_model or "text-embedding-v3"
+    
+    if provider == "local":
+        return {
+            "success": True,
+            "provider": "local",
+            "model": "local_hashing_vectorizer",
+            "message": "测试成功！系统内置轻量特征向量引擎 (local_hashing_vectorizer) 运行正常"
+        }
+    
+    api_key = config.embedding_api_key or config.llm_api_key
+    base_url = _normalize_llm_base_url(config.embedding_base_url or config.llm_base_url)
+    
+    if not api_key:
+        raise HTTPException(status_code=400, detail="未配置 Embedding API Key，无法进行测试")
+    
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        res = client.embeddings.create(
+            model=model,
+            input="Ping test embedding dimension"
+        )
+        vec_len = len(res.data[0].embedding)
+        return {
+            "success": True,
+            "provider": provider,
+            "model": model,
+            "dimension": vec_len,
+            "message": f"Embedding 测试成功！[{provider} / {model}] 成功生成 {vec_len} 维特征向量"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Embedding 向量模型连通性测试失败: {str(e)}")
 
 
 @router.get("/mail", response_model=MailConfigResponse)

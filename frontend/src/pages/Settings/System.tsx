@@ -86,6 +86,7 @@ const SystemSettingsPage: React.FC = () => {
   const [resumeMailForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [testingLLM, setTestingLLM] = useState(false);
+  const [testingEmbedding, setTestingEmbedding] = useState(false);
   const [mailLoading, setMailLoading] = useState(false);
   const [resumeMailLoading, setResumeMailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -360,11 +361,23 @@ const SystemSettingsPage: React.FC = () => {
     setTestingLLM(true);
     try {
       const res: any = await request.post('/settings/system/test-llm');
-      message.success(res.message || '模型连通测试成功！');
+      message.success(res.message || '大模型连通测试成功！');
     } catch (e) {
-      message.error(getApiErrorMessage(e, '模型连通测试失败'));
+      message.error(getApiErrorMessage(e, '大模型连通测试失败'));
     } finally {
       setTestingLLM(false);
+    }
+  };
+
+  const testEmbeddingConnection = async () => {
+    setTestingEmbedding(true);
+    try {
+      const res: any = await request.post('/settings/system/test-embedding');
+      message.success(res.message || 'Embedding 向量模型测试成功！');
+    } catch (e) {
+      message.error(getApiErrorMessage(e, 'Embedding 向量模型测试失败'));
+    } finally {
+      setTestingEmbedding(false);
     }
   };
 
@@ -732,8 +745,9 @@ const CustomModelSelect: React.FC<{
         title="模型与 Embedding 向量引擎配置"
         loading={loading}
         extra={
-          <Space>
+          <Space wrap>
             <Button onClick={testLLMConnection} loading={testingLLM}>测试大模型连通性</Button>
+            <Button onClick={testEmbeddingConnection} loading={testingEmbedding}>测试 Embedding 连通性</Button>
             <Button onClick={fetchSettings}>刷新</Button>
             <Button type="primary" onClick={save} loading={saving}>保存全部配置</Button>
           </Space>
@@ -840,9 +854,14 @@ const CustomModelSelect: React.FC<{
 
           <Divider style={{ margin: '24px 0 16px' }} />
 
-          <Title level={5} style={{ marginBottom: 12, borderLeft: '4px solid #10b981', paddingLeft: 8 }}>
-            🧠 RAG 知识库 Embedding 向量引擎
-          </Title>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Title level={5} style={{ margin: 0, borderLeft: '4px solid #10b981', paddingLeft: 8 }}>
+              🧠 RAG 知识库 Embedding 向量引擎
+            </Title>
+            <Button size="small" type="dashed" onClick={testEmbeddingConnection} loading={testingEmbedding}>
+              🔍 测试向量模型连通性
+            </Button>
+          </div>
 
           <Form.Item name="embedding_provider" label="Embedding 向量服务通道">
             <Select
