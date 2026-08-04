@@ -30,28 +30,37 @@ router = APIRouter(tags=["knowledge-assets"])
 
 
 @router.get("/knowledge-assets", response_model=KnowledgeAssetPageResponse)
+@router.get("/knowledge-assets/query", response_model=KnowledgeAssetPageResponse)
 def list_knowledge_assets_route(
+    q: Optional[str] = None,
     query: Optional[str] = None,
+    industry_tag: Optional[str] = None,
     industry: Optional[str] = None,
+    topic_tag: Optional[str] = None,
     topic: Optional[str] = None,
     evidence_type: Optional[str] = None,
     review_status: Optional[str] = None,
     source_type: Optional[str] = None,
-    limit: int = Query(default=100, ge=1, le=500),
+    skip: int = Query(default=0, ge=0),
     offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    search_q = q or query
+    search_ind = industry_tag or industry
+    search_top = topic_tag or topic
+    search_off = skip or offset
     return service.list_assets(
         db,
-        query,
-        industry,
-        topic,
-        evidence_type,
-        review_status,
-        source_type,
-        limit,
-        offset,
+        query=search_q,
+        industry=search_ind,
+        topic=search_top,
+        evidence_type=evidence_type,
+        review_status=review_status,
+        source_type=source_type,
+        limit=limit,
+        offset=search_off,
     )
 
 
