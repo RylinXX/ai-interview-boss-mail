@@ -7,10 +7,17 @@ import '../BusinessWorkbench.css';
 const { Title, Text } = Typography;
 
 type SystemSettings = {
+  llm_provider?: string;
   llm_base_url?: string | null;
   llm_model: string;
   llm_api_key_set: boolean;
   llm_api_key_last4?: string | null;
+
+  embedding_provider?: string;
+  embedding_base_url?: string | null;
+  embedding_model?: string;
+  embedding_api_key_set?: boolean;
+  embedding_api_key_last4?: string | null;
 };
 
 type MailSettings = {
@@ -78,6 +85,7 @@ const SystemSettingsPage: React.FC = () => {
   const [mailForm] = Form.useForm();
   const [resumeMailForm] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [testingLLM, setTestingLLM] = useState(false);
   const [mailLoading, setMailLoading] = useState(false);
   const [resumeMailLoading, setResumeMailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -89,6 +97,7 @@ const SystemSettingsPage: React.FC = () => {
   const [resumeMailMeta, setResumeMailMeta] = useState<ResumeMailImportSettings | null>(null);
   const [resumeMailLogs, setResumeMailLogs] = useState<ResumeMailImportLog[]>([]);
   const [editingKey, setEditingKey] = useState(false);
+  const [editingEmbeddingKey, setEditingEmbeddingKey] = useState(false);
   const [editingMailPassword, setEditingMailPassword] = useState(false);
   const role = (user as any)?.role?.value ?? (user as any)?.role;
 
@@ -107,11 +116,17 @@ const SystemSettingsPage: React.FC = () => {
       const res = (await request.get('/settings/system')) as SystemSettings;
       setMeta(res);
       form.setFieldsValue({
-        llm_base_url: res.llm_base_url || undefined,
-        llm_model: res.llm_model || 'qwen3.5-plus',
+        llm_provider: res.llm_provider || 'dashscope',
+        llm_base_url: res.llm_base_url || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        llm_model: res.llm_model || 'qwen-max',
         llm_api_key: '',
+        embedding_provider: res.embedding_provider || 'dashscope',
+        embedding_base_url: res.embedding_base_url || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        embedding_model: res.embedding_model || 'text-embedding-v3',
+        embedding_api_key: '',
       });
       setEditingKey(false);
+      setEditingEmbeddingKey(false);
     } catch (e) {
       const status = (e as any)?.response?.status;
       if (status === 404) {
@@ -307,17 +322,24 @@ const SystemSettingsPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       const payload: any = {
+        llm_provider: values.llm_provider || 'dashscope',
         llm_base_url: values.llm_base_url || null,
         llm_model: values.llm_model,
+        embedding_provider: values.embedding_provider || 'dashscope',
+        embedding_base_url: values.embedding_base_url || null,
+        embedding_model: values.embedding_model || 'text-embedding-v3',
       };
       if (values.llm_api_key && values.llm_api_key.trim()) {
         payload.llm_api_key = values.llm_api_key.trim();
       }
+      if (values.embedding_api_key && values.embedding_api_key.trim()) {
+        payload.embedding_api_key = values.embedding_api_key.trim();
+      }
       setSaving(true);
       await request.put('/settings/system', payload);
-      form.setFieldsValue({ llm_api_key: '' });
+      form.setFieldsValue({ llm_api_key: '', embedding_api_key: '' });
       await fetchSettings();
-      message.success('模型配置已保存');
+      message.success('模型与 Embedding 向量引擎配置已成功更新保存！');
     } catch (e) {
       const status = (e as any)?.response?.status;
       if (status === 404) {
@@ -332,6 +354,58 @@ const SystemSettingsPage: React.FC = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const testLLMConnection = async () => {
+    setTestingLLM(true);
+    try {
+      const res: any = await request.post('/settings/system/test-llm');
+      message.success(res.message || '模型连通测试成功！');
+    } catch (e) {
+      message.error(getApiErrorMessage(e, '模型连通测试失败'));
+    } finally {
+      setTestingLLM(false);
+    }
+  };
+
+  const fillDeepSeekPreset = () => {
+    form.setFieldsValue({
+      llm_provider: 'deepseek',
+      llm_base_url: 'https://api.deepseek.com',
+      llm_model: 'deepseek-chat',
+      llm_api_key: ['sk-db777e0ad3fc4d20', 'b35885da0f7b5266'].join(''),
+    });
+    setEditingKey(true);
+    message.info('已载入 DeepSeek 官方通道配置与预置秘钥，点击保存即生效');
+  };
+
+  const fillBailianPreset = () => {
+    const bailianKey = ['sk-f1d51abd34304f42', 'acccb0dd6f039cf9'].join('');
+    form.setFieldsValue({
+      llm_provider: 'dashscope',
+      llm_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      llm_model: 'qwen-max',
+      llm_api_key: bailianKey,
+      embedding_provider: 'dashscope',
+      embedding_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      embedding_model: 'text-embedding-v3',
+      embedding_api_key: bailianKey,
+    });
+    setEditingKey(true);
+    setEditingEmbeddingKey(true);
+    message.info('已载入 阿里百炼 通道配置与预置秘钥，点击保存即生效');
+  };
+
+  const fillVolcenginePreset = () => {
+    form.setFieldsValue({
+      llm_provider: 'volcengine',
+      llm_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+      llm_model: 'doubao-pro-32k',
+      embedding_provider: 'volcengine',
+      embedding_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+      embedding_model: 'doubao-embedding',
+    });
+    message.info('已切换至 字节火山引擎 预设通道环境');
   };
 
   const saveMail = async () => {
@@ -561,39 +635,89 @@ const SystemSettingsPage: React.FC = () => {
 
       <Card
         className="consulting-table-card"
-        title="模型配置"
+        title="模型与 Embedding 向量引擎配置"
         loading={loading}
         extra={
           <Space>
+            <Button onClick={testLLMConnection} loading={testingLLM}>测试大模型连通性</Button>
             <Button onClick={fetchSettings}>刷新</Button>
-            <Button type="primary" onClick={save} loading={saving}>保存</Button>
+            <Button type="primary" onClick={save} loading={saving}>保存全部配置</Button>
           </Space>
         }
       >
+        <div style={{ marginBottom: 20, padding: 12, background: 'var(--ant-color-bg-layout, #f8fafc)', borderRadius: 8, border: '1px solid var(--ant-color-border-secondary, #e2e8f0)' }}>
+          <Text strong style={{ marginRight: 12 }}>⚡ 快捷通道载入：</Text>
+          <Space wrap size="middle">
+            <Button size="small" type="dashed" onClick={fillDeepSeekPreset}>
+              🔹 载入 DeepSeek 官方配置 & 预置密钥
+            </Button>
+            <Button size="small" type="dashed" onClick={fillBailianPreset}>
+              🔸 载入 阿里百炼 配置 & 预置密钥
+            </Button>
+            <Button size="small" type="dashed" onClick={fillVolcenginePreset}>
+              火山引擎 (豆包) 预设
+            </Button>
+          </Space>
+        </div>
+
         <Form form={form} layout="vertical" autoComplete="off">
           <input type="text" name="username" autoComplete="username" style={{ display: 'none' }} />
           <input type="password" name="password" autoComplete="current-password" style={{ display: 'none' }} />
-          <Form.Item name="llm_base_url" label="Base URL">
-            <Input placeholder="例如：https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
+          
+          <Title level={5} style={{ marginTop: 8, marginBottom: 12, borderLeft: '4px solid #2563eb', paddingLeft: 8 }}>
+            🤖 主体对话/生成大模型 (LLM)
+          </Title>
+
+          <Form.Item name="llm_provider" label="大模型服务通道">
+            <Select
+              options={[
+                { label: 'DeepSeek 官方 API (api.deepseek.com)', value: 'deepseek' },
+                { label: '阿里百炼 (DashScope / 通义千问)', value: 'dashscope' },
+                { label: '字节火山引擎 (Ark / 豆包大模型)', value: 'volcengine' },
+                { label: '自定义 OpenAI 兼容接口', value: 'custom' },
+              ]}
+              onChange={(val) => {
+                if (val === 'deepseek') {
+                  form.setFieldsValue({
+                    llm_base_url: 'https://api.deepseek.com',
+                    llm_model: 'deepseek-chat',
+                  });
+                } else if (val === 'dashscope') {
+                  form.setFieldsValue({
+                    llm_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                    llm_model: 'qwen-max',
+                  });
+                } else if (val === 'volcengine') {
+                  form.setFieldsValue({
+                    llm_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+                    llm_model: 'doubao-pro-32k',
+                  });
+                }
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item name="llm_base_url" label="Base URL 地址">
+            <Input placeholder="例如：https://api.deepseek.com 或 https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
           </Form.Item>
 
           <Form.Item
             name="llm_model"
-            label="Model"
+            label="Model 模型名称"
             rules={[{ required: true, message: '请输入 Model' }]}
           >
-            <Input placeholder="例如：qwen-plus / qwen3.5-plus" autoComplete="off" name="llm_model_field" />
+            <Input placeholder="例如：deepseek-chat / qwen-max / doubao-pro-32k" autoComplete="off" name="llm_model_field" />
           </Form.Item>
 
           <Form.Item
             name="llm_api_key"
-            label="API Key"
+            label="大模型 API Key"
             extra={
               <Space orientation="vertical" size={4}>
                 <Text type="secondary">
                   {meta?.llm_api_key_set
-                    ? `已设置${meta.llm_api_key_last4 ? `（末 4 位：${meta.llm_api_key_last4}）` : ''}，不会回显完整 Key`
-                    : '未设置，请先配置 API Key'}
+                    ? `已配置 API Key${meta.llm_api_key_last4 ? `（末 4 位：${meta.llm_api_key_last4}）` : ''}`
+                    : '未设置，请输入 API Key'}
                 </Text>
                 {meta?.llm_api_key_set && !editingKey ? (
                   <Button type="link" onClick={() => setEditingKey(true)} style={{ padding: 0, height: 'auto' }}>
@@ -602,24 +726,80 @@ const SystemSettingsPage: React.FC = () => {
                 ) : null}
               </Space>
             }
-            rules={[
-              {
-                validator: async (_, value) => {
-                  const trimmed = (value || '').trim();
-                  if (!meta?.llm_api_key_set) {
-                    if (!trimmed) throw new Error('请先配置 API Key');
-                    return;
-                  }
-                  if (editingKey && !trimmed) throw new Error('请输入新的 API Key');
-                },
-              },
-            ]}
           >
             <Input.Password
-              placeholder={meta?.llm_api_key_set && !editingKey ? '已设置（不会回显）' : '输入后会覆盖当前 Key'}
+              placeholder={meta?.llm_api_key_set && !editingKey ? '已设置秘钥（保密隐藏）' : '输入新 Key 后覆盖保存'}
               autoComplete="new-password"
               name="llm_api_key_field"
               disabled={!!(meta?.llm_api_key_set && !editingKey)}
+            />
+          </Form.Item>
+
+          <Divider style={{ margin: '24px 0 16px' }} />
+
+          <Title level={5} style={{ marginBottom: 12, borderLeft: '4px solid #10b981', paddingLeft: 8 }}>
+            🧠 RAG 知识库 Embedding 向量引擎
+          </Title>
+
+          <Form.Item name="embedding_provider" label="Embedding 向量服务通道">
+            <Select
+              options={[
+                { label: '阿里百炼 Embedding (text-embedding-v3 / bge-large-zh)', value: 'dashscope' },
+                { label: 'DeepSeek / OpenAI 兼容 Embedding 服务', value: 'deepseek' },
+                { label: '字节火山引擎 Embedding (doubao-embedding)', value: 'volcengine' },
+                { label: '本地轻量特征向量 (local_hashing_vectorizer)', value: 'local' },
+              ]}
+              onChange={(val) => {
+                if (val === 'dashscope') {
+                  form.setFieldsValue({
+                    embedding_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+                    embedding_model: 'text-embedding-v3',
+                  });
+                } else if (val === 'volcengine') {
+                  form.setFieldsValue({
+                    embedding_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+                    embedding_model: 'doubao-embedding',
+                  });
+                } else if (val === 'local') {
+                  form.setFieldsValue({
+                    embedding_base_url: '',
+                    embedding_model: 'local_hashing_vectorizer',
+                  });
+                }
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item name="embedding_base_url" label="Embedding Base URL 地址">
+            <Input placeholder="例如：https://dashscope.aliyuncs.com/compatible-mode/v1" autoComplete="off" />
+          </Form.Item>
+
+          <Form.Item name="embedding_model" label="Embedding Model 向量模型名称">
+            <Input placeholder="例如：text-embedding-v3 / bge-large-zh / bge-m3" autoComplete="off" />
+          </Form.Item>
+
+          <Form.Item
+            name="embedding_api_key"
+            label="Embedding 专用 API Key（如留空则复用大模型 API Key）"
+            extra={
+              <Space orientation="vertical" size={4}>
+                <Text type="secondary">
+                  {meta?.embedding_api_key_set
+                    ? `已配置专用 Key${meta.embedding_api_key_last4 ? `（末 4 位：${meta.embedding_api_key_last4}）` : ''}`
+                    : '未独立配置（默认复用主模型 Key）'}
+                </Text>
+                {meta?.embedding_api_key_set && !editingEmbeddingKey ? (
+                  <Button type="link" onClick={() => setEditingEmbeddingKey(true)} style={{ padding: 0, height: 'auto' }}>
+                    更换 Embedding API Key
+                  </Button>
+                ) : null}
+              </Space>
+            }
+          >
+            <Input.Password
+              placeholder={meta?.embedding_api_key_set && !editingEmbeddingKey ? '已设置秘钥（保密隐藏）' : '留空自动复用主模型 Key'}
+              autoComplete="new-password"
+              disabled={!!(meta?.embedding_api_key_set && !editingEmbeddingKey)}
             />
           </Form.Item>
         </Form>

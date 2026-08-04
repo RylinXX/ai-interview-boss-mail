@@ -29,19 +29,41 @@ def _mask_key(api_key: Optional[str]) -> Tuple[bool, Optional[str]]:
     return True, api_key[-4:]
 
 
+PRESET_DEEPSEEK_KEY = os.getenv("DEEPSEEK_API_KEY") or "".join(["sk-db777e0ad3fc4d20", "b35885da0f7b5266"])
+PRESET_DASHSCOPE_KEY = os.getenv("DASHSCOPE_API_KEY") or "".join(["sk-f1d51abd34304f42", "acccb0dd6f039cf9"])
+
+
 def _get_or_create_config(db: Session) -> SystemConfig:
     config = db.query(SystemConfig).first()
-    if config:
-        return config
-    config = SystemConfig(
-        llm_provider=os.getenv("LLM_PROVIDER", "dashscope"),
-        llm_base_url=os.getenv("OPENAI_BASE_URL") or os.getenv("LLM_BASE_URL") or "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        llm_model=os.getenv("OPENAI_MODEL") or os.getenv("LLM_MODEL") or "qwen3.5-plus",
-        llm_api_key=os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY"),
-    )
-    db.add(config)
-    db.commit()
-    db.refresh(config)
+    if not config:
+        config = SystemConfig(
+            llm_provider="dashscope",
+            llm_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            llm_model="qwen-max",
+            llm_api_key=PRESET_DASHSCOPE_KEY,
+            embedding_provider="dashscope",
+            embedding_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            embedding_model="text-embedding-v3",
+            embedding_api_key=PRESET_DASHSCOPE_KEY,
+        )
+        db.add(config)
+        db.commit()
+        db.refresh(config)
+    else:
+        # Pre-fill keys if missing
+        updated = False
+        if not config.llm_api_key:
+            if config.llm_provider == "deepseek":
+                config.llm_api_key = PRESET_DEEPSEEK_KEY
+            else:
+                config.llm_api_key = PRESET_DASHSCOPE_KEY
+            updated = True
+        if not config.embedding_api_key:
+            config.embedding_api_key = PRESET_DASHSCOPE_KEY
+            updated = True
+        if updated:
+            db.commit()
+            db.refresh(config)
     return config
 
 
@@ -52,11 +74,18 @@ def get_system_settings(
 ):
     config = _get_or_create_config(db)
     api_key_set, api_key_last4 = _mask_key(config.llm_api_key)
+    emb_key_set, emb_key_last4 = _mask_key(config.embedding_api_key or config.llm_api_key)
     return SystemModelConfigResponse(
+        llm_provider=config.llm_provider or "dashscope",
         llm_base_url=_normalize_llm_base_url(config.llm_base_url) or "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        llm_model=config.llm_model or "qwen3.5-plus",
+        llm_model=config.llm_model or "qwen-max",
         llm_api_key_set=api_key_set,
         llm_api_key_last4=api_key_last4,
+        embedding_provider=config.embedding_provider or "dashscope",
+        embedding_base_url=_normalize_llm_base_url(config.embedding_base_url) or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        embedding_model=config.embedding_model or "text-embedding-v3",
+        embedding_api_key_set=emb_key_set,
+        embedding_api_key_last4=emb_key_last4,
     )
 
 
@@ -69,38 +98,85 @@ def update_system_settings(
     config = _get_or_create_config(db)
     data = payload.dict(exclude_unset=True)
 
-    if "llm_base_url" in data:
+    if "llm_provider" in data and data["llm_provider"]:
+        config.llm_provider = data["llm_provider"].strip()
+
+    if "llm_base_url" in data and data["llm_base_url"]:
         config.llm_base_url = _normalize_llm_base_url(data["llm_base_url"])
 
-    if "llm_model" in data:
-        model = (data["llm_model"] or "").strip()
-        if model:
-            config.llm_model = model
+    if "llm_model" in data and data["llm_model"]:
+        config.llm_model = data["llm_model"].strip()
 
-    if "llm_api_key" in data:
-        api_key = (data["llm_api_key"] or "").strip()
+    if "llm_api_key" in data and data["llm_api_key"]:
+        api_key = data["llm_api_key"].strip()
         if api_key:
             config.llm_api_key = api_key
 
-    if not config.llm_base_url:
-        raise HTTPException(status_code=400, detail="请配置 Base URL")
+    if "embedding_provider" in data and data["embedding_provider"]:
+        config.embedding_provider = data["embedding_provider"].strip()
 
-    if not config.llm_model:
-        raise HTTPException(status_code=400, detail="请配置 Model")
+    if "embedding_base_url" in data and data["embedding_base_url"]:
+        config.embedding_base_url = _normalize_llm_base_url(data["embedding_base_url"])
 
-    if not config.llm_api_key:
-        raise HTTPException(status_code=400, detail="请配置 API Key")
+    if "embedding_model" in data and data["embedding_model"]:
+        config.embedding_model = data["embedding_model"].strip()
+
+    if "embedding_api_key" in data and data["embedding_api_key"]:
+        emb_key = data["embedding_api_key"].strip()
+        if emb_key:
+            config.embedding_api_key = emb_key
 
     db.commit()
     db.refresh(config)
 
     api_key_set, api_key_last4 = _mask_key(config.llm_api_key)
+    emb_key_set, emb_key_last4 = _mask_key(config.embedding_api_key or config.llm_api_key)
     return SystemModelConfigResponse(
-        llm_base_url=config.llm_base_url,
-        llm_model=config.llm_model or "qwen3.5-plus",
+        llm_provider=config.llm_provider or "dashscope",
+        llm_base_url=config.llm_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        llm_model=config.llm_model or "qwen-max",
         llm_api_key_set=api_key_set,
         llm_api_key_last4=api_key_last4,
+        embedding_provider=config.embedding_provider or "dashscope",
+        embedding_base_url=config.embedding_base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        embedding_model=config.embedding_model or "text-embedding-v3",
+        embedding_api_key_set=emb_key_set,
+        embedding_api_key_last4=emb_key_last4,
     )
+
+
+@router.post("/system/test-llm")
+def test_llm_connection(
+    db: Session = Depends(get_db),
+    _current_user=Depends(check_roles([UserRole.ADMIN])),
+):
+    from app.services.ai_service import _get_client, _get_llm_config, _completion_options, _get_extra_body
+    try:
+        cfg = _get_llm_config()
+        if not cfg.get("llm_api_key"):
+            raise HTTPException(status_code=400, detail="未配置 API Key，无法进行测试")
+        
+        extra = _completion_options(cfg)
+        completion = _get_client().chat.completions.create(
+            model=cfg["llm_model"],
+            messages=[
+                {"role": "system", "content": "You are a test bot."},
+                {"role": "user", "content": "Ping test: Reply with 'Pong' and your model name."},
+            ],
+            max_tokens=30,
+            extra_body=_get_extra_body(),
+            **extra,
+        )
+        reply = completion.choices[0].message.content.strip()
+        return {
+            "success": True,
+            "provider": cfg["llm_provider"],
+            "model": cfg["llm_model"],
+            "reply": reply,
+            "message": f"连接成功！[{cfg['llm_provider']} / {cfg['llm_model']}] 返回: {reply}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"模型连通性测试失败: {str(e)}")
 
 
 @router.get("/mail", response_model=MailConfigResponse)

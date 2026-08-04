@@ -5,16 +5,29 @@ from datetime import datetime
 
 
 class SystemModelConfigResponse(BaseModel):
+    llm_provider: str = "dashscope"
     llm_base_url: Optional[str] = None
     llm_model: str
     llm_api_key_set: bool
     llm_api_key_last4: Optional[str] = None
 
+    embedding_provider: str = "dashscope"
+    embedding_base_url: Optional[str] = None
+    embedding_model: str = "text-embedding-v3"
+    embedding_api_key_set: bool = False
+    embedding_api_key_last4: Optional[str] = None
+
 
 class SystemModelConfigUpdate(BaseModel):
+    llm_provider: Optional[str] = None
     llm_base_url: Optional[str] = None
     llm_api_key: Optional[str] = None
     llm_model: Optional[str] = None
+
+    embedding_provider: Optional[str] = None
+    embedding_base_url: Optional[str] = None
+    embedding_api_key: Optional[str] = None
+    embedding_model: Optional[str] = None
 
 
 class MailConfigResponse(BaseModel):

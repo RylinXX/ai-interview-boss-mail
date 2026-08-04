@@ -459,9 +459,14 @@ class SystemConfig(Base):
     llm_provider = Column(String, default="dashscope")
     llm_base_url = Column(String, default="https://dashscope.aliyuncs.com/compatible-mode/v1")
     llm_api_key = Column(String)
-    llm_model = Column(String, default="qwen3.5-plus")
+    llm_model = Column(String, default="qwen-max")
     llm_temperature = Column(Float, default=0.2)
     llm_max_tokens = Column(Integer)
+    # Embedding 向量引擎配置
+    embedding_provider = Column(String, default="dashscope")
+    embedding_base_url = Column(String, default="https://dashscope.aliyuncs.com/compatible-mode/v1")
+    embedding_api_key = Column(String)
+    embedding_model = Column(String, default="text-embedding-v3")
     # 邮件服务配置
     smtp_host = Column(String)
     smtp_port = Column(Integer, default=465)
