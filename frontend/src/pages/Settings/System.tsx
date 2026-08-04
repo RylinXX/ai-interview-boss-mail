@@ -372,11 +372,11 @@ const SystemSettingsPage: React.FC = () => {
     form.setFieldsValue({
       llm_provider: 'deepseek',
       llm_base_url: 'https://api.deepseek.com',
-      llm_model: 'deepseek-chat',
+      llm_model: 'deepseek-v4-pro',
       llm_api_key: ['sk-db777e0ad3fc4d20', 'b35885da0f7b5266'].join(''),
     });
     setEditingKey(true);
-    message.info('已载入 DeepSeek 官方通道配置与预置秘钥，点击保存即生效');
+    message.info('已载入 DeepSeek 官方通道配置 (deepseek-v4-pro) 与预置秘钥');
   };
 
   const fillBailianPreset = () => {
@@ -393,19 +393,19 @@ const SystemSettingsPage: React.FC = () => {
     });
     setEditingKey(true);
     setEditingEmbeddingKey(true);
-    message.info('已载入 阿里百炼 通道配置与预置秘钥，点击保存即生效');
+    message.info('已载入 阿里百炼 聚合通道配置 (Qwen/Kimi3/DeepSeek) 与预置秘钥');
   };
 
   const fillVolcenginePreset = () => {
     form.setFieldsValue({
       llm_provider: 'volcengine',
       llm_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-      llm_model: 'doubao-pro-32k',
+      llm_model: 'doubao-seed-2-0-pro-260215',
       embedding_provider: 'volcengine',
       embedding_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
       embedding_model: 'doubao-embedding',
     });
-    message.info('已切换至 字节火山引擎 预设通道环境');
+    message.info('已切换至 字节火山引擎 (doubao-seed-2-0-pro-260215) 预设环境');
   };
 
   const saveMail = async () => {
@@ -625,21 +625,17 @@ const SystemSettingsPage: React.FC = () => {
 
 const llmModelOptionsMap: Record<string, { label: string; value: string }[]> = {
   deepseek: [
-    { label: 'deepseek-chat (DeepSeek-V3 推荐)', value: 'deepseek-chat' },
-    { label: 'deepseek-reasoner (DeepSeek-R1 推理模型)', value: 'deepseek-reasoner' },
+    { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰推荐)', value: 'deepseek-v4-pro' },
+    { label: 'deepseek-v4-flash (DeepSeek V4 Flash 极速)', value: 'deepseek-v4-flash' },
   ],
   dashscope: [
-    { label: 'qwen-max (通义千问 Flagship 推荐)', value: 'qwen-max' },
-    { label: 'qwen-plus (通用增强型)', value: 'qwen-plus' },
-    { label: 'qwen-turbo (极速高性价比)', value: 'qwen-turbo' },
-    { label: 'qwen-long (超长上下文)', value: 'qwen-long' },
-    { label: 'qwen2.5-72b-instruct (开源 Flagship)', value: 'qwen2.5-72b-instruct' },
+    { label: 'qwen-max (阿里通义千问 Qwen-Max 旗舰)', value: 'qwen-max' },
+    { label: 'kimi3 (月之暗面 Kimi3 旗舰)', value: 'kimi3' },
+    { label: 'deepseek-v4-pro (DeepSeek V4 Pro 旗舰)', value: 'deepseek-v4-pro' },
   ],
   volcengine: [
-    { label: 'doubao-pro-32k (豆包 Pro 32K 推荐)', value: 'doubao-pro-32k' },
-    { label: 'doubao-pro-128k (豆包 Pro 128K 长文本)', value: 'doubao-pro-128k' },
-    { label: 'doubao-lite-32k (豆包 Lite 极速)', value: 'doubao-lite-32k' },
-    { label: 'doubao-seed-2-0-pro-260215', value: 'doubao-seed-2-0-pro-260215' },
+    { label: 'doubao-seed-2-0-pro-260215 (豆包 Seed 2.0 Pro 推荐)', value: 'doubao-seed-2-0-pro-260215' },
+    { label: 'doubao-seed-2-0-pro', value: 'doubao-seed-2-0-pro' },
   ],
   custom: [
     { label: 'gpt-4o (OpenAI 官方)', value: 'gpt-4o' },
@@ -723,7 +719,7 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
             <Select
               options={[
                 { label: 'DeepSeek 官方 API (api.deepseek.com)', value: 'deepseek' },
-                { label: '阿里百炼 (DashScope / 通义千问)', value: 'dashscope' },
+                { label: '阿里百炼 聚合通道 (Qwen/Kimi3/DeepSeek)', value: 'dashscope' },
                 { label: '字节火山引擎 (Ark / 豆包大模型)', value: 'volcengine' },
                 { label: '自定义 OpenAI 兼容接口', value: 'custom' },
               ]}
@@ -731,7 +727,7 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
                 if (val === 'deepseek') {
                   form.setFieldsValue({
                     llm_base_url: 'https://api.deepseek.com',
-                    llm_model: 'deepseek-chat',
+                    llm_model: 'deepseek-v4-pro',
                   });
                 } else if (val === 'dashscope') {
                   form.setFieldsValue({
@@ -741,7 +737,7 @@ const embeddingModelOptionsMap: Record<string, { label: string; value: string }[
                 } else if (val === 'volcengine') {
                   form.setFieldsValue({
                     llm_base_url: 'https://ark.cn-beijing.volces.com/api/v3',
-                    llm_model: 'doubao-pro-32k',
+                    llm_model: 'doubao-seed-2-0-pro-260215',
                   });
                 }
               }}
