@@ -748,7 +748,6 @@ const SystemSettingsPage: React.FC = () => {
                     extra={
                       <Space wrap>
                         <Button onClick={testLLMConnection} loading={testingLLM}>测试大模型连通性</Button>
-                        <Button onClick={testEmbeddingConnection} loading={testingEmbedding}>测试 Embedding 连通性</Button>
                         <Button onClick={fetchSettings}>刷新</Button>
                         <Button type="primary" onClick={save} loading={saving}>保存全部配置</Button>
                       </Space>
