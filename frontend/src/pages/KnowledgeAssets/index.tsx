@@ -469,13 +469,13 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '项目打法与样本出处',
       dataIndex: 'name',
       key: 'name',
-      width: '28%',
+      width: 260,
       render: (text: string, record: ProjectAsset) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
             {text}
           </Text>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <Tag color={record.industry_color || 'purple'} style={{ margin: 0 }}>
               {record.industry_label || '通用业务'}
             </Tag>
@@ -490,20 +490,23 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '商业模式与打法核心',
       dataIndex: 'business_model',
       key: 'business_model',
-      width: '32%',
-      render: (text: string, record: ProjectAsset) => (
-        <div>
-          <Text style={{ fontSize: '13px', color: '#334155', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {text || record.problem || '商业模式待进一步提炼'}
-          </Text>
-        </div>
-      ),
+      width: 380,
+      render: (text: string, record: ProjectAsset) => {
+        const content = text || record.problem || '商业模式待进一步提炼';
+        return (
+          <div style={{ wordBreak: 'break-all', whiteSpace: 'normal', lineHeight: '1.6' }}>
+            <Text style={{ fontSize: '13px', color: '#334155' }}>
+              {content}
+            </Text>
+          </div>
+        );
+      },
     },
     {
       title: '缺失证据链',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: '22%',
+      width: 220,
       render: (items: any) => {
         const arr = ensureArray(items);
         return arr.length ? (
@@ -523,13 +526,13 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '预估打法方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: '18%',
+      width: 220,
       render: (items: any) => renderTags(items, 'geekblue', 2),
     },
     {
       title: '操作',
       key: 'action',
-      width: '130px',
+      width: 140,
       align: 'center' as const,
       render: (_: any, record: ProjectAsset) => (
         <Space size="small">
@@ -826,7 +829,7 @@ const KnowledgeAssetsPage: React.FC = () => {
                     dataSource={filteredProjects}
                     columns={projectColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
-                    scroll={{ x: 980 }}
+                    scroll={{ x: 1220 }}
                     size="middle"
                   />
                 </div>
