@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Button,
   Card,
@@ -15,7 +15,6 @@ import {
   Tag,
   Select,
   Table,
-  AutoComplete,
   Result,
 } from 'antd';
 import { useSearchParams } from 'react-router-dom';
@@ -193,6 +192,92 @@ const CustomModelSelect: React.FC<{
   );
 };
 
+// Sub-component for individual Prompt configuration card to avoid Invalid Hook Calls
+const PromptConfigCard: React.FC<{
+  configKey: string;
+  config: PromptConfigItem;
+  commonVariables: string[];
+  onSave: (key: string, values: { system_prompt: string; user_template: string }) => Promise<void>;
+  onReset: (key: string) => Promise<void>;
+}> = ({ configKey, config, commonVariables, onSave, onReset }) => {
+  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    form.setFieldsValue({
+      system_prompt: config.system_prompt,
+      user_template: config.user_template,
+    });
+  }, [config, form]);
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields();
+      setSaving(true);
+      await onSave(configKey, values);
+    } catch (e: any) {
+      if (e?.errorFields) {
+        message.error('请填写完整的 System Prompt 与 User Template');
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Space direction="vertical" size="large" style={{ width: '100%', paddingTop: 8 }}>
+      <Alert
+        type="info"
+        showIcon
+        message={config.description || '自定义该场景下的 System Prompt 与 User Template，系统自动提供变量插值。'}
+      />
+
+      <Form layout="vertical" form={form}>
+        <Form.Item
+          name="system_prompt"
+          label="System Prompt (系统角色人设指令)"
+          rules={[{ required: true, message: 'System Prompt 不能为空' }]}
+        >
+          <Input.TextArea rows={7} placeholder="设定 AI 助手的专业角色、输出格式规范与约束规则..." />
+        </Form.Item>
+
+        <Form.Item
+          name="user_template"
+          label="User Template (用户输入渲染模板)"
+          rules={[{ required: true, message: 'User Template 不能为空' }]}
+        >
+          <Input.TextArea rows={9} placeholder="使用 {{variable}} 插值渲染用户提交的数据上下文..." />
+        </Form.Item>
+
+        <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+          <Text strong style={{ fontSize: '13px' }}>可用插值变量 hint：</Text>
+          <div style={{ marginTop: 6 }}>
+            {config.variable_hints?.map((varName) => (
+              <Tag color="geekblue" key={varName} style={{ marginBottom: 4 }}>
+                {`{{${varName}}}`}
+              </Tag>
+            ))}
+            {commonVariables?.map((varName) => (
+              <Tag color="cyan" key={varName} style={{ marginBottom: 4 }}>
+                {`{{${varName}}}`} (通用)
+              </Tag>
+            ))}
+          </div>
+        </div>
+
+        <Space size="middle" style={{ marginTop: 16 }}>
+          <Button type="primary" onClick={handleSave} loading={saving}>
+            保存修改
+          </Button>
+          <Button danger onClick={() => onReset(configKey)}>
+            恢复默认
+          </Button>
+        </Space>
+      </Form>
+    </Space>
+  );
+};
+
 const SystemSettingsPage: React.FC = () => {
   const { user } = useAuth();
   const [form] = Form.useForm();
@@ -222,9 +307,7 @@ const SystemSettingsPage: React.FC = () => {
     module_specific: {},
   });
   const [promptLoading, setPromptLoading] = useState(false);
-  const [promptSavingKey, setPromptSavingKey] = useState<string | null>(null);
   const [activePromptKey, setActivePromptKey] = useState<string>('build_solution_content');
-  const promptFormsRef = useRef<Record<string, any>>({});
 
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSystemTab = searchParams.get('tab') || 'model';
@@ -357,16 +440,6 @@ const SystemSettingsPage: React.FC = () => {
     try {
       const res = (await request.get('/settings/prompts')) as PromptConfigs;
       setPromptConfigs(res || {});
-      const nextForms: Record<string, any> = {};
-      Object.entries(res || {}).forEach(([key, cfg]) => {
-        const f = Form.useForm()[0];
-        f.setFieldsValue({
-          system_prompt: cfg.system_prompt,
-          user_template: cfg.user_template,
-        });
-        nextForms[key] = f;
-      });
-      promptFormsRef.current = nextForms;
     } catch (e) {
       message.error(getApiErrorMessage(e, '获取提示词配置失败'));
     } finally {
@@ -531,22 +604,13 @@ const SystemSettingsPage: React.FC = () => {
     }
   };
 
-  const savePromptConfig = async (key: string) => {
-    const f = promptFormsRef.current[key];
-    if (!f) return;
+  const savePromptConfig = async (key: string, values: { system_prompt: string; user_template: string }) => {
     try {
-      const values = await f.validateFields();
-      setPromptSavingKey(key);
-      await request.put(`/settings/prompts/${key}`, {
-        system_prompt: values.system_prompt,
-        user_template: values.user_template,
-      });
+      await request.put(`/settings/prompts/${key}`, values);
       message.success('提示词模板更新成功');
       fetchPromptConfigs();
     } catch (e) {
       message.error(getApiErrorMessage(e, '保存失败'));
-    } finally {
-      setPromptSavingKey(null);
     }
   };
 
@@ -618,75 +682,15 @@ const SystemSettingsPage: React.FC = () => {
 
   const promptTabs = Object.entries(promptConfigs).map(([key, cfg]) => ({
     key,
-    label: (
-      <span>
-        {PROMPT_NAME_MAP[key] || cfg.name || key}
-      </span>
-    ),
+    label: PROMPT_NAME_MAP[key] || cfg.name || key,
     children: (
-      <Space direction="vertical" size="large" style={{ width: '100%', paddingTop: 8 }}>
-        <Alert
-          type="info"
-          showIcon
-          message={cfg.description || '自定义该场景下的 System Prompt 与 User Template，系统自动提供变量插值。'}
-        />
-
-        <Form
-          ref={(inst) => {
-            if (inst) promptFormsRef.current[key] = inst;
-          }}
-          layout="vertical"
-          initialValues={{
-            system_prompt: cfg.system_prompt,
-            user_template: cfg.user_template,
-          }}
-        >
-          <Form.Item
-            name="system_prompt"
-            label="System Prompt (系统角色人设指令)"
-            rules={[{ required: true, message: 'System Prompt 不能为空' }]}
-          >
-            <Input.TextArea rows={7} placeholder="设定 AI 助手的专业角色、输出格式规范与约束规则..." />
-          </Form.Item>
-
-          <Form.Item
-            name="user_template"
-            label="User Template (用户输入渲染模板)"
-            rules={[{ required: true, message: 'User Template 不能为空' }]}
-          >
-            <Input.TextArea rows={9} placeholder="使用 {{variable}} 插值渲染用户提交的数据上下文..." />
-          </Form.Item>
-
-          <div style={{ background: '#f8fafc', padding: '12px 16px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
-            <Text strong style={{ fontSize: '13px' }}>可用插值变量 hint：</Text>
-            <div style={{ marginTop: 6 }}>
-              {cfg.variable_hints?.map((varName) => (
-                <Tag color="geekblue" key={varName} style={{ marginBottom: 4 }}>
-                  {`{{${varName}}}`}
-                </Tag>
-              ))}
-              {promptVariables.common?.map((varName) => (
-                <Tag color="cyan" key={varName} style={{ marginBottom: 4 }}>
-                  {`{{${varName}}}`} (通用)
-                </Tag>
-              ))}
-            </div>
-          </div>
-
-          <Space size="middle" style={{ marginTop: 16 }}>
-            <Button
-              type="primary"
-              onClick={() => savePromptConfig(key)}
-              loading={promptSavingKey === key}
-            >
-              保存修改
-            </Button>
-            <Button danger onClick={() => resetPromptConfig(key)}>
-              恢复默认
-            </Button>
-          </Space>
-        </Form>
-      </Space>
+      <PromptConfigCard
+        configKey={key}
+        config={cfg}
+        commonVariables={promptVariables.common}
+        onSave={savePromptConfig}
+        onReset={resetPromptConfig}
+      />
     ),
   }));
 
