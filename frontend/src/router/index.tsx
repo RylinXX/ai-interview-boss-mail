@@ -120,6 +120,10 @@ const router = createBrowserRouter([
         element: lazyPage(<ResumeDetail />),
       },
       {
+        path: 'settings',
+        element: <Navigate to="/settings/system" replace />,
+      },
+      {
         path: 'settings/users',
         element: <Navigate to="/settings/system?tab=users" replace />,
       },

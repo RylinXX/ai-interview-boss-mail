@@ -16,6 +16,7 @@ import {
   Select,
   Table,
   Result,
+  Spin,
 } from 'antd';
 import { useSearchParams } from 'react-router-dom';
 import { RobotOutlined, UserOutlined, MailOutlined, SettingOutlined } from '@ant-design/icons';
@@ -287,7 +288,6 @@ const PromptConfigCard: React.FC<{
 };
 
 const SystemSettingsPage: React.FC = () => {
-  const { user } = useAuth();
   const [form] = Form.useForm();
   const [mailForm] = Form.useForm();
   const [resumeMailForm] = Form.useForm();
@@ -632,6 +632,16 @@ const SystemSettingsPage: React.FC = () => {
       message.error(getApiErrorMessage(e, '重置失败'));
     }
   };
+
+  const { user, loading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <div style={{ padding: 60, textAlign: 'center' }}>
+        <Spin size="large" tip="正在校验系统设置权限..." />
+      </div>
+    );
+  }
 
   if (user?.role !== 'admin') {
     return (
