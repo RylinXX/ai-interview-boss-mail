@@ -39,85 +39,20 @@ import {
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
 import { AsyncState, ModulePageHeader, SensitiveField } from '../../components/Workbench';
+import { useAuth } from '../../contexts/AuthContext';
+import { useKnowledgeAssetsStore } from '../../store/useKnowledgeAssetsStore';
+import type {
+  KnowledgeAsset,
+  ProjectAsset,
+  CandidateAsset,
+  WorkExperienceAsset,
+  AssetFilters,
+} from '../../store/useKnowledgeAssetsStore';
 import '../BusinessWorkbench.css';
 
 const { Text, Title, Paragraph } = Typography;
 
 type ReviewStatus = 'unreviewed' | 'reviewed' | 'needs_revision';
-
-interface KnowledgeAsset {
-  id: string;
-  title: string;
-  asset_code?: string;
-  content_snippet?: string;
-  confidence_score?: number;
-  evidence_strength_score?: number;
-  confidentiality_level?: string;
-  review_status?: ReviewStatus;
-  reviewed_by?: string | null;
-  reviewed_at?: string | null;
-  review_notes?: string | null;
-  source_type?: string;
-  source_id?: string;
-  source_name?: string | null;
-  source_confidentiality?: string | null;
-  tags?: string[];
-  industry_tags?: string[];
-  business_topic_tags?: string[];
-  evidence_type_tags?: string[];
-  created_at?: string;
-}
-
-interface ProjectAsset {
-  _rowKey: string;
-  id?: string;
-  name: string;
-  candidate_name: string;
-  resume_id?: string;
-  role?: string;
-  business_model?: string;
-  problem?: string;
-  missing_evidence?: string[];
-  landing_ideas?: string[];
-  industry_label?: string;
-  industry_color?: string;
-}
-
-interface CandidateAsset {
-  _rowKey: string;
-  candidate_name: string;
-  resume_id?: string;
-  industry_label?: string;
-  analysis?: string;
-  source_name?: string;
-  capability_tags?: string[];
-  fit_score?: number;
-  match_score?: number;
-}
-
-interface WorkExperienceAsset {
-  _rowKey: string;
-  candidate_name: string;
-  resume_id?: string;
-  company: string;
-  department?: string;
-  title?: string;
-  period?: string;
-  description?: string;
-  achievement?: string;
-  industry_label?: string;
-  capability_tags?: string[];
-  evidence_strength_score?: number;
-}
-
-interface AssetFilters {
-  query?: string;
-  industry?: string;
-  topic?: string;
-  evidenceType?: string;
-  reviewStatus?: string;
-  sourceType?: string;
-}
 
 const reviewStatusMeta: Record<ReviewStatus, { label: string; color: string }> = {
   unreviewed: { label: '待核对', color: 'default' },
@@ -133,13 +68,6 @@ const sourceTypeLabel: Record<string, string> = {
 
 const sourceTypeOptions = Object.entries(sourceTypeLabel).map(([value, label]) => ({ value, label }));
 const reviewStatusOptions = Object.entries(reviewStatusMeta).map(([value, meta]) => ({ value, label: meta.label }));
-
-const compactDate = (value?: string | null) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString();
-};
 
 const ensureArray = (val: any): string[] => {
   if (!val) return [];
@@ -179,38 +107,18 @@ const KnowledgeAssetsPage: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { user } = useAuth();
 
   const initialTab = searchParams.get('tab') || 'projects';
   const [activeMainTab, setActiveMainTab] = useState<string>(initialTab);
 
-  // Tab 1: Project Playbooks
-  const [projectsLoading, setProjectsLoading] = useState(false);
-  const [projects, setProjects] = useState<ProjectAsset[]>([]);
+  // Search / Filter inputs
   const [projectKeyword, setProjectKeyword] = useState('');
   const [projectScope, setProjectScope] = useState<'all' | 'gaps'>('all');
-
-  // Tab 2: Talent Capabilities
-  const [candidatesLoading, setCandidatesLoading] = useState(false);
-  const [candidates, setCandidates] = useState<CandidateAsset[]>([]);
   const [candidateKeyword, setCandidateKeyword] = useState('');
-
-  // Tab 3: Work Experiences
-  const [worksLoading, setWorksLoading] = useState(false);
-  const [works, setWorks] = useState<WorkExperienceAsset[]>([]);
   const [workKeyword, setWorkKeyword] = useState('');
 
-  // Tab 4: Knowledge Asset Chunks
-  const [chunksLoading, setChunksLoading] = useState(true);
-  const [chunksError, setChunksError] = useState<string | null>(null);
-  const [chunks, setChunks] = useState<KnowledgeAsset[]>([]);
-  const [chunksTotal, setChunksTotal] = useState(0);
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  const [taxonomy, setTaxonomy] = useState({
-    industry_tags: [] as string[],
-    business_topic_tags: [] as string[],
-    evidence_type_tags: [] as string[],
-  });
-
+  // Chunk filters
   const [query, setQuery] = useState('');
   const [industry, setIndustry] = useState<string>();
   const [topic, setTopic] = useState<string>();
@@ -220,215 +128,97 @@ const KnowledgeAssetsPage: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<AssetFilters>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+
+  // Store state & actions
+  const {
+    projects,
+    projectsLoading,
+    projectsRefreshing,
+    candidates,
+    works,
+    experienceLoading,
+    experienceRefreshing,
+    chunksCache,
+    taxonomy,
+    chunksLoading,
+    chunksRefreshing,
+    chunksError,
+    fetchProjects,
+    fetchExperienceSummary,
+    fetchChunks,
+    refreshAll,
+  } = useKnowledgeAssetsStore();
+
+  const userId = user?.id || 'default';
+
+  // Current chunks slice from cache
+  const currentChunksKey = [
+    userId,
+    activeFilters.query || '',
+    activeFilters.industry || '',
+    activeFilters.topic || '',
+    activeFilters.evidenceType || '',
+    activeFilters.reviewStatus || '',
+    activeFilters.sourceType || '',
+    currentPage,
+    pageSize,
+  ].join('_');
+
+  const currentChunkData = chunksCache[currentChunksKey];
+  const chunks = currentChunkData?.chunks || [];
+  const chunksTotal = currentChunkData?.total || 0;
+
+  const isRefreshing =
+    projectsRefreshing || experienceRefreshing || chunksRefreshing || manualRefreshing;
 
   const handleTabChange = (key: string) => {
     setActiveMainTab(key);
     setSearchParams({ tab: key }, { replace: true });
   };
 
-  // Fetch Project Playbooks
-  const fetchProjects = useCallback(async () => {
-    setProjectsLoading(true);
-    try {
-      const res: any = await request.get('/resumes/project-library', { timeout: 20000 }).catch(() => ({}));
-      const rawProjects = Array.isArray(res) ? res : res?.projects || [];
-      const mapped = rawProjects.map((p: any, idx: number) => ({
-        _rowKey: p.id || `proj_${idx}_${p.name || ''}`,
-        id: p.id,
-        name: p.name || p.project_name || '未命名打法案例',
-        candidate_name: p.candidate_name || p.owner_name || '内部专家',
-        resume_id: p.resume_id || '',
-        role: p.role || p.position || '负责人',
-        business_model: p.business_model || p.summary || p.description || '',
-        problem: p.problem || p.pain_point || '',
-        missing_evidence: ensureArray(p.missing_evidence || p.evidence_gaps),
-        landing_ideas: ensureArray(p.landing_ideas || p.ideas),
-        industry_label: p.industry_label || p.industry || '通用业务',
-        industry_color: p.industry_color || 'purple',
-      }));
-      setProjects(mapped);
-    } catch (e) {
-      console.error('Failed to fetch projects', e);
-    } finally {
-      setProjectsLoading(false);
-    }
-  }, []);
-
-  // Fetch Experience Summary (Candidates + Work Experiences)
-  const fetchExperienceSummary = useCallback(async () => {
-    setCandidatesLoading(true);
-    setWorksLoading(true);
-    try {
-      const [summaryRes, resumeListRes]: [any, any] = await Promise.all([
-        request.get('/resumes/experience-summary', { timeout: 20000 }).catch(() => ({})),
-        request.get('/resumes', { params: { limit: 500 } }).catch(() => []),
-      ]);
-
-      const rawLogic = summaryRes?.logic_analyses || summaryRes?.candidates || [];
-      const rawWorks = summaryRes?.work_experiences || [];
-      const allResumes = Array.isArray(resumeListRes) ? resumeListRes : resumeListRes?.items || [];
-
-      // Build quick lookup map for resume tags and match score
-      const resumeMap: Record<string, { tags: string[]; score: number; name: string }> = {};
-      const resumeNameMap: Record<string, { tags: string[]; score: number }> = {};
-
-      allResumes.forEach((r: any) => {
-        const id = r.id || r._id;
-        const name = (r.name || r.candidate_name || '').trim();
-
-        const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
-        const companyTags = ensureArray(r.company_tags || r.parsed_data?.company_tags);
-        const skillTags = ensureArray(
-          r.parsed_data?.capability_tags ||
-          r.parsed_data?.tags ||
-          r.parsed_data?.skills ||
-          r.capability_tags ||
-          r.skills ||
-          r.tags
-        );
-
-        const allTags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
-        const score = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 85;
-
-        const info = { tags: allTags, score, name };
-
-        if (id) {
-          resumeMap[id] = info;
-        }
-        if (name) {
-          resumeNameMap[name] = info;
-        }
-      });
-
-      // Map logic analyses into candidate capability assets
-      let candList: CandidateAsset[] = rawLogic.map((c: any, idx: number) => {
-        const resId = c.resume_id || c.id || '';
-        const name = (c.candidate_name || '').trim();
-
-        const matchedByResId = resId ? resumeMap[resId] : null;
-        const matchedByName = name ? resumeNameMap[name] : null;
-        const matched = matchedByResId || matchedByName;
-
-        const explicitTags = ensureArray(c.capability_tags || c.tags);
-        const resumeTags = matched?.tags || [];
-        const combinedTags = Array.from(new Set([...resumeTags, ...explicitTags]));
-        const finalTags = combinedTags;
-
-        const finalScore = matched?.score ?? c.match_score ?? c.fit_score ?? c.score ?? 85;
-
-        return {
-          _rowKey: c.id || c.resume_id || `cand_${idx}`,
-          candidate_name: c.candidate_name || '专家样本',
-          resume_id: resId,
-          industry_label: c.industry_label || c.industry || '综合领域',
-          analysis: c.analysis || c.summary || c.logic_analysis || '能力论证链完备，具备高复杂场景交付能力',
-          source_name: c.source_name || c.current_company || '履历出处',
-          capability_tags: finalTags,
-          fit_score: finalScore,
-        };
-      });
-
-      // Fallback: If logic_analyses is empty, map allResumes directly!
-      if (candList.length === 0 && allResumes.length > 0) {
-        candList = allResumes.map((r: any, idx: number) => {
-          const resId = r.id || '';
-          const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
-          const companyTags = ensureArray(r.company_tags || r.parsed_data?.company_tags);
-          const skillTags = ensureArray(
-            r.parsed_data?.capability_tags ||
-            r.parsed_data?.tags ||
-            r.parsed_data?.skills ||
-            r.capability_tags ||
-            r.skills ||
-            r.tags
-          );
-          const tags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
-          const finalScore = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 88;
-
-          return {
-            _rowKey: r.id || `res_${idx}`,
-            candidate_name: r.name || r.candidate_name || `专家人选 #${idx + 1}`,
-            resume_id: resId,
-            industry_label: r.industry || r.target_position || '软件与IT服务',
-            analysis: r.summary || (tags.length > 0 ? `核心能力标签: ${tags.join(', ')}` : '简历特征与打法推演已入库'),
-            source_name: r.current_company || '履历样本出处',
-            capability_tags: tags,
-            fit_score: finalScore,
-          };
-        });
-      }
-
-      setCandidates(candList);
-
-      // Map work experiences
-      setWorks(
-        rawWorks.map((w: any, idx: number) => ({
-          _rowKey: w.id || `work_${idx}_${w.company || ''}`,
-          candidate_name: w.candidate_name || '专家人选',
-          resume_id: w.resume_id || '',
-          company: w.company || w.organization || '知名企业/机构',
-          department: w.department || '业务部门',
-          title: w.title || w.role || w.position || '核心岗位',
-          period: w.period || w.duration || '近期',
-          description: w.description || w.duty || w.summary || '主持完成架构升级与系统能力建设',
-          achievement: w.achievement || w.key_result || '交付验证良好',
-          industry_label: w.industry_label || '行业经验',
-          capability_tags: ensureArray(w.capability_tags || w.capabilities || w.tags),
-          evidence_strength_score: w.evidence_strength_score || 88,
-        }))
-      );
-    } catch (e) {
-      console.error('Failed to fetch experience summary', e);
-    } finally {
-      setCandidatesLoading(false);
-      setWorksLoading(false);
-    }
-  }, []);
-
-  // Fetch Knowledge Asset Chunks
-  const fetchChunks = useCallback(async () => {
-    setChunksLoading(true);
-    setChunksError(null);
-    try {
-      const res: any = await request.get('/knowledge-assets/query', {
-        params: {
-          q: activeFilters.query || undefined,
-          industry_tag: activeFilters.industry || undefined,
-          topic_tag: activeFilters.topic || undefined,
-          evidence_type: activeFilters.evidenceType || undefined,
-          review_status: activeFilters.reviewStatus || undefined,
-          source_type: activeFilters.sourceType || undefined,
-          skip: (currentPage - 1) * pageSize,
-          limit: pageSize,
-        },
-      });
-
-      setChunks(res?.items || []);
-      setChunksTotal(res?.total || 0);
-
-      const taxRes: any = await request.get('/knowledge-assets/taxonomy/stats').catch(() => ({}));
-      setTaxonomy({
-        industry_tags: taxRes?.industry_tags?.map((item: any) => item.name) || [],
-        business_topic_tags: taxRes?.business_topic_tags?.map((item: any) => item.name) || [],
-        evidence_type_tags: taxRes?.evidence_type_tags?.map((item: any) => item.name) || [],
-      });
-    } catch (error) {
-      const errorMessage = getApiErrorMessage(error, '获取知识资产切片失败，请稍后重试');
-      setChunksError(errorMessage);
-    } finally {
-      setChunksLoading(false);
-    }
-  }, [activeFilters, currentPage, pageSize]);
-
-  const refreshAll = useCallback(() => {
-    fetchProjects();
-    fetchExperienceSummary();
-    fetchChunks();
-  }, [fetchProjects, fetchExperienceSummary, fetchChunks]);
-
   useEffect(() => {
-    refreshAll();
-  }, [refreshAll]);
+    const opts = { userId };
+    fetchProjects(opts).catch((e) => {
+      if (projects.length === 0) message.error(getApiErrorMessage(e, '加载项目打法资产失败'));
+    });
+    fetchExperienceSummary(opts).catch((e) => {
+      if (candidates.length === 0 && works.length === 0)
+        message.error(getApiErrorMessage(e, '加载人才与履历失败'));
+    });
+    fetchChunks(activeFilters, currentPage, pageSize, opts).catch((e) => {
+      if (!currentChunkData) message.error(getApiErrorMessage(e, '加载知识切片失败'));
+    });
+  }, [
+    userId,
+    fetchProjects,
+    fetchExperienceSummary,
+    fetchChunks,
+    activeFilters,
+    currentPage,
+    pageSize,
+    projects.length,
+    candidates.length,
+    works.length,
+    currentChunkData,
+    message,
+  ]);
+
+  const handleManualRefresh = async () => {
+    setManualRefreshing(true);
+    try {
+      const res = await refreshAll(activeFilters, currentPage, pageSize, { userId });
+      if (res.success) {
+        message.success('知识资产数据已完成更新');
+      } else {
+        message.warning(`刷新完成，部分维度更新失败: ${res.errors.join('；')}`);
+      }
+    } catch (e: any) {
+      message.error(getApiErrorMessage(e, '刷新失败，已保留当前视图数据'));
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
 
   // Top Metrics
   const metrics = useMemo(() => {
@@ -512,7 +302,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       sourceType,
     };
     if (currentPage === 1 && JSON.stringify(nextFilters) === JSON.stringify(activeFilters)) {
-      fetchChunks();
+      fetchChunks(nextFilters, 1, pageSize, { force: true, userId });
       return;
     }
     setCurrentPage(1);
@@ -569,7 +359,9 @@ const KnowledgeAssetsPage: React.FC = () => {
             ))}
           </Space>
         ) : (
-          <Tag color="green" style={{ margin: 0 }}>证据链完全闭环</Tag>
+          <Tag color="green" style={{ margin: 0 }}>
+            证据链完全闭环
+          </Tag>
         );
       },
     },
@@ -649,13 +441,41 @@ const KnowledgeAssetsPage: React.FC = () => {
         return arr.length ? (
           <Space wrap size={[4, 4]}>
             {arr.map((item) => {
-              const isSchool = item.includes('院校') || item.includes('985') || item.includes('211') || item.includes('学历') || item.includes('硕士') || item.includes('博士') || item.includes('本科');
-              const isCompany = item.includes('500强') || item.includes('大厂') || item.includes('互联网') || item.includes('知名');
-              const color = isSchool ? (item.includes('985') ? 'purple' : item.includes('211') ? 'cyan' : 'blue') : isCompany ? (item.includes('500强') ? 'gold' : item.includes('互联网') ? 'volcano' : 'blue') : 'geekblue';
+              const isSchool =
+                item.includes('院校') ||
+                item.includes('985') ||
+                item.includes('211') ||
+                item.includes('学历') ||
+                item.includes('硕士') ||
+                item.includes('博士') ||
+                item.includes('本科');
+              const isCompany =
+                item.includes('500强') ||
+                item.includes('大厂') ||
+                item.includes('互联网') ||
+                item.includes('知名');
+              const color = isSchool
+                ? item.includes('985')
+                  ? 'purple'
+                  : item.includes('211')
+                  ? 'cyan'
+                  : 'blue'
+                : isCompany
+                ? item.includes('500强')
+                  ? 'gold'
+                  : item.includes('互联网')
+                  ? 'volcano'
+                  : 'blue'
+                : 'geekblue';
               const icon = isSchool ? '🎓 ' : isCompany ? '🏢 ' : '';
               return (
-                <Tag color={color} key={item} style={{ margin: 0, fontWeight: 600, fontSize: '11px', lineHeight: '18px' }}>
-                  {icon}{item}
+                <Tag
+                  color={color}
+                  key={item}
+                  style={{ margin: 0, fontWeight: 600, fontSize: '11px', lineHeight: '18px' }}
+                >
+                  {icon}
+                  {item}
                 </Tag>
               );
             })}
@@ -676,7 +496,9 @@ const KnowledgeAssetsPage: React.FC = () => {
         return (
           <Space>
             <Progress type="circle" percent={val} width={36} strokeColor={color} format={() => val} />
-            <Text strong style={{ color }}>{val}分</Text>
+            <Text strong style={{ color }}>
+              {val}分
+            </Text>
           </Space>
         );
       },
@@ -734,16 +556,16 @@ const KnowledgeAssetsPage: React.FC = () => {
       key: 'description',
       render: (text: string, record: WorkExperienceAsset) => (
         <div>
-          <Text style={{ fontSize: '13px', color: '#334155' }}>{text || record.achievement || '主持打法落地'}</Text>
+          <Text style={{ fontSize: '13px', color: '#334155' }}>
+            {text || record.achievement || '主持打法落地'}
+          </Text>
           {record.achievement && (
             <div style={{ marginTop: 4 }}>
               <Tag color="green">成果验证: {record.achievement}</Tag>
             </div>
           )}
           {record.capability_tags && record.capability_tags.length > 0 && (
-            <div style={{ marginTop: 4 }}>
-              {renderTags(record.capability_tags, 'geekblue', 3)}
-            </div>
+            <div style={{ marginTop: 4 }}>{renderTags(record.capability_tags, 'geekblue', 3)}</div>
           )}
         </div>
       ),
@@ -813,7 +635,16 @@ const KnowledgeAssetsPage: React.FC = () => {
       key: 'content_snippet',
       width: '36%',
       render: (text?: string) => (
-        <Text style={{ fontSize: '13px', color: '#334155', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+        <Text
+          style={{
+            fontSize: '13px',
+            color: '#334155',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
           {text || '已提炼抽取结构化特征'}
         </Text>
       ),
@@ -850,7 +681,11 @@ const KnowledgeAssetsPage: React.FC = () => {
         metrics={metrics}
         actions={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={refreshAll}>
+            <Button
+              icon={<ReloadOutlined spin={isRefreshing} />}
+              onClick={handleManualRefresh}
+              loading={manualRefreshing}
+            >
               刷新资产
             </Button>
             <Button
@@ -875,15 +710,33 @@ const KnowledgeAssetsPage: React.FC = () => {
             {
               key: 'projects',
               label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '15px', fontWeight: 600 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '15px',
+                    fontWeight: 600,
+                  }}
+                >
                   <ProjectOutlined style={{ color: '#722ed1' }} />
                   <span>📁 项目打法资产库</span>
-                  <Tag color="purple" style={{ margin: 0, borderRadius: 10 }}>{projects.length}</Tag>
+                  <Tag color="purple" style={{ margin: 0, borderRadius: 10 }}>
+                    {projects.length}
+                  </Tag>
                 </span>
               ),
               children: (
                 <div style={{ paddingTop: 8 }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', marginBottom: 16 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                      justifyContent: 'space-between',
+                      marginBottom: 16,
+                    }}
+                  >
                     <Input
                       allowClear
                       prefix={<SearchOutlined />}
@@ -897,14 +750,21 @@ const KnowledgeAssetsPage: React.FC = () => {
                       onChange={(val) => setProjectScope(val as 'all' | 'gaps')}
                       options={[
                         { label: `全量打法 (${projects.length})`, value: 'all' },
-                        { label: `存在证据链缺口 (${projects.filter((p) => p.missing_evidence && p.missing_evidence.length > 0).length})`, value: 'gaps' },
+                        {
+                          label: `存在证据链缺口 (${
+                            projects.filter(
+                              (p) => p.missing_evidence && p.missing_evidence.length > 0
+                            ).length
+                          })`,
+                          value: 'gaps',
+                        },
                       ]}
                     />
                   </div>
 
                   <Table
                     rowKey={(record) => record._rowKey}
-                    loading={projectsLoading}
+                    loading={projects.length === 0 && projectsLoading}
                     dataSource={filteredProjects}
                     columns={projectColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
@@ -916,10 +776,20 @@ const KnowledgeAssetsPage: React.FC = () => {
             {
               key: 'capabilities',
               label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '15px', fontWeight: 600 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '15px',
+                    fontWeight: 600,
+                  }}
+                >
                   <BulbOutlined style={{ color: '#1890ff' }} />
                   <span>💡 人才能力矩阵库</span>
-                  <Tag color="blue" style={{ margin: 0, borderRadius: 10 }}>{candidates.length}</Tag>
+                  <Tag color="blue" style={{ margin: 0, borderRadius: 10 }}>
+                    {candidates.length}
+                  </Tag>
                 </span>
               ),
               children: (
@@ -937,7 +807,7 @@ const KnowledgeAssetsPage: React.FC = () => {
 
                   <Table
                     rowKey={(record) => record._rowKey}
-                    loading={candidatesLoading}
+                    loading={candidates.length === 0 && experienceLoading}
                     dataSource={filteredCandidates}
                     columns={candidateColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
@@ -950,10 +820,20 @@ const KnowledgeAssetsPage: React.FC = () => {
             {
               key: 'works',
               label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '15px', fontWeight: 600 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '15px',
+                    fontWeight: 600,
+                  }}
+                >
                   <ApartmentOutlined style={{ color: '#fa8c16' }} />
                   <span>🔀 任职经历与履历证据库</span>
-                  <Tag color="orange" style={{ margin: 0, borderRadius: 10 }}>{works.length}</Tag>
+                  <Tag color="orange" style={{ margin: 0, borderRadius: 10 }}>
+                    {works.length}
+                  </Tag>
                 </span>
               ),
               children: (
@@ -971,7 +851,7 @@ const KnowledgeAssetsPage: React.FC = () => {
 
                   <Table
                     rowKey={(record) => record._rowKey}
-                    loading={worksLoading}
+                    loading={works.length === 0 && experienceLoading}
                     dataSource={filteredWorks}
                     columns={workColumns}
                     pagination={{ pageSize: 8, showSizeChanger: true }}
@@ -984,10 +864,20 @@ const KnowledgeAssetsPage: React.FC = () => {
             {
               key: 'chunks',
               label: (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '15px', fontWeight: 600 }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: '15px',
+                    fontWeight: 600,
+                  }}
+                >
                   <DatabaseOutlined style={{ color: '#10b981' }} />
                   <span>📄 文档与知识切片片段库</span>
-                  <Tag color="green" style={{ margin: 0, borderRadius: 10 }}>{chunksTotal}</Tag>
+                  <Tag color="green" style={{ margin: 0, borderRadius: 10 }}>
+                    {chunksTotal}
+                  </Tag>
                 </span>
               ),
               children: (
@@ -1024,7 +914,11 @@ const KnowledgeAssetsPage: React.FC = () => {
                     <Button onClick={resetChunksFilters}>重置</Button>
                   </div>
 
-                  <AsyncState loading={chunksLoading} error={chunksError} onRetry={fetchChunks}>
+                  <AsyncState
+                    loading={!currentChunkData && chunksLoading}
+                    error={chunksError}
+                    onRetry={() => fetchChunks(activeFilters, currentPage, pageSize, { force: true, userId })}
+                  >
                     {chunks.length ? (
                       <Table
                         rowKey="id"

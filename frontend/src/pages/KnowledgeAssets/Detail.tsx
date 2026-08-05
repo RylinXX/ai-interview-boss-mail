@@ -3,6 +3,7 @@ import { App, Button, Card, Descriptions, Drawer, Empty, Form, Input, InputNumbe
 import { ArrowLeftOutlined, FileTextOutlined, ReloadOutlined, SaveOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { useKnowledgeAssetsStore } from '../../store/useKnowledgeAssetsStore';
 import { AsyncState, ModulePageHeader } from '../../components/Workbench';
 import '../BusinessWorkbench.css';
 
@@ -153,6 +154,7 @@ const KnowledgeAssetDetailPage: React.FC = () => {
       setAsset(res);
       form.setFieldsValue(res);
       setReviewOpen(false);
+      useKnowledgeAssetsStore.getState().invalidateCache();
       message.success('复核信息已保存');
     } catch (error) {
       message.error(getApiErrorMessage(error, '保存复核信息失败'));

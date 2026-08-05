@@ -3,6 +3,7 @@ import { App, Button, Card, Form, Input, Select, Space, Typography, Upload } fro
 import { ArrowLeftOutlined, DatabaseOutlined, InboxOutlined, SaveOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import request, { getApiErrorMessage } from '../../utils/request';
+import { useKnowledgeAssetsStore } from '../../store/useKnowledgeAssetsStore';
 import '../BusinessWorkbench.css';
 
 const { Title, Text } = Typography;
@@ -108,6 +109,7 @@ const KnowledgeAssetIntakePage: React.FC = () => {
           value_tags: normalizeList(values.value_tags),
         });
       }
+      useKnowledgeAssetsStore.getState().invalidateCache();
       message.success('知识资产已入库');
       navigate('/knowledge-assets');
     } catch (error) {
