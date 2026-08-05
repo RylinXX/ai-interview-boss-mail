@@ -32,7 +32,7 @@ const Login = safeLazy(() => import('../pages/Login'));
 const Dashboard = safeLazy(() => import('../pages/Dashboard'));
 const CustomerProjectsList = safeLazy(() => import('../pages/CustomerProjects/List'));
 const CustomerProjectDetail = safeLazy(() => import('../pages/CustomerProjects/Detail'));
-const AIEmployeesList = safeLazy(() => import('../pages/AIEmployees/List'));
+const AISolutionAssistant = safeLazy(() => import('../pages/AIEmployees/List'));
 const KnowledgeAssets = safeLazy(() => import('../pages/KnowledgeAssets'));
 const KnowledgeAssetIntake = safeLazy(() => import('../pages/KnowledgeAssets/Intake'));
 const KnowledgeAssetDetail = safeLazy(() => import('../pages/KnowledgeAssets/Detail'));
@@ -42,7 +42,7 @@ const ResumeDetail = safeLazy(() => import('../pages/Resumes/Detail'));
 const UsersList = safeLazy(() => import('../pages/Settings/Users'));
 const ProfileSettings = safeLazy(() => import('../pages/Settings/Profile'));
 const SystemSettingsPage = safeLazy(() => import('../pages/Settings/System'));
-const AISolutionAssistant = safeLazy(() => import('../pages/IndustryAgent'));
+const IndustryAgentPage = safeLazy(() => import('../pages/IndustryAgent'));
 const AIProductManager = safeLazy(() => import('../pages/AIProductManager'));
 
 const PageFallback = () => (
@@ -137,7 +137,7 @@ const router = createBrowserRouter([
       },
       {
         path: 'workbench',
-        element: lazyPage(<AIEmployeesList />),
+        element: lazyPage(<AISolutionAssistant />),
       },
       {
         path: 'customer-projects',
