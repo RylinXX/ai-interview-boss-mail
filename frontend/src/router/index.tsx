@@ -42,6 +42,8 @@ const ResumeDetail = safeLazy(() => import('../pages/Resumes/Detail'));
 const UsersList = safeLazy(() => import('../pages/Settings/Users'));
 const ProfileSettings = safeLazy(() => import('../pages/Settings/Profile'));
 const SystemSettingsPage = safeLazy(() => import('../pages/Settings/System'));
+const AISolutionAssistant = safeLazy(() => import('../pages/IndustryAgent'));
+const AIProductManager = safeLazy(() => import('../pages/AIProductManager'));
 
 const PageFallback = () => (
   <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
@@ -168,6 +170,18 @@ const router = createBrowserRouter([
       {
         path: 'resumes/:id',
         element: lazyPage(<ResumeDetail />),
+      },
+      {
+        path: 'ai-solution-assistant',
+        element: lazyPage(<AISolutionAssistant />),
+      },
+      {
+        path: 'ai-product-manager',
+        element: lazyPage(<AIProductManager />),
+      },
+      {
+        path: 'industry-agent',
+        element: lazyPage(<AISolutionAssistant />),
       },
       {
         path: 'settings',

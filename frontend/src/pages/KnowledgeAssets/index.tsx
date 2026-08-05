@@ -261,7 +261,7 @@ const KnowledgeAssetsPage: React.FC = () => {
     try {
       const [summaryRes, resumeListRes]: [any, any] = await Promise.all([
         request.get('/resumes/experience-summary', { timeout: 20000 }).catch(() => ({})),
-        request.get('/resumes').catch(() => []),
+        request.get('/resumes', { params: { limit: 500 } }).catch(() => []),
       ]);
 
       const rawLogic = summaryRes?.logic_analyses || summaryRes?.candidates || [];
@@ -312,7 +312,7 @@ const KnowledgeAssetsPage: React.FC = () => {
         const explicitTags = ensureArray(c.capability_tags || c.tags);
         const resumeTags = matched?.tags || [];
         const combinedTags = Array.from(new Set([...resumeTags, ...explicitTags]));
-        const finalTags = combinedTags.length > 0 ? combinedTags : ['全栈交付', '架构设计', '团队管理'];
+        const finalTags = combinedTags;
 
         const finalScore = matched?.score ?? c.match_score ?? c.fit_score ?? c.score ?? 85;
 
@@ -343,7 +343,6 @@ const KnowledgeAssetsPage: React.FC = () => {
             r.tags
           );
           const tags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
-          const finalTags = tags.length > 0 ? tags : ['业务交付', '技术攻坚', '项目管理'];
           const finalScore = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 88;
 
           return {
@@ -353,7 +352,7 @@ const KnowledgeAssetsPage: React.FC = () => {
             industry_label: r.industry || r.target_position || '软件与IT服务',
             analysis: r.summary || (tags.length > 0 ? `核心能力标签: ${tags.join(', ')}` : '简历特征与打法推演已入库'),
             source_name: r.current_company || '履历样本出处',
-            capability_tags: finalTags,
+            capability_tags: tags,
             fit_score: finalScore,
           };
         });
@@ -374,7 +373,7 @@ const KnowledgeAssetsPage: React.FC = () => {
           description: w.description || w.duty || w.summary || '主持完成架构升级与系统能力建设',
           achievement: w.achievement || w.key_result || '交付验证良好',
           industry_label: w.industry_label || '行业经验',
-          capability_tags: ensureArray(w.capability_tags || w.tags),
+          capability_tags: ensureArray(w.capability_tags || w.capabilities || w.tags),
           evidence_strength_score: w.evidence_strength_score || 88,
         }))
       );
@@ -739,6 +738,11 @@ const KnowledgeAssetsPage: React.FC = () => {
           {record.achievement && (
             <div style={{ marginTop: 4 }}>
               <Tag color="green">成果验证: {record.achievement}</Tag>
+            </div>
+          )}
+          {record.capability_tags && record.capability_tags.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              {renderTags(record.capability_tags, 'geekblue', 3)}
             </div>
           )}
         </div>

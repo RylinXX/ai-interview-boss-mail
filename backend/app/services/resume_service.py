@@ -811,8 +811,8 @@ def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any
                 summary_items.append({**with_context, "_summary_source": "project"})
 
         # Collect all tags (school, company, skills)
-        sch_tags = _as_list(resume.school_tags) or _as_list(parsed_data.get("school_tags"))
-        cmp_tags = _as_list(resume.company_tags) or _as_list(parsed_data.get("company_tags"))
+        sch_tags = _as_list(getattr(resume, "school_tags", None)) or _as_list(parsed_data.get("school_tags"))
+        cmp_tags = _as_list(getattr(resume, "company_tags", None)) or _as_list(parsed_data.get("company_tags"))
         skl_tags = (
             _as_list(parsed_data.get("capability_tags"))
             or _as_list(parsed_data.get("tags"))

@@ -64,6 +64,14 @@ def list_knowledge_assets_route(
     )
 
 
+@router.get("/knowledge-assets/taxonomy/stats")
+def get_knowledge_asset_taxonomy_stats_route(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return service.get_taxonomy_stats(db)
+
+
 @router.post("/knowledge-assets/intake", response_model=KnowledgeAssetResponse)
 def create_knowledge_asset_route(
     payload: KnowledgeAssetIntakeRequest,

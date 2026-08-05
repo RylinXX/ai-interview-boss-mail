@@ -750,6 +750,30 @@ def list_assets(
     }
 
 
+def get_taxonomy_stats(db: Session) -> Dict[str, Any]:
+    rows = db.query(
+        KnowledgeAsset.industry_tags,
+        KnowledgeAsset.business_topic_tags,
+        KnowledgeAsset.evidence_type_tags,
+    ).all()
+    ind_set, top_set, ev_set = set(), set(), set()
+    for row in rows:
+        for tag in (row[0] or []):
+            if tag:
+                ind_set.add(tag)
+        for tag in (row[1] or []):
+            if tag:
+                top_set.add(tag)
+        for tag in (row[2] or []):
+            if tag:
+                ev_set.add(tag)
+    return {
+        "industry_tags": [{"name": t} for t in sorted(ind_set)],
+        "business_topic_tags": [{"name": t} for t in sorted(top_set)],
+        "evidence_type_tags": [{"name": t} for t in sorted(ev_set)],
+    }
+
+
 def _terms_for_query(query: str) -> List[str]:
     inferred = _infer_tags(query or "")
     token_text = query or ""
