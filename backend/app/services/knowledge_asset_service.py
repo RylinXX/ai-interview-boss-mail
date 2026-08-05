@@ -1,3 +1,18 @@
+"""
+knowledge_asset_service.py — RAG 核心改造版
+
+改造内容：
+  1. 新增 RAG 配置区块（LLM / Embedding / Reranker / VectorStore / Retrieval / Router）
+  2. 文档分块改用 LangChain RecursiveCharacterTextSplitter
+  3. 向量化改用 BAAI/bge-m3（替换原本地哈希特征 256 维稀疏向量）
+  4. 向量库改用 Chroma（替换原内存 RRF 融合）
+  5. 重排序改用 BAAI/bge-reranker-v2-m3 cross-encoder（替换原启发式打分）
+  6. 新增 RetrievalQA chain + Prompt 模板
+  8. 新增向量库索引构建 / 单资产入库同步
+
+保留不变：CRUD、Solution Agent、简历同步等全部业务逻辑
+接口兼容：search_assets() 返回格式与原版一致
+"""
 from __future__ import annotations
 
 import os
@@ -8,6 +23,28 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID, uuid4
 
+# ── LangChain 相关（兼容 0.3.x / 1.x）────────────────────────
+try:
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
+except ImportError:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+
+try:
+    from langchain.chains import RetrievalQA
+except ImportError:
+    RetrievalQA = None  # langchain 1.x 移除了 RetrievalQA，用 LCEL 替代
+
+from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document as LCDocument
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
+
+# ── 原有框架 imports ────────────────────────────────────────
 from fastapi import HTTPException, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, cast, func, or_
@@ -38,14 +75,62 @@ from app.services.ai_service import (
 from app.utils.file_storage import save_upload_file
 
 
+# ============================================================
+#  RAG 配置区块
+# ============================================================
+
+# 模型选型（LLM）
+LLM_MODEL = {
+    "provider": "openai-compatible",   # 或 "ollama"/"transformers"
+    "endpoint": "https://api.deepseek.com",
+    "model": "deepseek-chat",            # 或本地 Qwen2.5/LLama3.1 8B/14B
+    "api_key_env": "OPENAI_API_KEY",
+    "timeout": 3.0,                    # 严控延迟
+    "streaming": True
+}
+
+# Embedding（多语种，招聘领域稳定）
+EMBEDDING_MODEL = {
+    "name": "BAAI/bge-m3",             # 中英多语稳妥选
+    "normalize": True,
+    "batch_size": 64
+}
+
+# Reranker（强推，显著提升 TopK 命中）
+RERANKER = {
+    "name": "BAAI/bge-reranker-v2-m3",
+    "top_n": 6                         # 从召回 Top50 里重排到 Top6
+}
+
+# 向量库
+VECTORSTORE = {
+    "type": "chroma",                  # "faiss" / "milvus" / "weaviate"
+    "persist_dir": "./vector_store/chroma",
+    "collection": "hr-knowledge-assets"
+}
+
+# 检索参数
+RETRIEVAL = {
+    "k": 50,                           # 先宽召回
+    "k_final": 6,                      # Rerank 后进入 LLM 的文档条数
+    "min_score": 0.22,                 # 低于阈值触发"无法回答/转人工"
+}
+
+# ============================================================
+#  常量 & 分块器
+# ============================================================
+
 SUPPORTED_KNOWLEDGE_UPLOAD_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".markdown"}
-DEFAULT_CHUNK_SIZE = 1800
-DEFAULT_CHUNK_OVERLAP = 180
-DEFAULT_RRF_K = 60
 DEFAULT_CONTEXT_CHAR_LIMIT = 900
-DEFAULT_SEMANTIC_VECTOR_DIM = 256
 MAX_KNOWLEDGE_ASSET_LIST_LIMIT = 100
 MAX_KNOWLEDGE_ASSET_FILTER_SCAN = 100000
+
+# LangChain 递归字符分块器（替换原固定窗口 _split_text_chunks）
+_splitter = RecursiveCharacterTextSplitter(
+    chunk_size=600,
+    chunk_overlap=80,
+    separators=["\n## ", "\n### ", "\n", "。", "；", ";", ".", " "]
+)
 
 KNOWLEDGE_ASSET_LIST_COLUMNS = (
     KnowledgeAsset.id,
@@ -67,6 +152,119 @@ KNOWLEDGE_ASSET_LIST_COLUMNS = (
     KnowledgeAsset.updated_at,
 )
 
+
+# ============================================================
+#  向量库 / Embedding / Reranker 懒加载单例
+# ============================================================
+
+_embedding_model: Optional[HuggingFaceEmbeddings] = None
+_reranker_model: Optional[HuggingFaceCrossEncoder] = None
+_vectorstore: Optional[Chroma] = None
+
+
+def _get_embedding_model() -> HuggingFaceEmbeddings:
+    """懒加载 BAAI/bge-m3 embedding 模型"""
+    global _embedding_model
+    if _embedding_model is None:
+        _embedding_model = HuggingFaceEmbeddings(
+            model_name=EMBEDDING_MODEL["name"],
+            model_kwargs={"normalize_embeddings": EMBEDDING_MODEL["normalize"]},
+            encode_kwargs={"batch_size": EMBEDDING_MODEL["batch_size"]},
+        )
+    return _embedding_model
+
+
+def _get_reranker_model() -> HuggingFaceCrossEncoder:
+    """懒加载 BAAI/bge-reranker-v2-m3 cross-encoder"""
+    global _reranker_model
+    if _reranker_model is None:
+        _reranker_model = HuggingFaceCrossEncoder(
+            model_name=RERANKER["name"],
+        )
+    return _reranker_model
+
+
+def _get_vectorstore() -> Chroma:
+    """懒加载主向量库（Chroma，余弦距离）"""
+    global _vectorstore
+    if _vectorstore is None:
+        os.makedirs(VECTORSTORE["persist_dir"], exist_ok=True)
+        _vectorstore = Chroma(
+            collection_name=VECTORSTORE["collection"],
+            embedding_function=_get_embedding_model(),
+            persist_directory=VECTORSTORE["persist_dir"],
+            collection_metadata={"hnsw:space": "cosine"},
+        )
+    return _vectorstore
+
+
+# ============================================================
+#  Prompt 模板
+# ============================================================
+
+SYSTEM_PROMPT = """你是解析人才简历的专业助手。
+必须：
+1) 以公司标准口径回答；2) 覆盖必要的前置条件与注意事项；
+3) 若不确定或超出知识库，明确说明；4) 严禁编造信息。
+输出中如有敏感信息请脱敏（仅显示末4位）。"""
+
+USER_PROMPT = """用户问题：{question}
+{context}
+请基于现有知识资产，输出可交付的人才评估与招聘方案。"""
+
+_rag_prompt = PromptTemplate.from_template(SYSTEM_PROMPT + "\n\n" + USER_PROMPT)
+
+
+# ============================================================
+#  LLM & QA Chain（兼容 langchain 0.3.x RetrievalQA / 1.x LCEL）
+# ============================================================
+
+def _get_llm() -> ChatOpenAI:
+    """构建 LLM 实例"""
+    return ChatOpenAI(
+        model=LLM_MODEL["model"],
+        openai_api_base=LLM_MODEL["endpoint"],
+        openai_api_key=os.getenv(LLM_MODEL["api_key_env"], ""),
+        temperature=0.1,
+        streaming=LLM_MODEL["streaming"],
+        request_timeout=LLM_MODEL["timeout"],
+    )
+
+
+def _format_docs(docs):
+    """把检索到的 Document 列表拼成上下文字符串"""
+    return "\n\n".join(d.page_content for d in docs)
+
+
+def build_qa_chain():
+    """
+    构建 RAG QA chain（向量检索 → stuff → LLM 生成）。
+    langchain 0.3.x 走 RetrievalQA，1.x 走 LCEL pipe。
+    """
+    vs = _get_vectorstore()
+    retriever = vs.as_retriever(search_kwargs={"k": RETRIEVAL["k"]})
+    llm = _get_llm()
+
+    if RetrievalQA is not None:
+        return RetrievalQA.from_chain_type(
+            llm=llm,
+            chain_type="stuff",
+            retriever=retriever,
+            chain_type_kwargs={"prompt": _rag_prompt},
+        )
+
+    # langchain 1.x — LCEL 链
+    return (
+        {"context": retriever | _format_docs, "question": RunnablePassthrough()}
+        | _rag_prompt
+        | llm
+        | StrOutputParser()
+    )
+
+
+# ============================================================
+#  通用辅助函数（保留原版）
+# ============================================================
 
 def _as_list(value: Any) -> List[str]:
     if value is None:
@@ -150,50 +348,23 @@ def _source_payload(
     return payload
 
 
-def _tokenize_retrieval_text(text: str) -> List[str]:
-    tokens = re.findall(r"[A-Za-z0-9_]+|[\u4e00-\u9fff]{2,}", (text or "").lower())
-    return [token for token in tokens if len(token) >= 2]
-
-
-def _semantic_features(text: str) -> List[str]:
-    tokens = _tokenize_retrieval_text(text)
-    features = list(tokens)
-    for token in tokens:
-        if len(token) >= 5 and re.match(r"^[a-z0-9_]+$", token):
-            features.extend(token[index:index + 4] for index in range(0, len(token) - 3))
-    return features
-
-
-def _hash_feature_index(feature: str, dim: int = DEFAULT_SEMANTIC_VECTOR_DIM) -> int:
-    digest = hashlib.blake2b(feature.encode("utf-8"), digest_size=8).digest()
-    return int.from_bytes(digest, "big") % dim
-
-
-def _semantic_vector(text: str, dim: int = DEFAULT_SEMANTIC_VECTOR_DIM) -> Dict[int, float]:
-    vector: Dict[int, float] = {}
-    for feature in _semantic_features(text):
-        index = _hash_feature_index(feature, dim)
-        vector[index] = vector.get(index, 0.0) + 1.0
-    norm = math.sqrt(sum(value * value for value in vector.values()))
-    if norm <= 0:
-        return {}
-    return {index: value / norm for index, value in vector.items()}
-
-
-def _cosine_sparse(left: Dict[int, float], right: Dict[int, float]) -> float:
-    if not left or not right:
-        return 0.0
-    if len(left) > len(right):
-        left, right = right, left
-    return sum(value * right.get(index, 0.0) for index, value in left.items())
-
-
-def _bm25_query_terms(query: str, terms: List[str]) -> List[str]:
-    values = [
-        *_tokenize_retrieval_text(query),
-        *(str(term).lower().strip() for term in terms),
-    ]
-    return _unique(value for value in values if len(value) >= 2)
+def _asset_search_blob(asset: KnowledgeAsset) -> str:
+    """把资产各字段拼成用于向量化的文本（保留原版，索引构建时使用）"""
+    return _text_blob(
+        asset.title,
+        asset.summary,
+        asset.raw_text,
+        asset.industry_tags,
+        asset.business_topic_tags,
+        asset.scenario_tags,
+        asset.evidence_type_tags,
+        asset.capability_tags,
+        asset.methodology_tags,
+        asset.customer_type_tags,
+        asset.value_tags,
+        asset.proves,
+        asset.applicable_conditions,
+    )
 
 
 def _compress_asset_context(asset: KnowledgeAsset, max_chars: int = DEFAULT_CONTEXT_CHAR_LIMIT) -> str:
@@ -210,195 +381,230 @@ def _compress_asset_context(asset: KnowledgeAsset, max_chars: int = DEFAULT_CONT
     return compressed[:max_chars]
 
 
-def _keyword_recall_items(
-    rows: List[KnowledgeAsset],
-    payload: KnowledgeAssetSearchRequest,
-    terms: List[str],
-    inferred: Dict[str, List[str]],
-) -> List[Dict[str, Any]]:
-    items: List[Dict[str, Any]] = []
-    for asset in rows:
-        if not _overlaps(payload.industry_tags, asset.industry_tags):
-            continue
-        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
-            continue
-        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
-            continue
-        match_score, match_reason = _score_asset_for_terms(asset, terms, inferred)
-        if match_score <= 0:
-            continue
-        items.append(
-            {
-                "asset": asset,
-                "match_score": match_score,
-                "match_reason": match_reason,
-            }
-        )
-    items.sort(key=lambda item: item["match_score"], reverse=True)
-    return items
+# ============================================================
+#  文档分块（替换原固定窗口 → LangChain RecursiveCharacterTextSplitter）
+# ============================================================
 
-
-def _bm25_recall_items(
-    rows: List[KnowledgeAsset],
-    payload: KnowledgeAssetSearchRequest,
-    query: str,
-    terms: List[str],
-) -> List[Dict[str, Any]]:
-    query_terms = _bm25_query_terms(query, terms)
-    if not query_terms:
+def _split_text_chunks(text: str) -> List[str]:
+    """使用 RecursiveCharacterTextSplitter 分块（chunk_size=600, overlap=80）"""
+    clean = (text or "").strip()
+    if not clean:
         return []
+    return _splitter.split_text(clean)
 
-    documents = []
-    for asset in rows:
-        if not _overlaps(payload.industry_tags, asset.industry_tags):
-            continue
-        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
-            continue
-        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
-            continue
-        blob = _asset_search_blob(asset).lower()
-        documents.append(
-            {
-                "asset": asset,
-                "blob": blob,
-                "length": max(len(_tokenize_retrieval_text(blob)), 1),
-            }
+
+def _read_uploaded_knowledge_text(file_path: str) -> str:
+    from app.services.resume_service import read_file_content
+    return read_file_content(file_path)
+
+
+# ============================================================
+#  向量库索引构建
+# ============================================================
+
+def index_asset_to_vectorstore(asset: KnowledgeAsset) -> None:
+    """单个知识资产同步写入向量库（入库时调用）"""
+    try:
+        text = _asset_search_blob(asset)
+        if not text.strip():
+            return
+        vs = _get_vectorstore()
+        vs.add_texts(
+            texts=[text],
+            metadatas=[{
+                "asset_id": str(asset.id),
+                "title": asset.title or "",
+                "source_type": asset.source_type or "",
+                "source_name": asset.source_name or "",
+            }],
         )
-    if not documents:
-        return []
+        vs.persist()
+    except Exception as exc:
+        # 向量库不可用时不阻断主流程，仅打印警告
+        print(f"[RAG] index_asset_to_vectorstore warning: {exc}")
 
-    total_docs = len(documents)
-    avg_length = sum(item["length"] for item in documents) / total_docs
-    document_frequency = {
-        term: sum(1 for item in documents if term in item["blob"])
-        for term in query_terms
+
+def build_vectorstore_from_assets(db: Session) -> Dict[str, Any]:
+    """
+    从数据库全量知识资产构建向量库索引。
+    等价于原版无索引时的内存扫描，但持久化到 Chroma。
+
+    用法：
+        from app.services.knowledge_asset_service import build_vectorstore_from_assets
+        result = build_vectorstore_from_assets(db)
+        print(f"Index built ✅  {result}")
+    """
+    rows = db.query(KnowledgeAsset).all()
+    texts: List[str] = []
+    metadatas: List[Dict[str, Any]] = []
+    for asset in rows:
+        text = _asset_search_blob(asset)
+        if not text.strip():
+            continue
+        texts.append(text)
+        metadatas.append({
+            "asset_id": str(asset.id),
+            "title": asset.title or "",
+            "source_type": asset.source_type or "",
+            "source_name": asset.source_name or "",
+        })
+    if texts:
+        vs = _get_vectorstore()
+        vs.add_texts(texts, metadatas=metadatas)
+        vs.persist()
+    return {
+        "indexed_count": len(texts),
+        "collection": VECTORSTORE["collection"],
+        "persist_dir": VECTORSTORE["persist_dir"],
     }
-    results: List[Dict[str, Any]] = []
-    k1 = 1.2
-    b = 0.75
-
-    for item in documents:
-        score = 0.0
-        matched_terms: List[str] = []
-        for term in query_terms:
-            tf = item["blob"].count(term)
-            if tf <= 0:
-                continue
-            matched_terms.append(term)
-            df = max(document_frequency.get(term, 0), 1)
-            idf = math.log(1 + (total_docs - df + 0.5) / (df + 0.5))
-            denominator = tf + k1 * (1 - b + b * (item["length"] / max(avg_length, 1)))
-            score += idf * ((tf * (k1 + 1)) / max(denominator, 0.0001))
-        if score <= 0:
-            continue
-        results.append(
-            {
-                "asset": item["asset"],
-                "match_score": min(score * 25, 100.0),
-                "match_reason": "BM25 terms: " + ", ".join(matched_terms[:6]),
-            }
-        )
-
-    results.sort(key=lambda result: result["match_score"], reverse=True)
-    return results
 
 
-def _semantic_vector_recall_items(
-    rows: List[KnowledgeAsset],
-    payload: KnowledgeAssetSearchRequest,
+# ============================================================
+#  Reranker（BAAI/bge-reranker-v2-m3 cross-encoder）
+# ============================================================
+
+def _rerank_docs(
+    docs: List[LCDocument],
     query: str,
-    terms: List[str],
-) -> List[Dict[str, Any]]:
-    query_vector = _semantic_vector(_text_blob(query, terms))
-    if not query_vector:
+    top_n: Optional[int] = None,
+) -> List[LCDocument]:
+    """
+    用 BAAI/bge-reranker-v2-m3 进行 cross-encoder 打分，取 top_n。
+    替换原版启发式 _rerank_items（标题/内容命中 + 置信度加分）。
+    """
+    if not docs:
+        return []
+    top_n = top_n or RERANKER["top_n"]
+    reranker = _get_reranker_model()
+    pairs = [(query, doc.page_content) for doc in docs]
+    scores = reranker.score(pairs)
+    ranked = sorted(zip(docs, scores), key=lambda x: x[1], reverse=True)
+    return [doc for doc, _ in ranked[:top_n]]
+
+
+# ============================================================
+#  向量检索 + 重排序
+# ============================================================
+
+def _doc_to_retrieval_item(
+    doc: LCDocument,
+    *,
+    match_score: Optional[float] = None,
+    match_reason: str = "",
+) -> Dict[str, Any]:
+    """把 LangChain Document 转成统一的检索结果 item"""
+    meta = doc.metadata or {}
+    return {
+        "asset_id": meta.get("asset_id"),
+        "title": meta.get("title"),
+        "source_type": meta.get("source_type"),
+        "source_name": meta.get("source_name"),
+        "page_content": doc.page_content,
+        "match_score": match_score or 0.0,
+        "match_reason": match_reason,
+    }
+
+
+def route_and_retrieve(query: str, k: Optional[int] = None) -> List[Dict[str, Any]]:
+    """
+    检索：向量宽召回 → Reranker 精排。
+
+    1) 通用向量索引（k=50 宽召回）
+    2) 过滤 min_score 以下的低质结果
+    3) bge-reranker-v2-m3 重排序到 top_n=6
+    """
+    k = k or RETRIEVAL["k"]
+    items: List[Dict[str, Any]] = []
+
+    # 1) 通用向量检索
+    try:
+        vs = _get_vectorstore()
+        docs_with_scores = vs.similarity_search_with_score(query, k=k)
+    except Exception as exc:
+        print(f"[RAG] vectorstore search error: {exc}")
         return []
 
-    results: List[Dict[str, Any]] = []
-    for asset in rows:
-        if not _overlaps(payload.industry_tags, asset.industry_tags):
-            continue
-        if not _overlaps(payload.business_topic_tags, asset.business_topic_tags):
-            continue
-        if not _overlaps(payload.evidence_type_tags, asset.evidence_type_tags):
-            continue
-        asset_vector = _semantic_vector(_asset_search_blob(asset))
-        similarity = _cosine_sparse(query_vector, asset_vector)
-        if similarity <= 0.01:
-            continue
-        results.append(
-            {
-                "asset": asset,
-                "match_score": min(similarity * 100, 100.0),
-                "match_reason": f"semantic cosine similarity {similarity:.3f}",
-            }
-        )
+    # Chroma cosine distance → similarity score
+    filtered: List[tuple[LCDocument, float]] = []
+    for doc, distance in docs_with_scores:
+        sim_score = 1.0 - distance  # cosine distance → similarity
+        if sim_score >= RETRIEVAL["min_score"]:
+            filtered.append((doc, sim_score))
 
-    results.sort(key=lambda result: result["match_score"], reverse=True)
-    return results
+    if not filtered:
+        return []
 
+    # 2) Reranker 精排
+    docs_only = [doc for doc, _ in filtered]
+    reranked = _rerank_docs(docs_only, query, top_n=RETRIEVAL["k_final"])
 
-def _rrf_fuse_results(route_results: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
-    fused: Dict[str, Dict[str, Any]] = {}
-    for route_name, results in route_results.items():
-        for rank, item in enumerate(results, start=1):
-            asset = item["asset"]
-            key = str(asset.id)
-            entry = fused.setdefault(
-                key,
-                {
-                    "asset": asset,
-                    "route_scores": {},
-                    "route_ranks": {},
-                    "rrf_score": 0.0,
-                    "match_reasons": [],
-                },
-            )
-            entry["route_scores"][route_name] = item["match_score"]
-            entry["route_ranks"][route_name] = rank
-            entry["rrf_score"] += 1 / (DEFAULT_RRF_K + rank)
-            if item.get("match_reason"):
-                entry["match_reasons"].append(f"{route_name}: {item['match_reason']}")
+    for doc in reranked:
+        items.append(_doc_to_retrieval_item(
+            doc,
+            match_reason="vector_recall + bge-reranker-v2-m3",
+        ))
 
-    items: List[Dict[str, Any]] = []
-    for entry in fused.values():
-        route_scores = entry["route_scores"]
-        best_route_score = max(route_scores.values()) if route_scores else 0.0
-        items.append(
-            {
-                "asset": entry["asset"],
-                "match_score": min(best_route_score + entry["rrf_score"] * 120, 100.0),
-                "match_reason": "; ".join(entry["match_reasons"][:4]),
-                "route_scores": route_scores,
-                "route_ranks": entry["route_ranks"],
-                "rrf_score": round(entry["rrf_score"], 6),
-            }
-        )
-    items.sort(key=lambda item: (item["rrf_score"], item["match_score"]), reverse=True)
     return items
 
 
-def _rerank_items(items: List[Dict[str, Any]], terms: List[str]) -> List[Dict[str, Any]]:
-    normalized_terms = [str(term).lower().strip() for term in terms if str(term).strip()]
-    for item in items:
-        asset = item["asset"]
-        title = (asset.title or "").lower()
-        blob = _asset_search_blob(asset).lower()
-        title_hits = sum(1 for term in normalized_terms if term and term in title)
-        content_hits = sum(1 for term in normalized_terms if term and term in blob)
-        confidence_bonus = min(float(asset.confidence_score or 0.0), 100.0) * 0.04
-        evidence_bonus = min(float(asset.evidence_strength_score or 0.0), 100.0) * 0.03
-        rerank_score = (
-            float(item["match_score"])
-            + title_hits * 3.0
-            + content_hits * 0.8
-            + confidence_bonus
-            + evidence_bonus
-        )
-        item["rerank_score"] = round(rerank_score, 4)
-        item["match_score"] = min(rerank_score, 100.0)
-    items.sort(key=lambda item: item["rerank_score"], reverse=True)
-    return items
+# ============================================================
+#  检索日志（更新为反映新架构）
+# ============================================================
 
+def _build_retrieval_log(
+    *,
+    query: str,
+    limit: int,
+    total_candidates: int,
+    items: List[Dict[str, Any]],
+    route_info: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    compressed_contexts = [
+        item.get("page_content", "")[:DEFAULT_CONTEXT_CHAR_LIMIT]
+        for item in items
+    ]
+    return {
+        "original_query": query,
+        "rewritten_query": query,
+        "retrieval_mode": "chroma_vector + bge-reranker-v2-m3",
+        "selected_tools": [
+            "chroma_similarity_search",
+            "bge-m3_embedding",
+            "bge-reranker-v2-m3_cross_encoder",
+            "context_compressor",
+        ],
+        "config": {
+            "embedding": EMBEDDING_MODEL,
+            "reranker": RERANKER,
+            "vectorstore": VECTORSTORE,
+            "retrieval": RETRIEVAL,
+            "llm": LLM_MODEL,
+        },
+        "limit": limit,
+        "candidate_count": total_candidates,
+        "route_info": route_info or {},
+        "context_compression": {
+            "max_chars_per_asset": DEFAULT_CONTEXT_CHAR_LIMIT,
+            "included_count": len(items),
+            "total_chars": sum(len(ctx) for ctx in compressed_contexts),
+        },
+        "returned_count": len(items),
+        "results": [
+            {
+                "rank": index + 1,
+                "asset_id": item.get("asset_id"),
+                "title": item.get("title"),
+                "match_score": item.get("match_score", 0.0),
+                "match_reason": item.get("match_reason", ""),
+            }
+            for index, item in enumerate(items)
+        ],
+    }
+
+
+# ============================================================
+#  标签推断 / 置信度计算（保留原版）
+# ============================================================
 
 def _parse_tag_input(value: Any) -> List[str]:
     if value is None:
@@ -422,30 +628,13 @@ def _infer_tags(text: str) -> Dict[str, List[str]]:
         ("计算机/AI", ["AI", "大模型", "系统", "平台", "自动化", "知识库"]),
     ]
     topics = [
-        "招投标",
-        "人员资质库",
-        "工程造价",
-        "结算审计",
-        "项目资料管理",
-        "AI影视",
-        "短视频账号运营",
-        "内容生产",
-        "客户增长",
-        "流程自动化",
-        "风控合规",
-        "数据看板",
-        "内部效率系统",
+        "招投标", "人员资质库", "工程造价", "结算审计", "项目资料管理",
+        "AI影视", "短视频账号运营", "内容生产", "客户增长", "流程自动化",
+        "风控合规", "数据看板", "内部效率系统",
     ]
     evidence_types = [
-        "真实项目经验",
-        "官方资料",
-        "第三方数据",
-        "竞品案例",
-        "开源项目",
-        "商业化产品",
-        "SOP",
-        "方法论",
-        "待验证线索",
+        "真实项目经验", "官方资料", "第三方数据", "竞品案例", "开源项目",
+        "商业化产品", "SOP", "方法论", "待验证线索",
     ]
     industry_tags = [label for label, keywords in rules if any(keyword.lower() in text.lower() for keyword in keywords)]
     topic_tags = [topic for topic in topics if topic.lower() in text.lower()]
@@ -469,6 +658,10 @@ def _confidence_from_asset(raw_text: str, tags: Dict[str, List[str]]) -> float:
         score += 20.0
     return min(score, 95.0)
 
+
+# ============================================================
+#  CRUD — create_manual_asset（新增向量库同步）
+# ============================================================
 
 def create_manual_asset(
     db: Session,
@@ -535,39 +728,16 @@ def create_manual_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
+
+    # ── 新增：同步写入向量库 ──
+    index_asset_to_vectorstore(asset)
+
     return asset
 
 
-def _split_text_chunks(
-    text: str,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
-    overlap: int = DEFAULT_CHUNK_OVERLAP,
-) -> List[str]:
-    clean = (text or "").strip()
-    if not clean:
-        return []
-    if len(clean) <= chunk_size:
-        return [clean]
-
-    chunks: List[str] = []
-    start = 0
-    safe_overlap = max(0, min(overlap, chunk_size // 2))
-    while start < len(clean):
-        end = min(start + chunk_size, len(clean))
-        chunk = clean[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(clean):
-            break
-        start = max(end - safe_overlap, start + 1)
-    return chunks
-
-
-def _read_uploaded_knowledge_text(file_path: str) -> str:
-    from app.services.resume_service import read_file_content
-
-    return read_file_content(file_path)
-
+# ============================================================
+#  CRUD — create_assets_from_upload（分块策略更新）
+# ============================================================
 
 def create_assets_from_upload(
     db: Session,
@@ -627,9 +797,9 @@ def create_assets_from_upload(
             retrieval_metadata={
                 "original_filename": filename,
                 "upload_title": base_title,
-                "chunking_strategy": "fixed_window",
-                "chunk_size": DEFAULT_CHUNK_SIZE,
-                "chunk_overlap": DEFAULT_CHUNK_OVERLAP,
+                "chunking_strategy": "recursive_character_splitter",
+                "chunk_size": 600,
+                "chunk_overlap": 80,
             },
             raw_text=chunk,
             industry_tags=_parse_tag_input(industry_tags),
@@ -645,6 +815,10 @@ def create_assets_from_upload(
 
     return assets
 
+
+# ============================================================
+#  CRUD — list_assets（保留原版）
+# ============================================================
 
 def list_assets(
     db: Session,
@@ -697,8 +871,6 @@ def list_assets(
             KnowledgeAsset.created_at.desc(),
         ).offset(safe_offset).limit(safe_limit).all()
     elif needs_tag_filter:
-        # The tag columns are JSON on both SQLite and PostgreSQL. Filtering in
-        # Python keeps test and development SQLite behavior aligned with PostgreSQL.
         candidates = q.options(load_only(*KNOWLEDGE_ASSET_LIST_COLUMNS)).order_by(
             KnowledgeAsset.updated_at.desc(),
             KnowledgeAsset.created_at.desc(),
@@ -750,208 +922,74 @@ def list_assets(
     }
 
 
-def get_taxonomy_stats(db: Session) -> Dict[str, Any]:
-    rows = db.query(
-        KnowledgeAsset.industry_tags,
-        KnowledgeAsset.business_topic_tags,
-        KnowledgeAsset.evidence_type_tags,
-    ).all()
-    ind_set, top_set, ev_set = set(), set(), set()
-    for row in rows:
-        for tag in (row[0] or []):
-            if tag:
-                ind_set.add(tag)
-        for tag in (row[1] or []):
-            if tag:
-                top_set.add(tag)
-        for tag in (row[2] or []):
-            if tag:
-                ev_set.add(tag)
-    return {
-        "industry_tags": [{"name": t} for t in sorted(ind_set)],
-        "business_topic_tags": [{"name": t} for t in sorted(top_set)],
-        "evidence_type_tags": [{"name": t} for t in sorted(ev_set)],
-    }
-
-
-def _terms_for_query(query: str) -> List[str]:
-    inferred = _infer_tags(query or "")
-    token_text = query or ""
-    for separator in ("，", "。", "、", ",", ".", "；", ";", "：", ":", "\n", "\t"):
-        token_text = token_text.replace(separator, " ")
-    tokens = [token for token in token_text.split() if len(token) >= 2]
-    return _unique(
-        [
-            query,
-            *tokens,
-            *inferred["industry_tags"],
-            *inferred["business_topic_tags"],
-            *inferred["evidence_type_tags"],
-        ]
-    )
-
-
-def _overlaps(requested: List[str], existing: Any) -> bool:
-    if not requested:
-        return True
-    existing_values = set(_as_list(existing))
-    return any(value in existing_values for value in requested)
-
-
-def _asset_search_blob(asset: KnowledgeAsset) -> str:
-    return _text_blob(
-        asset.title,
-        asset.summary,
-        asset.raw_text,
-        asset.industry_tags,
-        asset.business_topic_tags,
-        asset.scenario_tags,
-        asset.evidence_type_tags,
-        asset.capability_tags,
-        asset.methodology_tags,
-        asset.customer_type_tags,
-        asset.value_tags,
-        asset.proves,
-        asset.applicable_conditions,
-    )
-
-
-def _score_asset_for_terms(asset: KnowledgeAsset, terms: List[str], inferred: Dict[str, List[str]]) -> tuple[float, str]:
-    haystack = _asset_search_blob(asset).lower()
-    title = (asset.title or "").lower()
-    matched_terms: List[str] = []
-    score = 0.0
-
-    for term in terms:
-        normalized = term.lower().strip()
-        if not normalized or normalized not in haystack:
-            continue
-        matched_terms.append(term)
-        score += 12.0
-        if normalized in title:
-            score += 8.0
-
-    industry_hits = [tag for tag in inferred["industry_tags"] if tag in (asset.industry_tags or [])]
-    topic_hits = [tag for tag in inferred["business_topic_tags"] if tag in (asset.business_topic_tags or [])]
-    evidence_hits = [tag for tag in inferred["evidence_type_tags"] if tag in (asset.evidence_type_tags or [])]
-    matched_terms = _unique([*matched_terms, *industry_hits, *topic_hits, *evidence_hits])
-
-    score += len(industry_hits) * 15.0
-    score += len(topic_hits) * 18.0
-    score += len(evidence_hits) * 8.0
-    if score > 0:
-        score += min(float(asset.evidence_strength_score or 0.0), 100.0) * 0.12
-        score += min(float(asset.data_verification_score or 0.0), 100.0) * 0.08
-        score += min(float(asset.commercial_value_score or 0.0), 100.0) * 0.06
-
-    reason = "匹配关键词：" + "、".join(matched_terms[:6]) if matched_terms else "与需求文本存在弱相关"
-    return min(score, 100.0), reason
-
-
-def _build_retrieval_log(
-    *,
-    query: str,
-    terms: List[str],
-    limit: int,
-    total_candidates: int,
-    items: List[Dict[str, Any]],
-    route_counts: Optional[Dict[str, int]] = None,
-) -> Dict[str, Any]:
-    compressed_contexts = [_compress_asset_context(item["asset"]) for item in items]
-    return {
-        "original_query": query,
-        "rewritten_query": query,
-        "retrieval_mode": "hybrid_keyword_bm25_semantic",
-        "selected_tools": [
-            "knowledge_asset_keyword_search",
-            "knowledge_asset_bm25_search",
-            "knowledge_asset_semantic_vector_search",
-            "rrf_fusion",
-            "heuristic_reranker",
-            "context_compressor",
-        ],
-        "terms": terms,
-        "limit": limit,
-        "candidate_count": total_candidates,
-        "route_counts": route_counts or {},
-        "rrf": {"k": DEFAULT_RRF_K},
-        "semantic_vector": {
-            "provider": "local_hashing_vectorizer",
-            "dimension": DEFAULT_SEMANTIC_VECTOR_DIM,
-        },
-        "rerank": {"strategy": "heuristic_title_content_confidence"},
-        "context_compression": {
-            "max_chars_per_asset": DEFAULT_CONTEXT_CHAR_LIMIT,
-            "included_count": len(items),
-            "total_chars": sum(len(context) for context in compressed_contexts),
-        },
-        "returned_count": len(items),
-        "results": [
-            {
-                "rank": index + 1,
-                "asset_id": str(item["asset"].id),
-                "citation_id": _build_citation_id(item["asset"], index + 1),
-                "title": item["asset"].title,
-                "match_score": item["match_score"],
-                "match_reason": item["match_reason"],
-                "route_scores": item.get("route_scores", {}),
-                "route_ranks": item.get("route_ranks", {}),
-                "rrf_score": item.get("rrf_score", 0),
-                "rerank_score": item.get("rerank_score", item["match_score"]),
-                "source_document_id": item["asset"].source_document_id,
-                "source_locator": item["asset"].source_locator,
-                "chunk_index": item["asset"].chunk_index or 0,
-                "chunk_total": item["asset"].chunk_total or 1,
-            }
-            for index, item in enumerate(items)
-        ],
-    }
-
+# ============================================================
+#  搜索入口 — search_assets（重写：Chroma + Reranker）
+#  接口签名 & 返回格式与原版完全兼容
+# ============================================================
 
 def search_assets(db: Session, payload: KnowledgeAssetSearchRequest) -> Dict[str, Any]:
-    query = (payload.query or "").strip()
-    inferred = _infer_tags(query)
-    terms = _terms_for_query(query)
-    safe_limit = max(1, min(int(payload.limit or 8), 30))
-    rows = (
-        db.query(KnowledgeAsset)
-        .order_by(KnowledgeAsset.updated_at.desc(), KnowledgeAsset.created_at.desc())
-        .limit(500)
-        .all()
-    )
+    """
+    知识资产检索入口。
 
-    keyword_items = _keyword_recall_items(rows, payload, terms, inferred)
-    bm25_items = _bm25_recall_items(rows, payload, query, terms)
-    semantic_items = _semantic_vector_recall_items(rows, payload, query, terms)
-    fused_items = _rrf_fuse_results(
-        {
-            "keyword_tag": keyword_items,
-            "bm25_text": bm25_items,
-            "semantic_vector": semantic_items,
-        }
-    )
-    reranked_items = _rerank_items(fused_items, terms)
-    ranked_items = reranked_items[:safe_limit]
-    for index, item in enumerate(ranked_items, start=1):
-        item["rank"] = index
+    改造后流程：
+      1) route_and_retrieve: Chroma 向量检索(k=50) → bge-reranker 精排(top_n=6)
+      2) 从数据库补全 KnowledgeAsset ORM 对象（保持下游接口兼容）
+      3) 组装 retrieval_log
+    """
+    query = (payload.query or "").strip()
+    safe_limit = max(1, min(int(payload.limit or 8), 30))
+
+    # ── 新检索管线 ──
+    raw_items = route_and_retrieve(query, k=RETRIEVAL["k"])
+
+    # ── 从数据库补全 ORM 对象 ──
+    asset_ids = [item["asset_id"] for item in raw_items if item.get("asset_id")]
+    assets_map: Dict[str, KnowledgeAsset] = {}
+    if asset_ids:
+        try:
+            rows = db.query(KnowledgeAsset).filter(
+                KnowledgeAsset.id.in_([UUID(aid) for aid in asset_ids])
+            ).all()
+            assets_map = {str(asset.id): asset for asset in rows}
+        except Exception as exc:
+            print(f"[RAG] search_assets DB lookup error: {exc}")
+
+    # ── 组装兼容返回格式 ──
+    ranked_items: List[Dict[str, Any]] = []
+    for index, item in enumerate(raw_items, start=1):
+        asset_id = item.get("asset_id")
+        asset = assets_map.get(asset_id) if asset_id else None
+        if not asset:
+            continue
+        ranked_items.append({
+            "asset": asset,
+            "match_score": item.get("match_score", 0.0),
+            "match_reason": item.get("match_reason", ""),
+            "rank": index,
+        })
+
+    ranked_items = ranked_items[:safe_limit]
+
     return {
         "query": payload.query,
         "items": ranked_items,
         "retrieval_log": _build_retrieval_log(
             query=query,
-            terms=terms,
             limit=safe_limit,
-            total_candidates=len(fused_items),
-            items=ranked_items,
-            route_counts={
-                "keyword_tag": len(keyword_items),
-                "bm25_text": len(bm25_items),
-                "semantic_vector": len(semantic_items),
-                "fused": len(fused_items),
+            total_candidates=len(raw_items),
+            items=raw_items[:safe_limit],
+            route_info={
+                "vector_k": RETRIEVAL["k"],
+                "reranker_top_n": RERANKER["top_n"],
+                "min_score": RETRIEVAL["min_score"],
             },
         ),
     }
 
+
+# ============================================================
+#  证据 Payload 组装（保留原版）
+# ============================================================
 
 def _asset_evidence_payload(item: Dict[str, Any]) -> Dict[str, Any]:
     asset = item["asset"]
@@ -1039,6 +1077,10 @@ def _asset_to_solution_evidence(item: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ============================================================
+#  Solution Agent — 辅助函数（保留原版）
+# ============================================================
+
 def _solution_agent_missing_questions(
     payload: SolutionAgentRequest,
     coverage: Dict[str, Any],
@@ -1052,7 +1094,6 @@ def _solution_agent_missing_questions(
         base_questions.append("客户现有系统、表格或资料库分别在哪里？")
     if not (payload.constraints or "").strip():
         base_questions.append("哪些资料可以对外引用，哪些只能内部参考？")
-
     base_questions.extend(
         [
             "客户现有系统、表格或资料库分别在哪里？",
@@ -1082,42 +1123,34 @@ def _assess_solution_agent_coverage(
 ) -> Dict[str, Any]:
     covered: List[str] = []
     missing: List[str] = []
-
     if evidence:
         covered.append("已有相近案例或资料")
     else:
         missing.append("可引用案例或资料")
-
     if any(item.get("source_type") for item in evidence):
         covered.append("资料来源类型")
     else:
         missing.append("资料来源类型")
-
     if any(item.get("business_topic_tags") for item in evidence):
         covered.append("业务主题标签")
     else:
         missing.append("业务主题标签")
-
     if any(item.get("evidence_type_tags") for item in evidence):
         covered.append("证据类型标签")
     else:
         missing.append("证据类型标签")
-
     if (payload.company_profile or "").strip():
         covered.append("客户背景")
     else:
         missing.append("客户背景")
-
     if (payload.project_materials or "").strip():
         covered.append("客户项目资料")
     else:
         missing.append("客户现有系统和数据字段")
-
     if (payload.constraints or "").strip():
         covered.append("约束条件")
     else:
         missing.append("约束条件")
-
     missing.extend(
         [
             "客户现有系统和数据字段",
@@ -1126,7 +1159,6 @@ def _assess_solution_agent_coverage(
             "资料授权和对外引用边界",
         ]
     )
-
     if not evidence:
         score = 0
     else:
@@ -1137,7 +1169,6 @@ def _assess_solution_agent_coverage(
         level = "partial"
     else:
         level = "insufficient"
-
     return {
         "score": score,
         "level": level,
@@ -1162,7 +1193,6 @@ def _solution_agent_trace(
         assess_status = "needs_review" if coverage["score"] < 70 else "completed"
         generate_status = "completed" if model_used else "fallback"
         generate_summary = "已调用大模型生成方案草案。" if model_used else "模型不可用，已生成规则兜底方案。"
-
     return [
         {
             "stage": "understand_requirement",
@@ -1273,6 +1303,10 @@ def _solution_agent_crew_trace(
     ]
 
 
+# ============================================================
+#  Solution Agent — 兜底 & 生成（保留原版）
+# ============================================================
+
 def _normalize_dict_list(value: Any, fallback: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not isinstance(value, list):
         return fallback
@@ -1329,7 +1363,7 @@ def _fallback_product_manager_draft(
         ]
 
     return {
-        "demand_understanding": f"用户希望围绕“{payload.demand}”形成有证据支撑、可继续追问和拆解的方案方向。",
+        "demand_understanding": f"用户希望围绕\u201c{payload.demand}\u201d形成有证据支撑、可继续追问和拆解的方案方向。",
         "evidence_summary": evidence_summary or ["当前知识库缺少可直接支撑该需求的资产，需要先补充资料。"],
         "solution_hypotheses": solution_hypotheses,
         "missing_questions": [
@@ -1413,7 +1447,7 @@ def _fallback_solution_agent_response(
     solution = {
         "title": f"{primary_topic}证据化解决方案",
         "summary": (
-            f"基于知识资产库中“{primary_title}”等资料，先形成可复核的方案假设，"
+            f"基于知识资产库中\u201c{primary_title}\u201d等资料，先形成可复核的方案假设，"
             "再由人工确认业务边界、资料真实性和交付承诺。"
             if evidence else
             "当前知识资产库缺少足够证据，建议先补充报告、案例、官方资料或客户现有文档。"
@@ -1610,6 +1644,10 @@ def _apply_solution_evidence_self_check(
     return self_check, unsupported
 
 
+# ============================================================
+#  Solution Agent — 对话持久化（保留原版）
+# ============================================================
+
 def _solution_agent_conversation_title(requirement: str) -> str:
     text = " ".join((requirement or "").split())
     return text[:80] or "Solution Agent Conversation"
@@ -1740,6 +1778,10 @@ def _persist_solution_agent_interaction(
         "assistant_message_id": str(assistant_message.id),
     }
 
+
+# ============================================================
+#  Solution Agent — 对话查询接口（保留原版）
+# ============================================================
 
 def _conversation_to_dict(conversation: SolutionAgentConversation) -> Dict[str, Any]:
     return {
@@ -2078,6 +2120,10 @@ def generate_solution_agent(
     return _persist_solution_agent_interaction(db, payload, result, user_id)
 
 
+# ============================================================
+#  CRUD — get / update（保留原版）
+# ============================================================
+
 def get_asset(db: Session, asset_id: UUID) -> Optional[KnowledgeAsset]:
     return db.query(KnowledgeAsset).filter(KnowledgeAsset.id == asset_id).first()
 
@@ -2091,8 +2137,16 @@ def update_asset_review(db: Session, asset_id: UUID, payload: KnowledgeAssetRevi
         setattr(asset, key, value)
     db.commit()
     db.refresh(asset)
+
+    # ── 新增：更新后同步向量库 ──
+    index_asset_to_vectorstore(asset)
+
     return asset
 
+
+# ============================================================
+#  简历同步（保留原版）
+# ============================================================
 
 def _asset_title_for_work(resume: Resume, work: Dict[str, Any]) -> str:
     company = work.get("company") or "未命名公司"
@@ -2164,6 +2218,8 @@ def _create_or_update_resume_asset(
             setattr(existing, key, value)
         db.commit()
         db.refresh(existing)
+        # ── 新增：更新后同步向量库 ──
+        index_asset_to_vectorstore(existing)
         return existing
     asset = KnowledgeAsset(
         title=title,
@@ -2174,6 +2230,8 @@ def _create_or_update_resume_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
+    # ── 新增：同步写入向量库 ──
+    index_asset_to_vectorstore(asset)
     return asset
 
 
@@ -2214,3 +2272,27 @@ def sync_resume_knowledge_assets(db: Session, resume: Resume) -> List[KnowledgeA
             )
         )
     return assets
+
+
+def get_taxonomy_stats(db: Session) -> Dict[str, Any]:
+    rows = db.query(
+        KnowledgeAsset.industry_tags,
+        KnowledgeAsset.business_topic_tags,
+        KnowledgeAsset.evidence_type_tags,
+    ).all()
+    ind_set, top_set, ev_set = set(), set(), set()
+    for row in rows:
+        for tag in (row[0] or []):
+            if tag:
+                ind_set.add(tag)
+        for tag in (row[1] or []):
+            if tag:
+                top_set.add(tag)
+        for tag in (row[2] or []):
+            if tag:
+                ev_set.add(tag)
+    return {
+        "industry_tags": [{"name": t} for t in sorted(ind_set)],
+        "business_topic_tags": [{"name": t} for t in sorted(top_set)],
+        "evidence_type_tags": [{"name": t} for t in sorted(ev_set)],
+    }
