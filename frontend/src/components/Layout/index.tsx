@@ -409,7 +409,6 @@ const AppLayout: React.FC = () => {
               <h2>{pageMeta.title}</h2>
               <span>{pageMeta.description}</span>
             </div>
-            <Tag color="processing" className="env-tag">{pageMeta.tag}</Tag>
           </Space>
           <Space size="large" className="app-header-actions">
             <Button

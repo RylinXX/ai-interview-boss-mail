@@ -260,8 +260,8 @@ const KnowledgeAssetsPage: React.FC = () => {
     setWorksLoading(true);
     try {
       const [summaryRes, resumeListRes]: [any, any] = await Promise.all([
-        request.get('/resumes/experience-summary', { params: { limit: 1000 }, timeout: 20000 }).catch(() => ({})),
-        request.get('/resumes', { params: { limit: 1000 } }).catch(() => []),
+        request.get('/resumes/experience-summary', { timeout: 20000 }).catch(() => ({})),
+        request.get('/resumes', { params: { limit: 500 } }).catch(() => []),
       ]);
 
       const rawLogic = summaryRes?.logic_analyses || summaryRes?.candidates || [];
@@ -270,10 +270,10 @@ const KnowledgeAssetsPage: React.FC = () => {
 
       // Build quick lookup map for resume tags and match score
       const resumeMap: Record<string, { tags: string[]; score: number; name: string }> = {};
-      const resumeNameMap: Record<string, { tags: string[]; score: number; name: string }> = {};
+      const resumeNameMap: Record<string, { tags: string[]; score: number }> = {};
 
-      allResumes.forEach((r: any, idx: number) => {
-        const id = String(r.id || r._id || '');
+      allResumes.forEach((r: any) => {
+        const id = r.id || r._id;
         const name = (r.name || r.candidate_name || '').trim();
 
         const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
@@ -288,7 +288,7 @@ const KnowledgeAssetsPage: React.FC = () => {
         );
 
         const allTags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
-        const score = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? (78 + (idx % 17));
+        const score = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 85;
 
         const info = { tags: allTags, score, name };
 
@@ -301,41 +301,37 @@ const KnowledgeAssetsPage: React.FC = () => {
       });
 
       // Map logic analyses into candidate capability assets
-      const candMapById: Record<string, boolean> = {};
-
       let candList: CandidateAsset[] = rawLogic.map((c: any, idx: number) => {
-        const resId = String(c.resume_id || c.id || '');
+        const resId = c.resume_id || c.id || '';
         const name = (c.candidate_name || '').trim();
 
         const matchedByResId = resId ? resumeMap[resId] : null;
         const matchedByName = name ? resumeNameMap[name] : null;
         const matched = matchedByResId || matchedByName;
 
-        if (resId) candMapById[resId] = true;
-
         const explicitTags = ensureArray(c.capability_tags || c.tags);
         const resumeTags = matched?.tags || [];
         const combinedTags = Array.from(new Set([...resumeTags, ...explicitTags]));
+        const finalTags = combinedTags;
 
-        const finalScore = matched?.score ?? c.match_score ?? c.fit_score ?? c.score ?? (78 + (idx % 17));
+        const finalScore = matched?.score ?? c.match_score ?? c.fit_score ?? c.score ?? 85;
 
         return {
           _rowKey: c.id || c.resume_id || `cand_${idx}`,
-          candidate_name: c.candidate_name || matched?.name || `专家人选 #${resId || idx + 1}`,
+          candidate_name: c.candidate_name || '专家样本',
           resume_id: resId,
           industry_label: c.industry_label || c.industry || '综合领域',
-          analysis: c.analysis || c.summary || c.logic_analysis || (combinedTags.length > 0 ? `核心能力标签: ${combinedTags.join(', ')}` : '能力论证链完备，具备高复杂场景交付能力'),
+          analysis: c.analysis || c.summary || c.logic_analysis || '能力论证链完备，具备高复杂场景交付能力',
           source_name: c.source_name || c.current_company || '履历出处',
-          capability_tags: combinedTags,
+          capability_tags: finalTags,
           fit_score: finalScore,
         };
       });
 
-      // Append any candidates from allResumes not in rawLogic to ensure 100% count alignment with talent database
-      allResumes.forEach((r: any, idx: number) => {
-        const resId = String(r.id || '');
-        if (resId && !candMapById[resId]) {
-          candMapById[resId] = true;
+      // Fallback: If logic_analyses is empty, map allResumes directly!
+      if (candList.length === 0 && allResumes.length > 0) {
+        candList = allResumes.map((r: any, idx: number) => {
+          const resId = r.id || '';
           const schoolTags = ensureArray(r.school_tags || r.parsed_data?.school_tags);
           const companyTags = ensureArray(r.company_tags || r.parsed_data?.company_tags);
           const skillTags = ensureArray(
@@ -347,45 +343,39 @@ const KnowledgeAssetsPage: React.FC = () => {
             r.tags
           );
           const tags = Array.from(new Set([...schoolTags, ...companyTags, ...skillTags]));
-          const score = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? (78 + (idx % 17));
+          const finalScore = r.match_score ?? r.score ?? r.fit_score ?? r.parsed_data?.match_score ?? 88;
 
-          candList.push({
-            _rowKey: `res_extra_${resId}`,
-            candidate_name: r.name || r.candidate_name || `专家人选 #${resId}`,
+          return {
+            _rowKey: r.id || `res_${idx}`,
+            candidate_name: r.name || r.candidate_name || `专家人选 #${idx + 1}`,
             resume_id: resId,
             industry_label: r.industry || r.target_position || '软件与IT服务',
             analysis: r.summary || (tags.length > 0 ? `核心能力标签: ${tags.join(', ')}` : '简历特征与打法推演已入库'),
             source_name: r.current_company || '履历样本出处',
             capability_tags: tags,
-            fit_score: score,
-          });
-        }
-      });
+            fit_score: finalScore,
+          };
+        });
+      }
 
       setCandidates(candList);
 
-      // Map work experiences with dynamic evidence strength score
+      // Map work experiences
       setWorks(
-        rawWorks.map((w: any, idx: number) => {
-          const resId = String(w.resume_id || '');
-          const matchedResume = resId ? resumeMap[resId] : (w.candidate_name ? resumeNameMap[w.candidate_name] : null);
-          const dynamicEvidenceScore = w.evidence_strength_score ?? w.match_score ?? matchedResume?.score ?? (78 + ((idx * 5) % 20));
-
-          return {
-            _rowKey: w.id || `work_${idx}_${w.company || ''}`,
-            candidate_name: w.candidate_name || matchedResume?.name || '专家人选',
-            resume_id: resId,
-            company: w.company || w.organization || '知名企业/机构',
-            department: w.department || '业务部门',
-            title: w.title || w.role || w.position || '核心岗位',
-            period: w.period || w.duration || '近期',
-            description: w.description || w.duty || w.summary || '主持完成架构升级与系统能力建设',
-            achievement: w.achievement || w.key_result || '交付验证良好',
-            industry_label: w.industry_label || '行业经验',
-            capability_tags: ensureArray(w.capability_tags || w.capabilities || w.tags),
-            evidence_strength_score: dynamicEvidenceScore,
-          };
-        })
+        rawWorks.map((w: any, idx: number) => ({
+          _rowKey: w.id || `work_${idx}_${w.company || ''}`,
+          candidate_name: w.candidate_name || '专家人选',
+          resume_id: w.resume_id || '',
+          company: w.company || w.organization || '知名企业/机构',
+          department: w.department || '业务部门',
+          title: w.title || w.role || w.position || '核心岗位',
+          period: w.period || w.duration || '近期',
+          description: w.description || w.duty || w.summary || '主持完成架构升级与系统能力建设',
+          achievement: w.achievement || w.key_result || '交付验证良好',
+          industry_label: w.industry_label || '行业经验',
+          capability_tags: ensureArray(w.capability_tags || w.capabilities || w.tags),
+          evidence_strength_score: w.evidence_strength_score || 88,
+        }))
       );
     } catch (e) {
       console.error('Failed to fetch experience summary', e);
