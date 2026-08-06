@@ -308,7 +308,7 @@ def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution:
         return llm_markdown.strip()
 
     title = solution.get("title") or "AI 业务解答"
-    summary = solution.get("summary") or "为您整理的相关分析与方案建议。"
+    summary = solution.get("summary") or "为您整理的相关分析与落地建议。"
 
     project_cases = context.get("project_cases") or []
     work_cases = context.get("work_cases") or []
@@ -319,11 +319,34 @@ def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution:
         f"{summary}\n",
     ]
 
+    cite_idx = 1
+    if project_cases or work_cases or knowledge_assets:
+        md_lines.append("#### 📌 过往类似案例与专家经验 [Reference]")
+        for p in project_cases[:3]:
+            candidate = p.get('candidate_name', '专家')
+            proj = p.get('project_name', '案例')
+            model = p.get('business_model') or p.get('solution') or '实操打法'
+            md_lines.append(f"- **[Reference {cite_idx}] 项目案例**: **{candidate}** 主导《{proj}》（成果: {model}）")
+            cite_idx += 1
+        for w in work_cases[:2]:
+            candidate = w.get('candidate_name', '专家')
+            comp = w.get('company', '企业')
+            role = w.get('role', '角色')
+            capabilities = ', '.join(w.get('capabilities', [])[:3]) if w.get('capabilities') else '核心能力'
+            md_lines.append(f"- **[Reference {cite_idx}] 专家履历**: **{candidate}**（曾任 **{comp}** {role}，具备 {capabilities}）")
+            cite_idx += 1
+        for k in knowledge_assets[:3]:
+            asset_title = k.get('title') or k.get('source_name') or '知识资产'
+            proves = ', '.join(k.get('proves', [])[:2]) if k.get('proves') else '行业证据'
+            md_lines.append(f"- **[Reference {cite_idx}] 私有强证据**: 《{asset_title}》（验证维度: {proves}）")
+            cite_idx += 1
+        md_lines.append("")
+
     rec_solutions = solution.get("recommended_solutions") or []
     if rec_solutions:
-        md_lines.append("#### 💡 建议落地方向")
+        md_lines.append("#### 🛠️ 参照过往经验，当前场景应该怎么做")
         for idx, item in enumerate(rec_solutions, start=1):
-            md_lines.append(f"**{idx}. {item.get('name', '系统实施方案方向')}**")
+            md_lines.append(f"**{idx}. {item.get('name', '关键要点')}**")
             if item.get('scenario'):
                 md_lines.append(f"- **适用场景**: {item.get('scenario')}")
             if item.get('value'):
@@ -332,34 +355,6 @@ def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution:
             if steps:
                 md_lines.append(f"- **落地步骤**: {' ➔ '.join(steps)}")
             md_lines.append("")
-
-    cite_idx = 1
-    if project_cases or work_cases or knowledge_assets:
-        md_lines.append("#### 📚 参考资料 (Reference)")
-        for p in project_cases[:3]:
-            candidate = p.get('candidate_name', '专家')
-            proj = p.get('project_name', '案例')
-            model = p.get('business_model') or p.get('solution') or '沉淀打法'
-            md_lines.append(f"- **[引用 {cite_idx}] 人才案例**: **{candidate}** - 《{proj}》（商业模式实操: {model}）")
-            cite_idx += 1
-        for w in work_cases[:2]:
-            candidate = w.get('candidate_name', '专家')
-            comp = w.get('company', '企业')
-            role = w.get('role', '角色')
-            capabilities = ', '.join(w.get('capabilities', [])[:3]) if w.get('capabilities') else '通用能力'
-            md_lines.append(f"- **[引用 {cite_idx}] 履历档案**: **{candidate}** (曾任职于 **{comp}** {role}，具备 {capabilities}）")
-            cite_idx += 1
-        for k in knowledge_assets[:3]:
-            asset_title = k.get('title') or k.get('source_name') or '知识资产'
-            proves = ', '.join(k.get('proves', [])[:2]) if k.get('proves') else '行业证据'
-            md_lines.append(f"- **[引用 {cite_idx}] 强证据知识资产**: 《{asset_title}》（证明维度: {proves}）")
-            cite_idx += 1
-
-    next_q = solution.get("next_questions") or []
-    if next_q:
-        md_lines.append("\n#### ❓ 建议探讨/深入问题")
-        for q in next_q:
-            md_lines.append(f"- {q}")
 
     return "\n".join(md_lines)
 

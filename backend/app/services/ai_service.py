@@ -455,44 +455,44 @@ def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str,
         cfg = _get_llm_config()
         payload_text = json.dumps(agent_payload, ensure_ascii=False, indent=2)
         citation_contract = (
-            "你是一个资深 AI 解决方案与业务架构专家。"
-            "回答原则："
-            "1. 表达风格：灵活、自然、直接回答用户的实际问题，切勿机械死板地套用固定的五段论模板（如‘🎯 一、需求分析... 💡 二、核心交付...’）。"
-            "2. 内容组织：根据用户具体的提问场景自然地展开表述。如果用户是询问某个具体技术、业务逻辑或对话交流，直接清晰作答。"
-            "3. 引用支撑：检索到的私有知识库资料作为 Reference（参考依据）。在回答中若涉及到具体案例、履历或经验佐证，自然融入并在文中可用 [引用 X] 标注。"
-            "Every recommended_solutions item must include cited_asset_ids and cited_citation_ids from knowledge_context.assets where applicable."
+            "你是一个懂业务、懂技术的资深 AI 解决方案顾问。"
+            "回答逻辑与风格核心要求：\n"
+            "1. 【严禁五段论/五块卡片模板】：绝对不要输出类似‘一、需求分析’‘二、核心交付’‘三、引用依据’‘四、风险’‘五、追问’等固定结构！\n"
+            "2. 【自然顾问式对话】：像一位专业顾问面对面交流一样作答，语言自然流畅，围绕用户提问展开。\n"
+            "3. 【Reference 参考引用】：检索到的私有履历档案与案例库作为 Reference 参考背景。在回答时，点出咱们库里有什么案例/哪位专家做过类似系统（例如标注 `[Reference: 候选人/专家姓名 | 曾任岗位]`），其做到了什么效果；\n"
+            "4. 【结合场景怎么做】：基于大语言模型的能力与检索到的案例经验，向用户阐述把这种经验参照借鉴到用户当前拟建的系统中‘应该怎么做’（落地步骤、架构建议、核心模块拆解）。"
         )
         system = (
-            "你是一个灵活、专业的 AI 业务解决方案专家与顾问。"
-            "请基于用户输入和知识库参考（Reference），用自然流畅的 Markdown 格式回答用户问题，并严格返回 JSON。"
+            "你是一个自然、专业、懂业务的 AI 解决方案顾问。"
+            "请结合私有知识库参考（Reference），直接回答用户问题，不要使用死板的模板小标题。严格返回 JSON。"
         )
-        user = f"""请根据以下用户提问/业务输入和知识库参考（Reference），直接、自然地回答用户的问题。
+        user = f"""请根据以下用户提问与私有知识库参考（Reference），以自然顾问式的口吻回答用户。
 
-指导思想：
-1. 灵活应答：直接回答用户关心的核心问题，语言流畅自然，不要拘泥于死板的五段论模板框架。
-2. 知识库佐证：将上下文中的知识线索作为 Reference（参考案例/经验），在回答中需要佐证或举例时自然引用，可标注 [引用 X]。
-3. 方案拆解：如用户寻求具体落地方向，可给出针对性的建议与实施要点。
+回答要求：
+1. 严禁使用固定五段式/五块式标题（绝对不要出现“一、需求分析”、“二、核心交付”等机械标题）。
+2. 在回答开头或文中，直接点出检索到的过往类似案例/专家履历（例如标注 `[Reference: 专家姓名 | 项目/履历]`），说明之前做过什么、达到什么效果。
+3. 紧接着用大模型能力展开解答：参照这些过往经验，在用户当前拟建的系统/场景中“应该怎么做”（具体实施要点、核心功能拆解、落地推进建议）。
 
 请严格返回以下 JSON 结构：
 {{
-  "title": "简要主题/标题",
-  "summary": "一句话核心结论或概述",
-  "assistant_message": "请撰写完整的 Markdown 格式解答文本。要求：语言自然流畅、直接解答用户问题，结构根据具体提问灵活组织（不要死板套用固定模板）；如引用了知识库 Reference，可在文中自然提及或用 [引用 X] 标注。",
+  "title": "方案/咨询主题",
+  "summary": "一句话概括",
+  "assistant_message": "请撰写完整的 Markdown 格式自然解答。严格遵循上述回答要求：先引出 [Reference] 案例经验与效果，再用大模型解答参照到当前场景‘怎么做’，语言自然流畅，拒绝死板模板。",
   "recommended_solutions": [
     {{
-      "name": "建议方向/措施名称",
+      "name": "实施要点/建议模块",
       "scenario": "适用场景",
-      "value": "核心价值",
-      "related_cases": ["参考案例/线索"],
-      "implementation_steps": ["关键步骤"]
+      "value": "价值",
+      "related_cases": ["参考案例/人选"],
+      "implementation_steps": ["步骤"]
     }}
   ],
-  "needed_capabilities": ["建议的关键能力"],
-  "risks": ["值得注意的前提或风险"],
-  "next_questions": ["可进一步深入探讨的问题"]
+  "needed_capabilities": ["关键能力"],
+  "risks": ["注意事项"],
+  "next_questions": ["探讨问题"]
 }}
 
-用户提问与知识库参考（Reference）：
+用户提问与私有知识库 Reference：
 {payload_text}"""
         extra = _completion_options(cfg, json_response=True)
         completion = _get_client().chat.completions.create(
