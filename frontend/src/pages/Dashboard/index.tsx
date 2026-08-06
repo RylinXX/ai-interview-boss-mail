@@ -116,16 +116,29 @@ const itemMatchesIndustry = (item: any, industryKey: string) => {
   return industryKey === 'all' || item.industry_key === industryKey;
 };
 
+let dashboardCache: {
+  resumeMetrics: ResumeMetrics;
+  projectLibrary: ProjectLibrary | null;
+  summary: ExperienceSummary | null;
+  updatedAt: number;
+} | null = null;
+
 const Dashboard: React.FC = () => {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const [resumeMetrics, setResumeMetrics] = useState<ResumeMetrics>(EMPTY_RESUME_METRICS);
-  const [summary, setSummary] = useState<ExperienceSummary | null>(null);
+  const [resumeMetrics, setResumeMetrics] = useState<ResumeMetrics>(
+    dashboardCache?.resumeMetrics || EMPTY_RESUME_METRICS
+  );
+  const [summary, setSummary] = useState<ExperienceSummary | null>(
+    dashboardCache?.summary || null
+  );
+  const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(
+    dashboardCache?.projectLibrary || null
+  );
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const dashboardRequestIdRef = useRef(0);
-  const [projectLibrary, setProjectLibrary] = useState<ProjectLibrary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!dashboardCache);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [projectKeyword, setProjectKeyword] = useState('');
@@ -156,53 +169,69 @@ const Dashboard: React.FC = () => {
     if (requestId !== dashboardRequestIdRef.current) return;
     setSummaryLoading(true);
     setSummaryError(null);
-    setSummary(null);
     try {
-      const summaryRes = await request.get('/resumes/experience-summary', { timeout: 20000 });
+      const summaryRes = await request.get('/resumes/experience-summary', { params: { limit: 2000 }, timeout: 30000 });
       if (requestId === dashboardRequestIdRef.current) {
-        setSummary(summaryRes as ExperienceSummary);
+        const nextSummary = summaryRes as ExperienceSummary;
+        setSummary(nextSummary);
+        if (dashboardCache) {
+          dashboardCache.summary = nextSummary;
+          dashboardCache.updatedAt = Date.now();
+        }
       }
     } catch (error) {
       if (requestId === dashboardRequestIdRef.current) {
         const errorMessage = getApiErrorMessage(error, '能力摘要加载失败，请重试');
         setSummaryError(errorMessage);
-        message.warning(errorMessage);
       }
     } finally {
       if (requestId === dashboardRequestIdRef.current) {
         setSummaryLoading(false);
       }
     }
-  }, [message]);
+  }, []);
 
   const fetchData = useCallback(async (initialLoad = false) => {
     const requestId = ++dashboardRequestIdRef.current;
-    setSummaryLoading(true);
     setSummaryError(null);
-    setSummary(null);
-    if (initialLoad) {
+    
+    // Only show full-page loading skeleton if we don't have any cached data
+    if (!dashboardCache && initialLoad) {
       setLoading(true);
       setLoadError(null);
-    } else {
+    } else if (!initialLoad) {
       setRefreshing(true);
     }
+
     try {
       const [resumeRes, projectRes] = await Promise.all([
         request.get('/resumes/metrics'),
-        request.get('/resumes/project-library', { timeout: 20000 }),
+        request.get('/resumes/project-library', { params: { limit: 2000 }, timeout: 30000 }),
       ]);
       if (requestId !== dashboardRequestIdRef.current) return;
-      setResumeMetrics(resumeRes as ResumeMetrics);
-      setProjectLibrary(projectRes as ProjectLibrary);
+
+      const nextMetrics = resumeRes as ResumeMetrics;
+      const nextProjects = projectRes as ProjectLibrary;
+
+      setResumeMetrics(nextMetrics);
+      setProjectLibrary(nextProjects);
       setLoading(false);
+
+      dashboardCache = {
+        resumeMetrics: nextMetrics,
+        projectLibrary: nextProjects,
+        summary: dashboardCache?.summary || null,
+        updatedAt: Date.now(),
+      };
 
       await fetchSummary(requestId);
     } catch (error) {
       if (requestId === dashboardRequestIdRef.current) {
         const errorMessage = getApiErrorMessage(error, '获取方案工作台失败，请稍后重试');
-        setLoadError(errorMessage);
-        message.error(errorMessage);
-        setSummaryLoading(false);
+        if (!dashboardCache) {
+          setLoadError(errorMessage);
+          message.error(errorMessage);
+        }
       }
     } finally {
       if (requestId === dashboardRequestIdRef.current) {
@@ -213,7 +242,11 @@ const Dashboard: React.FC = () => {
   }, [fetchSummary, message]);
 
   useEffect(() => {
-    fetchData(true);
+    // If cache is fresh (< 3 minutes), skip initial reload
+    const isCacheFresh = dashboardCache && (Date.now() - dashboardCache.updatedAt < 3 * 60 * 1000);
+    if (!isCacheFresh) {
+      fetchData(true);
+    }
   }, [fetchData]);
 
   const projects = useMemo(() => projectLibrary?.projects || [], [projectLibrary?.projects]);
