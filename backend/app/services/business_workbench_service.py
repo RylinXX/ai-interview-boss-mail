@@ -199,7 +199,7 @@ def _build_ai_employee_evidence_context(
         [message.content for message in payload.messages],
     ).lower()
     terms = _search_terms(query_text)
-    safe_limit = max(1, min(int(payload.limit or 300), 1000))
+    safe_limit = max(1, min(int(payload.limit or 50), 80))
 
     knowledge_types = payload.knowledge_types or []
     industries = payload.industries or []
@@ -307,35 +307,35 @@ def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution:
     if llm_markdown and isinstance(llm_markdown, str) and len(llm_markdown.strip()) > 30:
         return llm_markdown.strip()
 
-    title = solution.get("title") or "AI 业务解决方案"
-    summary = solution.get("summary") or "基于私有人才库档案与知识资产为您生成的深度解决方案。"
+    title = solution.get("title") or "AI 业务解答"
+    summary = solution.get("summary") or "为您整理的相关分析与方案建议。"
 
     project_cases = context.get("project_cases") or []
     work_cases = context.get("work_cases") or []
     knowledge_assets = context.get("knowledge_assets") or []
 
     md_lines = [
-        f"### 🎯 一、 需求分析与方案定位：{title}",
-        f"**客户咨询问题**: {payload.requirement.strip()}",
-        f"**方案总结与定位**: {summary}\n",
-        "### 💡 二、 核心交付方案与业务逻辑",
+        f"### {title}",
+        f"{summary}\n",
     ]
 
     rec_solutions = solution.get("recommended_solutions") or []
-    for idx, item in enumerate(rec_solutions, start=1):
-        md_lines.append(f"#### {idx}. {item.get('name', '系统实施方案方向')}")
-        if item.get('scenario'):
-            md_lines.append(f"- **适用业务场景**: {item.get('scenario')}")
-        if item.get('value'):
-            md_lines.append(f"- **核心商业价值**: {item.get('value')}")
-        steps = item.get('implementation_steps') or []
-        if steps:
-            md_lines.append(f"- **落地实施步骤**: {' ➔ '.join(steps)}")
-        md_lines.append("")
+    if rec_solutions:
+        md_lines.append("#### 💡 建议落地方向")
+        for idx, item in enumerate(rec_solutions, start=1):
+            md_lines.append(f"**{idx}. {item.get('name', '系统实施方案方向')}**")
+            if item.get('scenario'):
+                md_lines.append(f"- **适用场景**: {item.get('scenario')}")
+            if item.get('value'):
+                md_lines.append(f"- **核心价值**: {item.get('value')}")
+            steps = item.get('implementation_steps') or []
+            if steps:
+                md_lines.append(f"- **落地步骤**: {' ➔ '.join(steps)}")
+            md_lines.append("")
 
-    md_lines.append("### 📚 三、 私有数据库线索与真实依据引述")
     cite_idx = 1
     if project_cases or work_cases or knowledge_assets:
+        md_lines.append("#### 📚 参考资料 (Reference)")
         for p in project_cases[:3]:
             candidate = p.get('candidate_name', '专家')
             proj = p.get('project_name', '案例')
@@ -354,18 +354,12 @@ def _format_standard_solution_markdown(payload: AIEmployeeChatRequest, solution:
             proves = ', '.join(k.get('proves', [])[:2]) if k.get('proves') else '行业证据'
             md_lines.append(f"- **[引用 {cite_idx}] 强证据知识资产**: 《{asset_title}》（证明维度: {proves}）")
             cite_idx += 1
-    else:
-        md_lines.append("- 当前私有数据库中未匹配到直接对标的过往案例，建议导入更多相关领域的能力样本档案。\n")
 
-    md_lines.append("\n### ⚠️ 四、 假设前提与已知风险边界")
-    risks = solution.get("risks") or ["方案上线前需要由人工审核确认客户真实业务范围", "关键口径与交付范围需与客户二次确认"]
-    for r in risks:
-        md_lines.append(f"- {r}")
-
-    md_lines.append("\n### 🚀 五、 实施落地与交付拆解")
-    next_q = solution.get("next_questions") or ["客户当前最优先希望先交付的成果模块是什么？", "是否已有历史数据或试点部门？"]
-    for q in next_q:
-        md_lines.append(f"- ❓ **追问建议**: {q}")
+    next_q = solution.get("next_questions") or []
+    if next_q:
+        md_lines.append("\n#### ❓ 建议探讨/深入问题")
+        for q in next_q:
+            md_lines.append(f"- {q}")
 
     return "\n".join(md_lines)
 
@@ -485,14 +479,9 @@ def chat_with_ai_employee(db: Session, payload: AIEmployeeChatRequest, user_id: 
             "candidate_count": context["candidate_count"],
         },
         "instruction": (
-            "你是一个专业的 AI 解决方案顾问。请严格按照以下六段式结构输出深度解决方案：\n"
-            "一、客户痛点诊断\n"
-            "二、核心打法与业务逻辑\n"
-            "三、落地执行路径（阶段/步骤）\n"
-            "四、匹配专家/人才推荐\n"
-            "五、参考案例与数据依据（引用私有知识库）\n"
-            "六、已知风险与注意事项\n"
-            "强调无引用不编造，观点与建议须有真实私有资产支撑。"
+            "你是一个资深、灵活且专业的 AI 业务解决方案与技术顾问。"
+            "请基于用户需求和检索到的私有 Reference 资料，用自然、流畅的 Markdown 格式直接解答用户的问题。"
+            "切勿死板机械地套用固定的段落模板。请直接回答用户关心的核心诉求，观点与建议若有参考资料，可在文中自然融入并在适当位置标注 [引用 X]。"
         ),
     }
     generated = generate_solution_agent_response(llm_payload)
