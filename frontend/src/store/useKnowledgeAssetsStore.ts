@@ -288,7 +288,7 @@ export const useKnowledgeAssetsStore = create<KnowledgeAssetsStore>((set, get) =
 
     const promise = (async () => {
       try {
-        const summaryRes: any = await request.get('/resumes/experience-summary', { timeout: 30000 }).catch(() => ({}));
+        const summaryRes: any = await request.get('/resumes/experience-summary', { params: { limit: 2000 }, timeout: 30000 }).catch(() => ({}));
 
         const rawLogic = summaryRes?.logic_analyses || summaryRes?.candidates || [];
         const rawWorks = summaryRes?.work_experiences || [];

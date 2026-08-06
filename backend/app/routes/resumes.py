@@ -182,7 +182,7 @@ def reparse_failed_resumes_route(
 
 @router.get("/experience-summary")
 def get_resume_experience_summary_route(
-    limit: int = 500,
+    limit: int = 2000,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -191,7 +191,7 @@ def get_resume_experience_summary_route(
 
 @router.get("/project-library")
 def get_resume_project_library_route(
-    limit: int = 500,
+    limit: int = 2000,
     missing_only: bool = False,
     candidate_name: str = None,
     db: Session = Depends(get_db),
@@ -214,7 +214,7 @@ def get_resume_queue_stats_route(
 
 @router.get("/industry-agent")
 def get_industry_solution_agent_route(
-    limit: int = 500,
+    limit: int = 2000,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

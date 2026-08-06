@@ -767,8 +767,8 @@ def _industry_summary_from_items(items: List[Dict[str, Any]]) -> List[Dict[str, 
     return rows
 
 
-def summarize_resume_experiences(db: Session, limit: int = 500) -> Dict[str, Any]:
-    safe_limit = max(1, min(int(limit or 500), 1000))
+def summarize_resume_experiences(db: Session, limit: int = 2000) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 2000), 5000))
     resumes = (
         db.query(Resume)
         .filter(Resume.parsed_data.isnot(None))
@@ -942,8 +942,8 @@ def _match_industry(text: str) -> Dict[str, Any]:
     return scored[0][1]
 
 
-def summarize_industry_solution_agent(db: Session, limit: int = 500) -> Dict[str, Any]:
-    safe_limit = max(1, min(int(limit or 500), 1000))
+def summarize_industry_solution_agent(db: Session, limit: int = 2000) -> Dict[str, Any]:
+    safe_limit = max(1, min(int(limit or 2000), 5000))
     resumes = (
         db.query(Resume)
         .filter(Resume.parsed_data.isnot(None))
