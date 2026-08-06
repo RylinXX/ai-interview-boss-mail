@@ -326,7 +326,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '项目打法与样本出处',
       dataIndex: 'name',
       key: 'name',
-      width: '34%',
+      width: 320,
       render: (text: string, record: ProjectAsset) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
@@ -347,7 +347,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '缺失证据链',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: '20%',
+      width: 200,
       render: (items: any) => {
         const arr = ensureArray(items);
         return arr.length ? (
@@ -369,24 +369,24 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '预估打法方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: '16%',
+      width: 180,
       render: (items: any) => renderTags(items, 'geekblue', 2),
     },
     {
       title: '操作',
       key: 'action',
-      width: 280,
+      width: 240,
       align: 'center' as const,
       fixed: 'right' as const,
       render: (_: any, record: ProjectAsset) => (
-        <Space size={8} wrap={false} style={{ whiteSpace: 'nowrap' }}>
+        <Space size={6} wrap={false} style={{ whiteSpace: 'nowrap' }}>
           <Button
             type="primary"
             ghost
             size="small"
             icon={<RobotOutlined />}
             onClick={() => navigate(`/workbench?project_name=${encodeURIComponent(record.name)}`)}
-            style={{ borderRadius: '4px', padding: '0 8px' }}
+            style={{ borderRadius: '4px' }}
           >
             调起 AI 助手
           </Button>
@@ -396,9 +396,9 @@ const KnowledgeAssetsPage: React.FC = () => {
               size="small"
               icon={<EyeOutlined />}
               onClick={() => navigate(`/resumes/${record.resume_id}`)}
-              style={{ padding: '0 6px', borderRadius: '4px' }}
+              style={{ padding: '0 4px', borderRadius: '4px' }}
             >
-              履历与证据
+              查看履历
             </Button>
           ) : null}
         </Space>
