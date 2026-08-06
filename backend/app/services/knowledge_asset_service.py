@@ -1935,47 +1935,41 @@ def _format_knowledge_asset_solution_markdown(payload: SolutionAgentRequest, sol
     if llm_markdown and isinstance(llm_markdown, str) and len(llm_markdown.strip()) > 30:
         return llm_markdown.strip()
 
-    title = solution.get("title") or "AI 业务解决方案"
-    summary = solution.get("summary") or "基于检索到的知识资产与项目经验为您生成的系统解决方案。"
+    title = solution.get("title") or "AI 业务解答"
+    summary = solution.get("summary") or "为您整理的相关分析与方案建议。"
 
     md_lines = [
-        f"### 🎯 一、 需求分析与方案定位：{title}",
-        f"**需求内容**: {payload.requirement.strip()}",
-        f"**方案定位与概述**: {summary}\n",
-        "### 💡 二、 核心交付方案与业务逻辑",
+        f"### {title}",
+        f"{summary}\n",
     ]
 
     rec_solutions = solution.get("recommended_solutions") or []
-    for idx, item in enumerate(rec_solutions, start=1):
-        md_lines.append(f"#### {idx}. {item.get('name', '系统方案方向')}")
-        if item.get('scenario'):
-            md_lines.append(f"- **应用场景**: {item.get('scenario')}")
-        if item.get('value'):
-            md_lines.append(f"- **核心商业价值**: {item.get('value')}")
-        steps = item.get('implementation_steps') or []
-        if steps:
-            md_lines.append(f"- **落地实施步骤**: {' ➔ '.join(steps)}")
-        md_lines.append("")
+    if rec_solutions:
+        md_lines.append("#### 💡 核心建议与落地方案")
+        for idx, item in enumerate(rec_solutions, start=1):
+            md_lines.append(f"**{idx}. {item.get('name', '关键方向')}**")
+            if item.get('scenario'):
+                md_lines.append(f"- **适用场景**: {item.get('scenario')}")
+            if item.get('value'):
+                md_lines.append(f"- **业务价值**: {item.get('value')}")
+            steps = item.get('implementation_steps') or []
+            if steps:
+                md_lines.append(f"- **实施步骤**: {' ➔ '.join(steps)}")
+            md_lines.append("")
 
-    md_lines.append("### 📚 三、 私有数据库线索与真实依据引述")
     if evidence:
+        md_lines.append("#### 📚 参考资料 (Reference)")
         for idx, item in enumerate(evidence[:6], start=1):
-            title_text = item.get('title') or item.get('source_name') or item.get('candidate_name') or item.get('project_name') or '知识资产'
-            source_type = item.get('source_type') or '数据库实体'
-            summary_text = item.get('summary') or item.get('solution') or item.get('match_reason') or '匹配线索'
-            md_lines.append(f"- **[引用 {idx}] {source_type}**: 《{title_text}》（线索摘要: {summary_text}）")
-    else:
-        md_lines.append("- 当前知识资产库中未匹配到可作为直接证据的条目，建议充实资产库样本。\n")
+            title_text = item.get('title') or item.get('source_name') or item.get('candidate_name') or item.get('project_name') or '知识线索'
+            source_type = item.get('source_type') or '私有库'
+            summary_text = item.get('summary') or item.get('solution') or item.get('match_reason') or '相关背景'
+            md_lines.append(f"- **[引用 {idx}] {source_type}**: 《{title_text}》（{summary_text}）")
 
-    md_lines.append("\n### ⚠️ 四、 假设前提与已知风险边界")
-    risks = solution.get("risks") or ["方案交付范围与数据边界需要人工审查确认"]
-    for r in risks:
-        md_lines.append(f"- {r}")
-
-    md_lines.append("\n### 🚀 五、 实施落地与交付拆解")
-    next_q = solution.get("next_questions") or ["客户当前最核心的交付诉求是什么？"]
-    for q in next_q:
-        md_lines.append(f"- ❓ **追问建议**: {q}")
+    next_q = solution.get("next_questions") or []
+    if next_q:
+        md_lines.append("\n#### ❓ 建议探讨/深入问题")
+        for q in next_q:
+            md_lines.append(f"- {q}")
 
     return "\n".join(md_lines)
 

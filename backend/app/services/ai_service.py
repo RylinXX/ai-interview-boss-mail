@@ -455,42 +455,44 @@ def generate_solution_agent_response(agent_payload: Dict[str, Any]) -> Dict[str,
         cfg = _get_llm_config()
         payload_text = json.dumps(agent_payload, ensure_ascii=False, indent=2)
         citation_contract = (
-            "Every recommended_solutions item must include cited_asset_ids and cited_citation_ids "
-            "from knowledge_context.assets. Unsupported solution claims must be listed in "
-            "unsupported_claims instead of being presented as supported facts."
+            "你是一个资深 AI 解决方案与业务架构专家。"
+            "回答原则："
+            "1. 表达风格：灵活、自然、直接回答用户的实际问题，切勿机械死板地套用固定的五段论模板（如‘🎯 一、需求分析... 💡 二、核心交付...’）。"
+            "2. 内容组织：根据用户具体的提问场景自然地展开表述。如果用户是询问某个具体技术、业务逻辑或对话交流，直接清晰作答。"
+            "3. 引用支撑：检索到的私有知识库资料作为 Reference（参考依据）。在回答中若涉及到具体案例、履历或经验佐证，自然融入并在文中可用 [引用 X] 标注。"
+            "Every recommended_solutions item must include cited_asset_ids and cited_citation_ids from knowledge_context.assets where applicable."
         )
         system = (
-            "你是一个行业解决方案智能体，擅长把人才库、项目库和公司经历转化成可落地的AI/数字化方案。"
-            "请严格返回 JSON，不要添加额外说明。"
+            "你是一个灵活、专业的 AI 业务解决方案专家与顾问。"
+            "请基于用户输入和知识库参考（Reference），用自然流畅的 Markdown 格式回答用户问题，并严格返回 JSON。"
         )
-        user = f"""请根据以下业务输入和知识库上下文，生成一份面向客户的方案草案。
+        user = f"""请根据以下用户提问/业务输入和知识库参考（Reference），直接、自然地回答用户的问题。
 
-要求：
-1. 方案必须引用已有项目或公司经验作为依据，不要编造真实客户名称或财务数据。
-2. 结合用户的行业、业务流程、痛点和目标，给出 2 到 4 个可落地方向。
-3. 每个方向说明应用场景、业务价值、相关案例和落地步骤。
-4. 如果信息不足，在 next_questions 中给出继续追问用户的问题。
+指导思想：
+1. 灵活应答：直接回答用户关心的核心问题，语言流畅自然，不要拘泥于死板的五段论模板框架。
+2. 知识库佐证：将上下文中的知识线索作为 Reference（参考案例/经验），在回答中需要佐证或举例时自然引用，可标注 [引用 X]。
+3. 方案拆解：如用户寻求具体落地方向，可给出针对性的建议与实施要点。
 
-请严格返回以下 JSON：
+请严格返回以下 JSON 结构：
 {{
-  "title": "方案标题",
-  "summary": "一段方案概述",
-  "assistant_message": "请撰写完整的 Markdown 格式大模型解答文本（分为：🎯 一、需求分析与方案定位 | 💡 二、核心交付方案 | 📚 三、私有数据库线索与依据 | ⚠️ 四、假设与风险 | 🚀 五、实施落地步骤），并在文中用 [引用 X] 明确标注引用的知识线索",
+  "title": "简要主题/标题",
+  "summary": "一句话核心结论或概述",
+  "assistant_message": "请撰写完整的 Markdown 格式解答文本。要求：语言自然流畅、直接解答用户问题，结构根据具体提问灵活组织（不要死板套用固定模板）；如引用了知识库 Reference，可在文中自然提及或用 [引用 X] 标注。",
   "recommended_solutions": [
     {{
-      "name": "方案名称",
+      "name": "建议方向/措施名称",
       "scenario": "适用场景",
-      "value": "业务价值",
-      "related_cases": ["引用的项目或公司经验"],
-      "implementation_steps": ["落地步骤"]
+      "value": "核心价值",
+      "related_cases": ["参考案例/线索"],
+      "implementation_steps": ["关键步骤"]
     }}
   ],
-  "needed_capabilities": ["需要的人才或交付能力"],
-  "risks": ["风险或前提条件"],
-  "next_questions": ["继续追问用户的问题"]
+  "needed_capabilities": ["建议的关键能力"],
+  "risks": ["值得注意的前提或风险"],
+  "next_questions": ["可进一步深入探讨的问题"]
 }}
 
-业务输入和知识库上下文：
+用户提问与知识库参考（Reference）：
 {payload_text}"""
         extra = _completion_options(cfg, json_response=True)
         completion = _get_client().chat.completions.create(
