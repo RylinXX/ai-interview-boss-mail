@@ -326,7 +326,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '项目打法与样本出处',
       dataIndex: 'name',
       key: 'name',
-      width: '32%',
+      width: '34%',
       render: (text: string, record: ProjectAsset) => (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Text strong style={{ fontSize: '14px', color: '#1e293b' }}>
@@ -347,7 +347,7 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '缺失证据链',
       dataIndex: 'missing_evidence',
       key: 'missing_evidence',
-      width: '22%',
+      width: '20%',
       render: (items: any) => {
         const arr = ensureArray(items);
         return arr.length ? (
@@ -369,23 +369,24 @@ const KnowledgeAssetsPage: React.FC = () => {
       title: '预估打法方向',
       dataIndex: 'landing_ideas',
       key: 'landing_ideas',
-      width: '22%',
+      width: '16%',
       render: (items: any) => renderTags(items, 'geekblue', 2),
     },
     {
       title: '操作',
       key: 'action',
-      width: 220,
+      width: 280,
       align: 'center' as const,
+      fixed: 'right' as const,
       render: (_: any, record: ProjectAsset) => (
-        <Space size={6} wrap={false} style={{ whiteSpace: 'nowrap' }}>
+        <Space size={8} wrap={false} style={{ whiteSpace: 'nowrap' }}>
           <Button
             type="primary"
             ghost
             size="small"
             icon={<RobotOutlined />}
             onClick={() => navigate(`/workbench?project_name=${encodeURIComponent(record.name)}`)}
-            style={{ borderRadius: '4px' }}
+            style={{ borderRadius: '4px', padding: '0 8px' }}
           >
             调起 AI 助手
           </Button>
@@ -395,7 +396,7 @@ const KnowledgeAssetsPage: React.FC = () => {
               size="small"
               icon={<EyeOutlined />}
               onClick={() => navigate(`/resumes/${record.resume_id}`)}
-              style={{ padding: '0 4px', borderRadius: '4px' }}
+              style={{ padding: '0 6px', borderRadius: '4px' }}
             >
               履历与证据
             </Button>
